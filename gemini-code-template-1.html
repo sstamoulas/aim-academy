@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anas Ibn Malik Academy | Weekend Islamic School in Chantilly, VA</title>
+    <!-- Tailwind CSS CDN for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Quicksand for a friendly, modern, child-centered aesthetic -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Quicksand', 'sans-serif'],
+                    },
+                    colors: {
+                        sage: {
+                            50: '#f4f7f5',
+                            100: '#e6ede8',
+                            600: '#557a61',
+                            700: '#44624e',
+                        },
+                        amberAccent: '#d97706', /* Warm, high-converting orange-yellow */
+                        woodDark: '#2b2118',    /* Rich brown for organic contrast */
+                        creamBase: '#fbfaf7',   /* Replaces gloomy stark white */
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .wood-texture {
+            background-color: #3e3024;
+            background-image: linear-gradient(rgba(0,0,0,0.15) 1px, transparent 1px);
+            background-size: 100% 4px;
+        }
+    </style>
+</head>
+<body class="bg-creamBase font-sans text-stone-800 antialiased selection:bg-sage-100">
+
+    <!-- 1. HEADER & NAVIGATION -->
+    <header class="sticky top-0 z-50 bg-creamBase/95 backdrop-blur border-b border-stone-200/60 shadow-xs">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <!-- Brand Logo Frame -->
+            <a href="#" class="flex items-center gap-3 group">
+                <div class="w-10 h-10 bg-sage-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-md transform group-hover:rotate-6 transition-transform">
+                    A
+                </div>
+                <div class="flex flex-col">
+                    <span class="font-bold text-lg tracking-tight text-woodDark leading-none">Anas Ibn Malik</span>
+                    <span class="text-xs font-semibold text-sage-600 tracking-wider uppercase mt-1">Academy</span>
+                </div>
+            </a>
+
+            <!-- Desktop Links -->
+            <nav class="hidden md:flex items-center gap-8 font-semibold text-stone-600">
+                <a href="#about" class="hover:text-sage-600 transition-colors">About</a>
+                <a href="#programs" class="hover:text-sage-600 transition-colors">Programs</a>
+                <a href="#gallery" class="hover:text-sage-600 transition-colors">Gallery</a>
+                <a href="#contact" class="hover:text-sage-600 transition-colors">Contact</a>
+            </nav>
+
+            <!-- Desktop CTA -->
+            <div class="hidden md:flex items-center">
+                <a href="#programs" class="bg-amberAccent hover:bg-amber-700 text-white font-bold px-6 py-2.5 rounded-full shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 text-center">
+                    Register Now
+                </a>
+            </div>
+
+            <!-- Mobile Menu Toggle Button -->
+            <button id="mobile-menu-btn" class="md:hidden p-2 text-stone-600 focus:outline-hidden" aria-label="Toggle Menu">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+        </div>
+
+        <!-- Mobile Drawer Menu Dropdown -->
+        <div id="mobile-menu" class="hidden md:hidden border-t border-stone-200 bg-creamBase px-4 py-4 space-y-3 shadow-inner">
+            <a href="#about" class="block font-semibold py-2 text-stone-600 mobile-nav-link">About</a>
+            <a href="#programs" class="block font-semibold py-2 text-stone-600 mobile-nav-link">Programs</a>
+            <a href="#gallery" class="block font-semibold py-2 text-stone-600 mobile-nav-link">Gallery</a>
+            <a href="#contact" class="block font-semibold py-2 text-stone-600 mobile-nav-link">Contact</a>
+            <a href="#programs" class="block bg-amberAccent text-white text-center font-bold py-3 rounded-xl mt-4">Register Now</a>
+        </div>
+    </header>
+
+    <main>
+        <!-- 2. HERO SECTION -->
+        <section class="relative bg-sage-100 overflow-hidden py-16 lg:py-24">
+            <!-- Decorative organic accent shapes to give a kid-friendly feel -->
+            <div class="absolute top-12 left-6 w-24 h-24 bg-sage-600/10 rounded-full blur-xl"></div>
+            <div class="absolute bottom-6 right-12 w-36 h-36 bg-amberAccent/10 rounded-full blur-2xl"></div>
+
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                <!-- Text / Marketing Message Layout -->
+                <div class="lg:col-span-6 space-y-6 text-center lg:text-left">
+                    <span class="inline-flex items-center gap-1.5 bg-white border border-sage-600/20 text-sage-700 text-sm font-bold px-4 py-1.5 rounded-full shadow-xs">
+                        ✨ Enrolling for Fall 2026
+                    </span>
+                    <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-woodDark leading-tight tracking-tight">
+                        Building Bright Futures on <span class="text-sage-600">Sacred Foundations.</span>
+                    </h1>
+                    <p class="text-lg text-stone-600 max-w-xl mx-auto lg:mx-0 font-medium leading-relaxed">
+                        Nurturing minds, character, and faith through joyful, hands-on learning experiences designed to prepare children for the future.
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-2">
+                        <a href="#programs" class="bg-sage-600 hover:bg-sage-700 text-white font-bold px-8 py-4 rounded-full shadow-lg hover:shadow-xl transition-all text-center">
+                            Explore Our Programs
+                        </a>
+                        <a href="#about" class="bg-white hover:bg-stone-50 text-stone-700 border border-stone-300 font-bold px-8 py-4 rounded-full shadow-sm text-center transition-colors">
+                            Learn More
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Picture-First Presentation Area -->
+                <div class="lg:col-span-6 relative">
+                    <div class="relative mx-auto max-w-md lg:max-w-none aspect-4/3 rounded-3xl overflow-hidden shadow-2xl border-4 border-white transform rotate-1">
+                        <!-- High Quality Placeholder representing child-centric, joyful education -->
+                        <img src="https://images.unsplash.com/photo-1588072432836-e10032774350?auto=format&fit=crop&w=800&q=80" alt="Children learning happily in a warm classroom environment" class="object-cover w-full h-full w-full h-full">
+                        <!-- Layer Overlay for psychological warmth -->
+                        <div class="absolute inset-0 bg-linear-to-t from-woodDark/40 via-transparent to-transparent"></div>
+                    </div>
+                    <!-- Small hanging wood sign badge -->
+                    <div class="wood-texture absolute -bottom-4 -left-4 text-white p-4 rounded-2xl shadow-xl hidden sm:block max-w-xs border border-stone-700/50">
+                        <p class="text-sm font-semibold tracking-wide text-amber-200 uppercase">Our Objective</p>
+                        <p class="font-bold text-base mt-0.5 leading-snug">Based on the Quran and authentic Sunnah.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. THE "WHY US" VISUAL GRID -->
+        <section id="about" class="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-3xl mx-auto mb-16 space-y-3">
+                <h2 class="text-3xl font-bold text-woodDark sm:text-4xl">A Different Kind of Weekend Academy</h2>
+                <div class="w-16 h-1 bg-amberAccent mx-auto rounded-full"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- Card 1: Sage Background -->
+                <div class="bg-sage-50 border border-sage-600/10 rounded-2xl p-8 flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <div class="w-12 h-12 bg-sage-600/10 rounded-xl flex items-center justify-center text-sage-700 font-bold text-xl mb-6">📖</div>
+                        <h3 class="text-xl font-bold text-woodDark mb-3">Authentic Sunnah</h3>
+                        <p class="text-stone-600 font-medium leading-relaxed">Character built explicitly on core prophetic traditions and values, making faith relatable for today's children.</p>
+                    </div>
+                    <div class="mt-6 pt-4 border-t border-stone-200/60 text-xs font-bold uppercase tracking-wider text-sage-700">Pillar One</div>
+                </div>
+
+                <!-- Card 2: Matte Wood Tone -->
+                <div class="wood-texture text-white border border-stone-800 rounded-2xl p-8 flex flex-col justify-between hover:shadow-lg transition-shadow">
+                    <div>
+                        <div class="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center text-xl mb-6">🎨</div>
+                        <h3 class="text-xl font-bold text-amber-200 mb-3">Hands-On Experience</h3>
+                        <p class="text-stone-200 font-medium leading-relaxed">Baking workshops, craft integration, and interactive challenges that turn lessons into life-long sticky memories.</p>
+                    </div>
+                    <div class="mt-6 pt-4 border-t border-white/10 text-xs font-bold uppercase tracking-wider text-amber-200">Pillar Two</div>
+                </div>
+
+                <!-- Card 3: Light Neutral Accent -->
+                <div class="bg-stone-100 border border-stone-200 rounded-2xl p-8 flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <div class="w-12 h-12 bg-amberAccent/10 rounded-xl flex items-center justify-center text-xl mb-6">☀️</div>
+                        <h3 class="text-xl font-bold text-woodDark mb-3">Joyful Environment</h3>
+                        <p class="text-stone-600 font-medium leading-relaxed">Thoughtfully engineered space completely devoid of cold, gloomy institutional design. A place kids actually look forward to.</p>
+                    </div>
+                    <div class="mt-6 pt-4 border-t border-stone-200/60 text-xs font-bold uppercase tracking-wider text-stone-500">Pillar Three</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. DIRECT ACTION / MARKETING CENTERS -->
+        <section id="programs" class="py-20 bg-stone-50/60 border-y border-stone-200/60">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center max-w-3xl mx-auto mb-16 space-y-3">
+                    <h2 class="text-3xl font-bold text-woodDark sm:text-4xl">Choose Your Child's Journey</h2>
+                    <p class="text-stone-500 font-medium">Streamlined enrollments to minimize overhead friction.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                    <!-- Path A: Main Program -->
+                    <div class="bg-white rounded-3xl p-8 shadow-sm border border-stone-200/80 flex flex-col justify-between relative overflow-hidden group">
+                        <div class="space-y-6">
+                            <div class="aspect-video rounded-2xl overflow-hidden shadow-xs relative">
+                                <img src="https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=600&q=80" alt="Active learning session" class="object-cover w-full h-full transform group-hover:scale-102 transition-transform duration-300">
+                            </div>
+                            <div>
+                                <h3 class="text-2xl font-bold text-woodDark">The Weekend Academy</h3>
+                                <p class="text-stone-500 text-sm font-semibold mt-1">Ages 5 and up • Core Curriculum</p>
+                            </div>
+                            <p class="text-stone-600 font-medium leading-relaxed">
+                                A comprehensive multi-week framework focused on essential Islamic knowledge, sound text recitation, and identity formation tailored to western cultural landscapes.
+                            </p>
+                        </div>
+                        <div class="mt-8 pt-4">
+                            <a href="#" class="inline-flex items-center gap-2 text-sage-700 font-bold hover:text-sage-600 text-lg transition-colors group-hover:translate-x-1 transform duration-200">
+                                View School Schedule & Schedule Visit →
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Path B: Special Events (Scarcity Driver) -->
+                    <div class="bg-white rounded-3xl p-8 shadow-sm border border-stone-200/80 flex flex-col justify-between relative overflow-hidden group">
+                        <!-- Scarcity Tag -->
+                        <div class="absolute top-4 right-4 z-10 bg-amber-100 text-amberAccent text-xs font-extrabold uppercase tracking-widest px-3 py-1.5 rounded-full border border-amber-200">
+                            Sold Out
+                        </div>
+
+                        <div class="space-y-6">
+                            <div class="aspect-video rounded-2xl overflow-hidden shadow-xs relative opacity-90 grayscale-[20%]">
+                                <img src="https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=600&q=80" alt="Baking and learning kitchen workshop" class="object-cover w-full h-full">
+                                <div class="absolute inset-0 bg-stone-900/10 mix-blend-multiply"></div>
+                            </div>
+                            <div>
+                                <h3 class="text-2xl font-bold text-woodDark">Interactive Creative Workshops</h3>
+                                <p class="text-stone-500 text-sm font-semibold mt-1">Special Seasonal Sessions</p>
+                            </div>
+                            <p class="text-stone-600 font-medium leading-relaxed">
+                                Our community-favorite workshops (like the signature Animals in the Qur'an Cookie Workshop) sell out rapidly. Kids bake, build crafts, and extract deep moral value.
+                            </p>
+                        </div>
+                        <div class="mt-8 pt-6 border-t border-stone-100">
+                            <!-- In-line waitlist conversion flow (Zero secondary popups needed) -->
+                            <form id="waitlist-form" class="space-y-3">
+                                <label for="waitlist-email" class="block text-xs font-bold text-stone-500 uppercase tracking-wider">Join Next Workshop Waitlist</label>
+                                <div class="flex gap-2">
+                                    <input type="email" id="waitlist-email" required placeholder="Enter your email address" class="bg-stone-50 border border-stone-300 rounded-xl px-4 py-2.5 text-sm font-medium w-full focus:outline-hidden focus:border-sage-600 focus:bg-white transition-colors">
+                                    <button type="submit" class="bg-woodDark hover:bg-stone-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl whitespace-nowrap transition-colors">
+                                        Notify Me
+                                    </button>
+                                </div>
+                                <p id="waitlist-success" class="text-xs text-sage-700 font-bold hidden flex items-center gap-1">✓ Success! You are first in line for our next release.</p>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. PARENT TRUST BANNER -->
+        <section id="gallery" class="wood-texture py-20 text-center relative overflow-hidden">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-6">
+                <!-- Stars decoration -->
+                <div class="text-amber-300 text-2xl tracking-widest">★★★★★</div>
+                <blockquote class="text-2xl sm:text-3xl font-medium tracking-tight text-creamBase leading-relaxed">
+                    "My kids don't just learn here; they feel genuinely excited to come back every week. The atmosphere is incredibly warm, bright, and organic."
+                </blockquote>
+                <cite class="block text-amber-200 text-sm font-bold uppercase tracking-widest not-italic">
+                    — Miriam K. • Chantilly Parent
+                </cite>
+            </div>
+            <!-- Subdued design accent layer -->
+            <div class="absolute inset-0 opacity-5 pointer-events-none bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
+        </section>
+    </main>
+
+    <!-- 6. FOOTER (Strictly Clean & Secure) -->
+    <footer id="contact" class="bg-woodDark text-stone-300 py-16 border-t border-stone-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-12 gap-12">
+            
+            <!-- Left Column: Identity -->
+            <div class="md:col-span-5 space-y-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-sage-600 rounded-lg flex items-center justify-center text-white font-bold text-base">A</div>
+                    <span class="font-bold text-lg text-white tracking-tight">Anas Ibn Malik Academy</span>
+                </div>
+                <p class="text-sm text-stone-400 font-medium max-w-sm leading-relaxed">
+                    A weekend Islamic school built on a foundation of quality programs designed to prepare students for the future, based on the Quran and authentic Sunnah.
+                </p>
+                <p class="text-xs text-stone-500 pt-4">
+                    📍 14325 Willard Rd Unit D, Chantilly, VA 20151
+                </p>
+            </div>
+
+            <!-- Center Column: Quick Navigation Links -->
+            <div class="md:col-span-3 space-y-3">
+                <h4 class="text-xs font-bold uppercase tracking-widest text-stone-400">Academy Info</h4>
+                <ul class="space-y-2 text-sm font-medium">
+                    <li><a href="#" class="hover:text-white transition-colors">Team & Support</a></li>
+                    <li><a href="#" class="hover:text-white transition-colors">Academy History</a></li>
+                    <li><a href="#" class="hover:text-white transition-colors">Privacy Policy</a></li>
+                    <li><a href="#" class="hover:text-white transition-colors">Terms and Conditions</a></li>
+                </ul>
+            </div>
+
+            <!-- Right Column: Micro-Newsletter (No comment fields) -->
+            <div class="md:col-span-4 space-y-4">
+                <h4 class="text-xs font-bold uppercase tracking-widest text-stone-400">Stay Connected</h4>
+                <p class="text-xs text-stone-400 leading-normal">
+                    Subscribe to receive dynamic announcements regarding schedule modifications and registration cycles.
+                </p>
+                <form id="footer-newsletter" class="flex gap-2">
+                    <input type="email" required placeholder="Your email address" class="bg-stone-800/80 border border-stone-700 rounded-xl px-4 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-sage-600 w-full">
+                    <button type="submit" class="bg-sage-600 hover:bg-sage-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-colors">
+                        Join
+                    </button>
+                </form>
+                <p id="newsletter-success" class="text-xs text-sage-100 font-semibold hidden">✓ Registered successfully.</p>
+            </div>
+        </div>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 pt-8 border-t border-stone-800/80 text-center text-xs text-stone-500 font-medium">
+            &copy; 2026 Anas Ibn Malik Academy. All rights reserved. Built beautifully for local families.
+        </div>
+    </footer>
+
+    <!-- INTERACTIVE JAVASCRIPT LOGIC WORKFLOW -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. Mobile Menu Open/Close Logic Panel
+            const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+            const mobileMenu = document.getElementById('mobile-menu');
+            const mobileLinks = document.querySelectorAll('.mobile-nav-link');
+
+            mobileMenuBtn.addEventListener('click', () => {
+                mobileMenu.classList.toggle('hidden');
+            });
+
+            // Smoothly collapse drawer when click handles are fired
+            mobileLinks.forEach(link => {
+                link.addEventListener('click', () => {
+                    mobileMenu.classList.add('hidden');
+                });
+            });
+
+            // 2. High-Converting Form Interceptors (Prevents unwanted default action reloads)
+            const waitlistForm = document.getElementById('waitlist-form');
+            const waitlistSuccess = document.getElementById('waitlist-success');
+
+            waitlistForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const emailInput = document.getElementById('waitlist-email').value;
+                
+                // Analytics Hook placement area or Database integration flow goes here
+                console.log(`Waitlist action logged cleanly for: ${emailInput}`);
+                
+                waitlistForm.reset();
+                waitlistSuccess.classList.remove('hidden');
+                setTimeout(() => waitlistSuccess.classList.add('hidden'), 6000);
+            });
+
+            const footerForm = document.getElementById('footer-newsletter');
+            const footerSuccess = document.getElementById('newsletter-success');
+
+            footerForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                footerForm.reset();
+                footerSuccess.classList.remove('hidden');
+                setTimeout(() => footerSuccess.classList.add('hidden'), 5000);
+            });
+        });
+    </script>
+</body>
+</html>
