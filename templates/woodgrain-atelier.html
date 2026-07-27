@@ -3,123 +3,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AIM Academy - Experience Explorer</title>
+    <title>Anas Ibn Malik Academy | Woodgrain Atelier</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        body: ['Plus Jakarta Sans', 'sans-serif'],
+                        kids: ['Fredoka', 'sans-serif']
+                    },
+                    colors: {
+                        sage: { 50: '#f5f7f4', 100: '#e6ede7', 600: '#5d8162', 700: '#4c6950' },
+                        wood: '#8c5a31',
+                        woodDark: '#2b2118',
+                        cream: '#fdfbf7'
+                    }
+                }
+            }
+        }
+    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600&display=swap');
         .font-kids { font-family: 'Fredoka', sans-serif; }
         .font-body { font-family: 'Plus Jakarta Sans', sans-serif; }
         .bg-cream { background-color: #FDFBF7; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
+        .wood-texture {
+            background-color: #3f3024;
+            background-image: linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px);
+            background-size: 100% 4px;
+        }
     </style>
 </head>
-<body class="bg-cream font-body text-stone-800 antialiased overflow-x-hidden">
-
-    <div class="min-h-screen flex flex-col lg:flex-row">
-        <aside class="lg:w-[45%] bg-stone-900 text-white relative flex flex-col justify-between p-8 lg:p-12 bg-cover bg-center min-h-[400px] lg:min-h-screen" style="background-image: linear-gradient(rgba(28, 25, 23, 0.4), rgba(28, 25, 23, 0.75)), url('https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&q=80&w=900');">
-            <div class="flex items-center space-x-3 relative z-10">
+<body class="bg-cream font-body text-stone-800 antialiased">
+    <header class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5">
+        <div class="bg-white/85 backdrop-blur border border-stone-200/70 rounded-3xl px-5 py-4 shadow-sm flex items-center justify-between">
+            <a href="../index.html" class="flex items-center gap-3">
                 <div class="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-kids text-xl shadow-md">A</div>
-                <span class="font-kids text-xl tracking-wide">Anas Ibn Malik Academy</span>
-            </div>
+                <div>
+                    <div class="font-kids text-lg text-stone-900">AIM Academy</div>
+                    <div class="text-xs uppercase tracking-widest text-wood font-bold">Woodgrain Atelier</div>
+                </div>
+            </a>
+            <a href="#join" class="bg-amber-700 text-white px-5 py-2.5 rounded-full hover:bg-amber-800 transition shadow-sm font-kids tracking-wide">Register Now</a>
+        </div>
+    </header>
 
-            <div class="space-y-4 relative z-10 mt-auto">
-                <span class="bg-amber-600/90 text-white font-kids text-xs uppercase tracking-widest px-3 py-1 rounded-full">Chantilly, VA</span>
-                <h1 class="font-kids text-4xl lg:text-5xl leading-tight text-amber-50">A weekend of growth, laughter, and faith.</h1>
-                <p class="text-stone-300 text-sm max-w-sm leading-relaxed">Use the left side for emotional context and the right side for action, details, and trust-building proof.</p>
-            </div>
-        </aside>
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 space-y-10">
+        <section class="grid lg:grid-cols-12 gap-8 items-stretch">
+            <article class="lg:col-span-6 rounded-[34px] bg-white p-7 sm:p-9 shadow-sm border border-stone-200/70">
+                <span class="text-xs font-bold uppercase tracking-widest text-sage-700 bg-sage-100 px-3.5 py-1.5 rounded-full inline-block">Modular dashboard feel</span>
+                <h1 class="font-kids text-4xl sm:text-5xl text-stone-900 leading-tight mt-5">Built like a crafted board, not a typical brochure.</h1>
+                <p class="text-stone-600 leading-relaxed mt-5">This page leans into a modular layout with clear zones for proof, programs, and conversion. It feels different while still carrying the same warm AIMAVA identity.</p>
+                <div class="mt-8 grid sm:grid-cols-3 gap-3">
+                    <div class="rounded-2xl bg-sage-50 p-4">
+                        <div class="font-bold text-woodDark">Low friction</div>
+                        <div class="text-xs text-stone-500 mt-1">Easy to understand fast</div>
+                    </div>
+                    <div class="rounded-2xl bg-orange-50 p-4">
+                        <div class="font-bold text-woodDark">Warm tone</div>
+                        <div class="text-xs text-stone-500 mt-1">Green and wood depth</div>
+                    </div>
+                    <div class="rounded-2xl bg-stone-100 p-4">
+                        <div class="font-bold text-woodDark">Strong CTA</div>
+                        <div class="text-xs text-stone-500 mt-1">Visible at every phase</div>
+                    </div>
+                </div>
+            </article>
 
-        <main class="lg:w-[55%] flex flex-col justify-between p-6 lg:p-16 bg-cream">
-            <nav class="flex flex-wrap gap-2 p-1.5 bg-stone-200/50 rounded-2xl max-w-xl mb-12">
-                <button onclick="switchTab('overview')" id="btn-overview" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide bg-emerald-700 text-white shadow-sm transition">
-                    🌿 Overview
-                </button>
-                <button onclick="switchTab('activities')" id="btn-activities" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide text-stone-600 hover:text-stone-900 transition">
-                    🍪 Activities
-                </button>
-                <button onclick="switchTab('safety')" id="btn-safety" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide text-stone-600 hover:text-stone-900 transition">
-                    🛡️ Safety First
-                </button>
-            </nav>
-
-            <div class="flex-grow">
-                <div id="tab-overview" class="tab-content active space-y-6 animate-fade-in">
-                    <h2 class="font-kids text-3xl md:text-4xl text-stone-900">Why weekend learning matters</h2>
-                    <p class="text-stone-600 leading-relaxed">We anchor core Islamic knowledge in real-world actions. Students build, create, and connect alongside supportive mentors.</p>
-                    <div class="grid grid-cols-2 gap-4 pt-4">
-                        <div class="p-4 bg-white border border-stone-200/60 rounded-2xl shadow-sm">
-                            <span class="text-3xl block mb-1">📅</span>
-                            <span class="font-kids text-lg block text-stone-900">Flexible Slots</span>
-                            <span class="text-xs text-stone-500">Saturdays or Sundays</span>
-                        </div>
-                        <div class="p-4 bg-white border border-stone-200/60 rounded-2xl shadow-sm">
-                            <span class="text-3xl block mb-1">📖</span>
-                            <span class="font-kids text-lg block text-stone-900">Sunnah Core</span>
-                            <span class="text-xs text-stone-500">Authentic materials only</span>
+            <aside class="lg:col-span-6 grid sm:grid-cols-2 gap-4">
+                <div class="rounded-[28px] overflow-hidden shadow-xl border border-stone-100 bg-cover bg-center min-h-[300px]" style="background-image:linear-gradient(to top, rgba(43,33,24,.5), rgba(43,33,24,.05)), url('https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&q=80&w=1000');"></div>
+                <div class="space-y-4">
+                    <div class="wood-texture rounded-[28px] p-6 text-white shadow-xl border border-stone-800/40">
+                        <div class="text-xs font-bold uppercase tracking-widest text-amber-200">Core line</div>
+                        <p class="text-2xl font-bold mt-2 leading-tight">Faith, hands-on learning, and a sense of belonging.</p>
+                    </div>
+                    <div class="bg-white rounded-[28px] p-6 shadow-sm border border-stone-200/70">
+                        <div class="text-xs font-bold uppercase tracking-widest text-wood">Quick facts</div>
+                        <div class="mt-4 space-y-3 text-sm">
+                            <div class="flex items-center justify-between"><span>Weekend academy</span><span class="font-bold text-woodDark">Ages 5+</span></div>
+                            <div class="flex items-center justify-between"><span>Workshop model</span><span class="font-bold text-woodDark">Limited seats</span></div>
+                            <div class="flex items-center justify-between"><span>Curriculum</span><span class="font-bold text-woodDark">Qur'an + Sunnah</span></div>
                         </div>
                     </div>
                 </div>
+            </aside>
+        </section>
 
-                <div id="tab-activities" class="tab-content space-y-6">
-                    <h2 class="font-kids text-3xl text-stone-900">Less lectures, more doing</h2>
-                    <p class="text-stone-600">The activity set is intentionally tactile so children stay engaged and parents can picture the learning process quickly.</p>
-                    <div class="space-y-3">
-                        <div class="flex items-center space-x-3 p-3 bg-white border border-stone-100 rounded-xl">
-                            <span class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-800 font-bold">1</span>
-                            <span class="text-sm font-semibold text-stone-700">Animals in the Qur'an Cookie Baking Workshops</span>
-                        </div>
-                        <div class="flex items-center space-x-3 p-3 bg-white border border-stone-100 rounded-xl">
-                            <span class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-800 font-bold">2</span>
-                            <span class="text-sm font-semibold text-stone-700">Hands-on Calligraphy & Architecture Crafts</span>
-                        </div>
-                        <div class="flex items-center space-x-3 p-3 bg-white border border-stone-100 rounded-xl">
-                            <span class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-800 font-bold">3</span>
-                            <span class="text-sm font-semibold text-stone-700">Peer-led Interactive Storytelling Frameworks</span>
-                        </div>
-                    </div>
+        <section class="grid lg:grid-cols-12 gap-8">
+            <div class="lg:col-span-4 rounded-[30px] bg-white p-7 sm:p-8 shadow-sm border border-stone-200/70">
+                <div class="text-xs font-bold uppercase tracking-widest text-wood">Program matrix</div>
+                <h2 class="font-kids text-3xl text-stone-900 mt-2">Everything fits into a clean grid.</h2>
+                <p class="text-stone-600 mt-4 leading-relaxed">This section separates offerings into distinct modules so each one feels intentional and easy to compare.</p>
+            </div>
+            <div class="lg:col-span-8 grid sm:grid-cols-2 gap-4">
+                <div class="rounded-[30px] bg-sage-50 p-6 border border-stone-200/70">
+                    <div class="text-2xl">📖</div>
+                    <div class="font-bold text-woodDark mt-3 text-xl">Academy track</div>
+                    <p class="text-stone-600 mt-2 leading-relaxed">Reliable progression for Qur'an, Arabic, and adab.</p>
                 </div>
+                <div class="rounded-[30px] bg-orange-50 p-6 border border-stone-200/70">
+                    <div class="text-2xl">🎨</div>
+                    <div class="font-bold text-woodDark mt-3 text-xl">Workshop track</div>
+                    <p class="text-stone-600 mt-2 leading-relaxed">Creative sessions with clear emotional pull.</p>
+                </div>
+                <div class="rounded-[30px] bg-white p-6 border border-stone-200/70 shadow-sm">
+                    <div class="text-2xl">🌟</div>
+                    <div class="font-bold text-woodDark mt-3 text-xl">Parent trust</div>
+                    <p class="text-stone-600 mt-2 leading-relaxed">Safety, clarity, and a calm decision path.</p>
+                </div>
+                <div class="rounded-[30px] bg-stone-100 p-6 border border-stone-200/70">
+                    <div class="text-2xl">🧺</div>
+                    <div class="font-bold text-woodDark mt-3 text-xl">A simple next step</div>
+                    <p class="text-stone-600 mt-2 leading-relaxed">One visible registration button keeps momentum.</p>
+                </div>
+            </div>
+        </section>
 
-                <div id="tab-safety" class="tab-content space-y-6">
-                    <h2 class="font-kids text-3xl text-stone-900">Your absolute peace of mind</h2>
-                    <p class="text-stone-600">A calm and orderly system is built into the page so the school feels safe, organized, and welcoming from the start.</p>
-                    <ul class="space-y-2 text-stone-600 text-sm">
-                        <li class="flex items-center space-x-2">
-                            <span class="text-emerald-600">✔</span> <span>Complete physical check-in and secure sign-out logs.</span>
-                        </li>
-                        <li class="flex items-center space-x-2">
-                            <span class="text-emerald-600">✔</span> <span>Fully vetted instructors with cleared background screens.</span>
-                        </li>
-                        <li class="flex items-center space-x-2">
-                            <span class="text-emerald-600">✔</span> <span>Allergen-conscious, transparent cooking workspaces.</span>
-                        </li>
+        <section class="grid lg:grid-cols-12 gap-8 items-center">
+            <div class="lg:col-span-7 rounded-[34px] bg-stone-950 text-white p-8 sm:p-10 shadow-2xl">
+                <div class="text-xs font-bold uppercase tracking-widest text-emerald-200">Parent quote</div>
+                <p class="text-3xl font-bold mt-3 leading-tight">“It felt organized, welcoming, and genuinely built for kids.”</p>
+                <p class="text-stone-300 mt-5 leading-relaxed">The dark testimonial panel gives the page a stronger anchor and a different emotional beat from the other templates.</p>
+            </div>
+            <div class="lg:col-span-5 space-y-4">
+                <div class="bg-white rounded-[34px] p-7 sm:p-8 shadow-sm border border-stone-200/70">
+                    <div class="text-xs font-bold uppercase tracking-widest text-sage-700">What stands out</div>
+                    <ul class="mt-4 space-y-3 text-sm text-stone-600">
+                        <li class="flex items-center gap-2"><span class="text-emerald-600">✔</span> Structured layout</li>
+                        <li class="flex items-center gap-2"><span class="text-emerald-600">✔</span> Strong contrast hierarchy</li>
+                        <li class="flex items-center gap-2"><span class="text-emerald-600">✔</span> Clear conversion zone</li>
                     </ul>
                 </div>
+                <a id="join" href="#" class="block text-center bg-wood text-white font-kids px-7 py-4 rounded-2xl shadow-md hover:brightness-95 transition">Open Registration Portal</a>
             </div>
-
-            <div class="mt-12 pt-6 border-t border-stone-200/60 flex items-center justify-between">
-                <div>
-                    <span class="text-xs font-bold text-stone-400 block uppercase tracking-wider">Join Us Today</span>
-                    <span class="font-kids text-xl text-stone-900">Classes filling quickly</span>
-                </div>
-                <a href="#" class="bg-amber-700 hover:bg-amber-800 text-white font-kids px-6 py-3.5 rounded-2xl shadow-md transition">Quick Registration</a>
-            </div>
-        </main>
-    </div>
-
-    <script>
-        function switchTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('bg-emerald-700', 'text-white', 'shadow-sm');
-                btn.classList.add('text-stone-600', 'hover:text-stone-900');
-            });
-
-            document.getElementById('tab-' + tabId).classList.add('active');
-            const targetBtn = document.getElementById('btn-' + tabId);
-            targetBtn.classList.add('bg-emerald-700', 'text-white', 'shadow-sm');
-            targetBtn.classList.remove('text-stone-600', 'hover:text-stone-900');
-        }
-    </script>
+        </section>
+    </main>
 </body>
 </html>

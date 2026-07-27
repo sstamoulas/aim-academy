@@ -3,118 +3,176 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Anas Ibn Malik Academy - Experience Explorer</title>
+    <title>Anas Ibn Malik Academy | Forest Path</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        body: ['Plus Jakarta Sans', 'sans-serif'],
+                        kids: ['Fredoka', 'sans-serif']
+                    },
+                    colors: {
+                        sage: { 50: '#f5f7f4', 100: '#e6ede7', 600: '#5d8162', 700: '#4c6950' },
+                        wood: '#8c5a31',
+                        woodDark: '#2b2118',
+                        cream: '#fdfbf7'
+                    }
+                }
+            }
+        }
+    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600&display=swap');
         .font-kids { font-family: 'Fredoka', sans-serif; }
         .font-body { font-family: 'Plus Jakarta Sans', sans-serif; }
         .bg-cream { background-color: #FDFBF7; }
+        .wood-texture {
+            background-color: #3f3024;
+            background-image: linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px);
+            background-size: 100% 4px;
+        }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
     </style>
 </head>
 <body class="bg-cream font-body text-stone-800 antialiased overflow-x-hidden">
-
-    <div class="min-h-screen flex flex-col lg:flex-row">
-        <aside class="lg:w-[45%] bg-stone-900 text-white relative flex flex-col justify-between p-8 lg:p-12 bg-cover bg-center min-h-[400px] lg:min-h-screen" style="background-image: linear-gradient(rgba(28, 25, 23, 0.4), rgba(28, 25, 23, 0.75)), url('https://images.unsplash.com/photo-1588072432836-e10032774350?auto=format&fit=crop&q=80&w=900');">
-            <div class="flex items-center space-x-3 relative z-10">
-                <div class="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-kids text-xl shadow-md">A</div>
-                <span class="font-kids text-xl tracking-wide">Anas Ibn Malik Academy</span>
-            </div>
-
-            <div class="space-y-4 relative z-10 mt-auto">
-                <span class="bg-amber-600/90 text-white font-kids text-xs uppercase tracking-widest px-3 py-1 rounded-full">Chantilly, VA</span>
-                <h1 class="font-kids text-4xl lg:text-5xl leading-tight text-amber-50">A weekend of growth, laughter, and faith.</h1>
-                <p class="text-stone-300 text-sm max-w-sm leading-relaxed">Give parents a fast preview of the weekend experience, with strong trust signals and an obvious next step.</p>
+    <div class="min-h-screen lg:grid lg:grid-cols-[44%_56%]">
+        <aside class="relative min-h-[420px] lg:min-h-screen text-white bg-cover bg-center" style="background-image:linear-gradient(rgba(28,25,23,.38), rgba(28,25,23,.78)), url('https://images.unsplash.com/photo-1588072432836-e10032774350?auto=format&fit=crop&q=80&w=1100');">
+            <div class="absolute inset-0 bg-gradient-to-br from-emerald-900/50 via-transparent to-amber-900/25"></div>
+            <div class="relative z-10 h-full p-8 lg:p-12 flex flex-col justify-between">
+                <a href="../index.html" class="flex items-center space-x-3">
+                    <div class="w-11 h-11 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-kids text-xl shadow-md">A</div>
+                    <div>
+                        <div class="font-kids text-xl">Anas Ibn Malik Academy</div>
+                        <div class="text-xs uppercase tracking-widest text-emerald-100/80 font-bold">Forest Path</div>
+                    </div>
+                </a>
+                <div class="space-y-5 max-w-md">
+                    <span class="inline-flex bg-amber-600/90 text-white font-kids text-xs uppercase tracking-widest px-3 py-1 rounded-full">Chantilly, VA</span>
+                    <h1 class="font-kids text-4xl lg:text-5xl leading-tight">A weekend path that feels steady, bright, and welcoming.</h1>
+                    <p class="text-stone-200/90 text-sm lg:text-base leading-relaxed">This page uses a calmer split-screen approach so families can orient themselves quickly without feeling overwhelmed.</p>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="bg-white/12 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+                        <div class="text-xs font-bold uppercase tracking-widest text-emerald-100">01</div>
+                        <div class="font-kids mt-2">Learn</div>
+                    </div>
+                    <div class="bg-white/12 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+                        <div class="text-xs font-bold uppercase tracking-widest text-emerald-100">02</div>
+                        <div class="font-kids mt-2">Practice</div>
+                    </div>
+                    <div class="bg-white/12 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+                        <div class="text-xs font-bold uppercase tracking-widest text-emerald-100">03</div>
+                        <div class="font-kids mt-2">Grow</div>
+                    </div>
+                </div>
             </div>
         </aside>
 
-        <main class="lg:w-[55%] flex flex-col justify-between p-6 lg:p-16 bg-cream">
-            <nav class="flex flex-wrap gap-2 p-1.5 bg-stone-200/50 rounded-2xl max-w-xl mb-12">
-                <button onclick="switchTab('overview')" id="btn-overview" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide bg-emerald-700 text-white shadow-sm transition">
-                    🌿 Overview
-                </button>
-                <button onclick="switchTab('activities')" id="btn-activities" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide text-stone-600 hover:text-stone-900 transition">
-                    🍪 Activities
-                </button>
-                <button onclick="switchTab('safety')" id="btn-safety" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide text-stone-600 hover:text-stone-900 transition">
-                    🛡️ Safety First
-                </button>
+        <main class="p-6 sm:p-8 lg:p-16">
+            <nav class="flex flex-wrap gap-2 p-1.5 bg-stone-200/50 rounded-2xl max-w-xl mb-10">
+                <button onclick="switchTab('overview')" id="btn-overview" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide bg-emerald-700 text-white shadow-sm transition">🌿 Overview</button>
+                <button onclick="switchTab('activities')" id="btn-activities" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide text-stone-600 hover:text-stone-900 transition">🍪 Activities</button>
+                <button onclick="switchTab('safety')" id="btn-safety" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide text-stone-600 hover:text-stone-900 transition">🛡️ Safety First</button>
             </nav>
 
-            <div class="flex-grow">
-                <div id="tab-overview" class="tab-content active space-y-6 animate-fade-in">
-                    <h2 class="font-kids text-3xl md:text-4xl text-stone-900">Why weekend learning matters</h2>
-                    <p class="text-stone-600 leading-relaxed">We connect Qur'an, Arabic, and adab to real activities so children stay engaged and parents feel the school has a clear purpose.</p>
-                    <div class="grid grid-cols-2 gap-4 pt-4">
-                        <div class="p-4 bg-white border border-stone-200/60 rounded-2xl shadow-sm">
-                            <span class="text-3xl block mb-1">📅</span>
-                            <span class="font-kids text-lg block text-stone-900">Flexible Slots</span>
-                            <span class="text-xs text-stone-500">Saturdays or Sundays</span>
+            <div class="space-y-8">
+                <section class="tab-content active" id="tab-overview">
+                    <div class="grid md:grid-cols-[1.15fr_.85fr] gap-6 items-start">
+                        <div class="bg-white rounded-[30px] p-7 sm:p-8 shadow-sm border border-stone-200/70">
+                            <h2 class="font-kids text-3xl text-stone-900">Why weekend learning matters</h2>
+                            <p class="text-stone-600 leading-relaxed mt-4">The layout leads with clarity: a strong promise, a gentle explanation, and a visible path toward enrollment.</p>
+                            <div class="mt-6 grid sm:grid-cols-2 gap-3">
+                                <div class="rounded-2xl bg-sage-50 p-4">
+                                    <div class="font-kids text-lg text-woodDark">Flexible Slots</div>
+                                    <div class="text-xs text-stone-500 mt-1">Saturday or Sunday options</div>
+                                </div>
+                                <div class="rounded-2xl bg-orange-50 p-4">
+                                    <div class="font-kids text-lg text-woodDark">Authentic Core</div>
+                                    <div class="text-xs text-stone-500 mt-1">Qur'an and Sunnah base</div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="p-4 bg-white border border-stone-200/60 rounded-2xl shadow-sm">
-                            <span class="text-3xl block mb-1">📖</span>
-                            <span class="font-kids text-lg block text-stone-900">Sunnah Core</span>
-                            <span class="text-xs text-stone-500">Authentic materials only</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="tab-activities" class="tab-content space-y-6">
-                    <h2 class="font-kids text-3xl text-stone-900">Less lectures, more doing</h2>
-                    <p class="text-stone-600">Activities are organized to feel playful first, but every project points back to a clear learning outcome.</p>
-                    <div class="space-y-3">
-                        <div class="flex items-center space-x-3 p-3 bg-white border border-stone-100 rounded-xl">
-                            <span class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-800 font-bold">1</span>
-                            <span class="text-sm font-semibold text-stone-700">Animals in the Qur'an Cookie Baking Workshops</span>
-                        </div>
-                        <div class="flex items-center space-x-3 p-3 bg-white border border-stone-100 rounded-xl">
-                            <span class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-800 font-bold">2</span>
-                            <span class="text-sm font-semibold text-stone-700">Hands-on Calligraphy & Architecture Crafts</span>
-                        </div>
-                        <div class="flex items-center space-x-3 p-3 bg-white border border-stone-100 rounded-xl">
-                            <span class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-800 font-bold">3</span>
-                            <span class="text-sm font-semibold text-stone-700">Peer-led Interactive Storytelling Frameworks</span>
+                        <div class="wood-texture text-white rounded-[30px] p-7 shadow-xl border border-stone-800/40">
+                            <div class="text-xs font-bold uppercase tracking-widest text-amber-200">What parents notice</div>
+                            <p class="text-2xl font-bold mt-3 leading-tight">A quieter design, with enough contrast to still pull attention.</p>
+                            <ul class="mt-6 space-y-3 text-sm text-stone-200">
+                                <li>• Clean drop-off experience</li>
+                                <li>• Kid-friendly, parent-trustful tone</li>
+                                <li>• Strong visual hierarchy</li>
+                            </ul>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <div id="tab-safety" class="tab-content space-y-6">
-                    <h2 class="font-kids text-3xl text-stone-900">Your absolute peace of mind</h2>
-                    <p class="text-stone-600">The structure is intentionally clean so drop-off feels easy and the learning environment feels safe and organized.</p>
-                    <ul class="space-y-2 text-stone-600 text-sm">
-                        <li class="flex items-center space-x-2">
-                            <span class="text-emerald-600">✔</span> <span>Complete physical check-in and secure sign-out logs.</span>
-                        </li>
-                        <li class="flex items-center space-x-2">
-                            <span class="text-emerald-600">✔</span> <span>Fully vetted instructors with cleared background screens.</span>
-                        </li>
-                        <li class="flex items-center space-x-2">
-                            <span class="text-emerald-600">✔</span> <span>Allergen-conscious, transparent cooking workspaces.</span>
-                        </li>
-                    </ul>
-                </div>
+                <section class="tab-content" id="tab-activities">
+                    <div class="bg-white rounded-[30px] p-7 sm:p-8 shadow-sm border border-stone-200/70">
+                        <h2 class="font-kids text-3xl text-stone-900">Less lectures, more doing</h2>
+                        <p class="text-stone-600 leading-relaxed mt-3">Activities are set up as a clear path, with each card showing a concrete thing a child will do and a parent can picture immediately.</p>
+                        <div class="mt-6 grid gap-3">
+                            <div class="flex items-center gap-4 p-4 rounded-2xl bg-sage-50">
+                                <div class="w-11 h-11 rounded-xl bg-white flex items-center justify-center font-bold text-sage-700">1</div>
+                                <div>
+                                    <div class="font-bold text-woodDark">Animals in the Qur'an Cookie Baking</div>
+                                    <div class="text-xs text-stone-500">Fun, tactile, memorable</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4 p-4 rounded-2xl bg-orange-50">
+                                <div class="w-11 h-11 rounded-xl bg-white flex items-center justify-center font-bold text-wood">2</div>
+                                <div>
+                                    <div class="font-bold text-woodDark">Calligraphy & craft stations</div>
+                                    <div class="text-xs text-stone-500">Steady focus with a creative payoff</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4 p-4 rounded-2xl bg-stone-100">
+                                <div class="w-11 h-11 rounded-xl bg-white flex items-center justify-center font-bold text-emerald-700">3</div>
+                                <div>
+                                    <div class="font-bold text-woodDark">Interactive story circles</div>
+                                    <div class="text-xs text-stone-500">Social, calm, and age-friendly</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="tab-content" id="tab-safety">
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="bg-white rounded-[30px] p-7 sm:p-8 shadow-sm border border-stone-200/70">
+                            <h2 class="font-kids text-3xl text-stone-900">Your absolute peace of mind</h2>
+                            <p class="text-stone-600 leading-relaxed mt-3">Safety is presented as a visible system, not a footnote.</p>
+                            <div class="mt-5 space-y-3 text-sm">
+                                <div class="flex items-center gap-2"><span class="text-emerald-600">✔</span> Secure check-in and sign-out</div>
+                                <div class="flex items-center gap-2"><span class="text-emerald-600">✔</span> Vetted instructors</div>
+                                <div class="flex items-center gap-2"><span class="text-emerald-600">✔</span> Allergen-aware spaces</div>
+                            </div>
+                        </div>
+                        <div class="bg-gradient-to-br from-emerald-700 to-sage-600 text-white rounded-[30px] p-7 sm:p-8 shadow-xl">
+                            <div class="text-xs font-bold uppercase tracking-widest text-emerald-100">Why it works</div>
+                            <p class="text-2xl font-bold mt-3 leading-tight">Trust cues and warm colors reduce friction before the user even reads the copy.</p>
+                        </div>
+                    </div>
+                </section>
             </div>
 
-            <div class="mt-12 pt-6 border-t border-stone-200/60 flex items-center justify-between">
+            <div class="mt-10 pt-6 border-t border-stone-200/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <span class="text-xs font-bold text-stone-400 block uppercase tracking-wider">Join Us Today</span>
-                    <span class="font-kids text-xl text-stone-900">Classes filling quickly</span>
+                    <div class="text-xs font-bold uppercase tracking-widest text-stone-400">Join Us Today</div>
+                    <div class="font-kids text-xl text-stone-900">Classes filling quickly</div>
                 </div>
-                <a href="#" class="bg-amber-700 hover:bg-amber-800 text-white font-kids px-6 py-3.5 rounded-2xl shadow-md transition">Quick Registration</a>
+                <a href="#" class="bg-amber-700 hover:bg-amber-800 text-white font-kids px-6 py-3.5 rounded-2xl shadow-md transition text-center">Quick Registration</a>
             </div>
         </main>
     </div>
 
     <script>
         function switchTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.classList.remove('bg-emerald-700', 'text-white', 'shadow-sm');
                 btn.classList.add('text-stone-600', 'hover:text-stone-900');
             });
-
             document.getElementById('tab-' + tabId).classList.add('active');
             const targetBtn = document.getElementById('btn-' + tabId);
             targetBtn.classList.add('bg-emerald-700', 'text-white', 'shadow-sm');

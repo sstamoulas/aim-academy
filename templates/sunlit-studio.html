@@ -3,8 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AIM Academy - Story Showcase</title>
+    <title>Anas Ibn Malik Academy | Sunlit Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        body: ['Plus Jakarta Sans', 'sans-serif'],
+                        kids: ['Fredoka', 'sans-serif']
+                    },
+                    colors: {
+                        sage: { 50: '#f5f7f4', 100: '#e6ede7', 600: '#5d8162', 700: '#4c6950' },
+                        wood: '#8c5a31',
+                        woodDark: '#2b2118',
+                        cream: '#fdfbf7'
+                    }
+                }
+            }
+        }
+    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600&display=swap');
         .font-kids { font-family: 'Fredoka', sans-serif; }
@@ -12,94 +30,118 @@
         .bg-cream { background-color: #FDFBF7; }
     </style>
 </head>
-<body class="bg-cream font-body text-stone-800 antialiased py-8 px-4 sm:px-6">
-
-    <header class="max-w-4xl mx-auto bg-white/80 backdrop-blur-md border border-stone-200/60 p-4 rounded-2xl shadow-sm flex justify-between items-center sticky top-4 z-50">
-        <div class="flex items-center space-x-2">
-            <span class="w-3 h-3 rounded-full bg-emerald-600 block"></span>
-            <span class="font-kids text-lg text-stone-900">AIM Academy</span>
+<body class="bg-cream font-body text-stone-800 antialiased">
+    <header class="sticky top-0 z-50 bg-cream/95 backdrop-blur border-b border-stone-200/70">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <a href="../index.html" class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-emerald-600 rounded-xl text-white flex items-center justify-center font-kids text-xl shadow-md">A</div>
+                <div class="leading-none">
+                    <div class="font-kids text-lg text-stone-900">AIM Academy</div>
+                    <div class="text-xs uppercase tracking-widest text-sage-700 font-bold">Sunlit Studio</div>
+                </div>
+            </a>
+            <a href="#register" class="bg-stone-950 hover:bg-stone-800 text-white text-xs font-bold uppercase tracking-wider px-4 py-2 rounded-xl transition">
+                Enroll Now
+            </a>
         </div>
-        <a href="#register" class="bg-stone-950 hover:bg-stone-800 text-white text-xs font-bold uppercase tracking-wider px-4 py-2 rounded-xl transition">
-            Enroll Now
-        </a>
     </header>
 
-    <main class="max-w-4xl mx-auto mt-12 space-y-16">
-        <section class="space-y-6">
-            <span class="text-xs font-bold text-emerald-800 uppercase tracking-widest bg-emerald-100 px-3.5 py-1.5 rounded-full inline-block">Chantilly's Brightest Weekend Space</span>
-            <h1 class="font-kids text-4xl sm:text-5xl text-stone-900 leading-tight">
-                An authentic weekend academy built entirely for kids.
-            </h1>
-
-            <div class="w-full h-80 sm:h-96 rounded-[32px] overflow-hidden shadow-lg bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&q=80&w=1000');">
-                <div class="w-full h-full bg-stone-900/20 p-6 flex items-end">
-                    <span class="bg-white/90 backdrop-blur-sm text-stone-900 font-kids px-4 py-2 rounded-xl text-sm shadow-sm">Active Classrooms ● Enrolling Now</span>
-                </div>
-            </div>
-        </section>
-
-        <section class="bg-white border border-stone-200/80 rounded-[36px] p-6 sm:p-10 shadow-sm space-y-6">
-            <div class="flex justify-between items-center flex-wrap gap-4 border-b border-stone-100 pb-4">
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 space-y-12">
+        <section class="grid lg:grid-cols-12 gap-8 items-stretch">
+            <article class="lg:col-span-5 bg-white rounded-[34px] p-7 sm:p-9 shadow-sm border border-stone-200/70 flex flex-col justify-between">
                 <div>
-                    <h3 class="font-kids text-2xl text-stone-900">What happens next?</h3>
-                    <p class="text-xs text-stone-500 mt-0.5">Select a track below to instantly filter details</p>
+                    <span class="text-xs font-bold uppercase tracking-widest text-emerald-800 bg-emerald-100 px-3.5 py-1.5 rounded-full inline-block">Story-first homepage</span>
+                    <h1 class="font-kids text-4xl sm:text-5xl text-stone-900 leading-tight mt-5">A page that feels like a quiet storybook spread.</h1>
+                    <p class="text-stone-600 leading-relaxed mt-5">This template is intentionally editorial and vertical, with each section behaving like a chapter instead of repeating the same card rhythm.</p>
                 </div>
-                <div class="flex space-x-2">
-                    <button onclick="filterDeck('baking')" id="filter-btn-baking" class="px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-kids text-xs transition shadow-sm">🍪 Workshops</button>
-                    <button onclick="filterDeck('school')" id="filter-btn-school" class="px-4 py-2 rounded-xl bg-stone-100 text-stone-600 font-kids text-xs transition">🏫 Academy</button>
-                </div>
-            </div>
-
-            <div id="filter-baking" class="deck-filter-content space-y-4">
-                <p class="text-stone-600 text-sm sm:text-base">Our interactive weekend workshops let children bake, craft, and explore beautiful lessons from the Qur'an in a fun, hands-on environment.</p>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div class="p-3 bg-cream rounded-xl text-center font-semibold text-xs text-stone-700 border border-stone-200/40">✨ Cookie Decorating</div>
-                    <div class="p-3 bg-cream rounded-xl text-center font-semibold text-xs text-stone-700 border border-stone-200/40">🎨 Live Crafting Projects</div>
-                    <div class="p-3 bg-cream rounded-xl text-center font-semibold text-xs text-stone-700 border border-stone-200/40">📖 Engaging Storytime</div>
-                </div>
-            </div>
-
-            <div id="filter-school" class="deck-filter-content hidden space-y-4">
-                <p class="text-stone-600 text-sm sm:text-base">The core academy path focuses on systematic Arabic study, recitation support, and gentle mentorship that feels grounded and reassuring.</p>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div class="p-4 bg-cream rounded-xl border border-stone-200/40">
-                        <span class="font-kids block text-emerald-800 text-sm">Saturday Sessions</span>
-                        <span class="text-xs text-stone-500 block mt-0.5">Structured learning with clear milestones</span>
+                <div class="mt-8 grid grid-cols-2 gap-3">
+                    <div class="rounded-2xl bg-sage-50 p-4">
+                        <div class="text-xs font-bold uppercase tracking-widest text-sage-700">Trust</div>
+                        <div class="font-bold text-woodDark mt-2">Calm structure</div>
                     </div>
-                    <div class="p-4 bg-cream rounded-xl border border-stone-200/40">
-                        <span class="font-kids block text-amber-800 text-sm">Sunday Sessions</span>
-                        <span class="text-xs text-stone-500 block mt-0.5">Interactive practice and character development</span>
+                    <div class="rounded-2xl bg-orange-50 p-4">
+                        <div class="text-xs font-bold uppercase tracking-widest text-wood">Mood</div>
+                        <div class="font-bold text-woodDark mt-2">Warm and bright</div>
                     </div>
                 </div>
-            </div>
+            </article>
+
+            <article class="lg:col-span-7 grid gap-4">
+                <div class="rounded-[34px] overflow-hidden shadow-xl border border-stone-100 bg-cover bg-center min-h-[320px]" style="background-image:linear-gradient(to top, rgba(43,33,24,.45), rgba(43,33,24,.05)), url('https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&q=80&w=1200');"></div>
+                <div class="grid sm:grid-cols-3 gap-4">
+                    <div class="rounded-[28px] bg-white p-5 shadow-sm border border-stone-200/70">
+                        <div class="text-2xl">📖</div>
+                        <div class="font-bold text-woodDark mt-3">Qur'an & Tajweed</div>
+                        <div class="text-sm text-stone-500 mt-1">Clear, progressive learning.</div>
+                    </div>
+                    <div class="rounded-[28px] bg-white p-5 shadow-sm border border-stone-200/70">
+                        <div class="text-2xl">🎨</div>
+                        <div class="font-bold text-woodDark mt-3">Hands-on Projects</div>
+                        <div class="text-sm text-stone-500 mt-1">Activities with a purpose.</div>
+                    </div>
+                    <div class="rounded-[28px] bg-white p-5 shadow-sm border border-stone-200/70">
+                        <div class="text-2xl">🌱</div>
+                        <div class="font-bold text-woodDark mt-3">Character Building</div>
+                        <div class="text-sm text-stone-500 mt-1">Gentle, reassuring growth.</div>
+                    </div>
+                </div>
+            </article>
         </section>
 
-        <section id="register" class="bg-emerald-800 rounded-[36px] p-8 sm:p-12 text-white relative overflow-hidden shadow-xl text-center space-y-6">
-            <h3 class="font-kids text-3xl max-w-xl mx-auto leading-tight">Secure your child's place in our active modern community</h3>
-            <p class="text-emerald-100/70 text-xs sm:text-sm max-w-sm mx-auto">Registration updates are dispatched via text and email. Seats stay intentionally limited so the environment stays warm and personal.</p>
+        <section class="grid lg:grid-cols-12 gap-8 items-start">
+            <article class="lg:col-span-7 bg-white rounded-[34px] p-7 sm:p-9 shadow-sm border border-stone-200/70">
+                <div class="flex items-end justify-between gap-4">
+                    <div>
+                        <div class="text-xs font-bold uppercase tracking-widest text-wood">Program lens</div>
+                        <h2 class="font-kids text-3xl text-stone-900 mt-2">One page, multiple entry points.</h2>
+                    </div>
+                    <div class="hidden sm:block text-sm font-semibold text-sage-700 bg-sage-100 px-4 py-2 rounded-full">Easy to scan</div>
+                </div>
+                <div class="mt-6 grid gap-3">
+                    <div class="flex items-start gap-4 p-4 rounded-2xl bg-sage-50">
+                        <div class="w-10 h-10 rounded-xl bg-white flex items-center justify-center font-bold text-sage-700">1</div>
+                        <div>
+                            <div class="font-bold text-woodDark">Start with a strong promise</div>
+                            <div class="text-sm text-stone-600 mt-1">Tell parents why the school exists and why it matters.</div>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 rounded-2xl bg-orange-50">
+                        <div class="w-10 h-10 rounded-xl bg-white flex items-center justify-center font-bold text-wood">2</div>
+                        <div>
+                            <div class="font-bold text-woodDark">Show a real scene</div>
+                            <div class="text-sm text-stone-600 mt-1">Use one hero image or collage, not a wall of images.</div>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 rounded-2xl bg-stone-100">
+                        <div class="w-10 h-10 rounded-xl bg-white flex items-center justify-center font-bold text-emerald-700">3</div>
+                        <div>
+                            <div class="font-bold text-woodDark">Close with a clear CTA</div>
+                            <div class="text-sm text-stone-600 mt-1">A single strong action button keeps momentum high.</div>
+                        </div>
+                    </div>
+                </div>
+            </article>
 
-            <div class="pt-2">
-                <a href="#" class="bg-amber-600 hover:bg-amber-700 text-white font-kids text-base px-8 py-4 rounded-xl shadow-md transition inline-block">
-                    Open Registration Portal
-                </a>
+            <aside class="lg:col-span-5 bg-gradient-to-br from-emerald-700 to-sage-600 rounded-[34px] p-7 sm:p-9 text-white shadow-xl">
+                <div class="text-xs font-bold uppercase tracking-widest text-emerald-100">Parent note</div>
+                <p class="text-3xl font-bold leading-tight mt-3">A calm UI feels more trustworthy than one trying too hard.</p>
+                <p class="text-emerald-50/85 leading-relaxed mt-5">This template gives the page a softer editorial motion so it feels distinct from the split-screen pages and the modular dashboard page.</p>
+                <div class="mt-7 grid grid-cols-2 gap-3 text-sm">
+                    <div class="bg-white/12 rounded-2xl p-4">Soft contrast</div>
+                    <div class="bg-white/12 rounded-2xl p-4">Long-form pacing</div>
+                    <div class="bg-white/12 rounded-2xl p-4">Friendly hierarchy</div>
+                    <div class="bg-white/12 rounded-2xl p-4">Clear registration path</div>
+                </div>
+            </aside>
+        </section>
+
+        <section id="register" class="rounded-[34px] bg-stone-950 text-white p-8 sm:p-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5 shadow-2xl">
+            <div>
+                <div class="text-xs font-bold uppercase tracking-widest text-emerald-200">Ready to act</div>
+                <div class="font-kids text-3xl mt-2">Reserve a child-friendly slot today</div>
             </div>
+            <a href="#" class="bg-amber-600 hover:bg-amber-700 text-white font-kids px-7 py-3.5 rounded-2xl shadow-md transition text-center">Open Registration Portal</a>
         </section>
     </main>
-
-    <script>
-        function filterDeck(targetId) {
-            document.querySelectorAll('.deck-filter-content').forEach(el => el.classList.add('hidden'));
-            document.getElementById('filter-' + targetId).classList.remove('hidden');
-
-            document.getElementById('filter-btn-baking').className = "px-4 py-2 rounded-xl bg-stone-100 text-stone-600 font-kids text-xs transition";
-            document.getElementById('filter-btn-school').className = "px-4 py-2 rounded-xl bg-stone-100 text-stone-600 font-kids text-xs transition";
-
-            if (targetId === 'baking') {
-                document.getElementById('filter-btn-baking').className = "px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-kids text-xs transition shadow-sm";
-            } else {
-                document.getElementById('filter-btn-school').className = "px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-kids text-xs transition shadow-sm";
-            }
-        }
-    </script>
 </body>
 </html>
