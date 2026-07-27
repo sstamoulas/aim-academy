@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,81 +16,82 @@
 </head>
 <body class="bg-cream font-body text-stone-800 antialiased overflow-x-hidden">
   <div class="min-h-screen flex flex-col lg:flex-row">
-    <aside class="lg:w-[45%] text-white relative flex flex-col justify-between p-8 lg:p-12 bg-cover bg-center min-h-[400px] lg:min-h-screen" style="background-image: linear-gradient(rgba(16, 30, 18, 0.4), rgba(16, 30, 18, 0.78)), radial-gradient(circle at top left, rgba(16,185,129,.22), transparent 35%), radial-gradient(circle at bottom right, rgba(180,83,9,.18), transparent 35%);">
+    <aside class="lg:w-[45%] bg-stone-900 text-white relative flex flex-col justify-between p-8 lg:p-12 bg-cover bg-center min-h-[400px] lg:min-h-screen" style="background-image: linear-gradient(rgba(28, 25, 23, 0.4), rgba(28, 25, 23, 0.75)), radial-gradient(circle at top left, rgba(16,185,129,.22), transparent 35%), radial-gradient(circle at bottom right, rgba(180,83,9,.18), transparent 35%);">
       <div class="flex items-center space-x-3 relative z-10">
         <div class="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-kids text-xl shadow-md">A</div>
         <span class="font-kids text-xl tracking-wide">Anas Ibn Malik Academy</span>
       </div>
       <div class="space-y-4 relative z-10 mt-auto">
-        <span class="bg-amber-600/90 text-white font-kids text-xs uppercase tracking-widest px-3 py-1 rounded-full">Weekend school</span>
-        <h1 class="font-kids text-4xl lg:text-5xl leading-tight text-amber-50">A calm, guided way to explore the page.</h1>
-        <p class="text-stone-300 text-sm max-w-sm leading-relaxed">This layout keeps the emotional story on the left while the right side acts like a mini dashboard.</p>
+        <span class="bg-amber-600/90 text-white font-kids text-xs uppercase tracking-widest px-3 py-1 rounded-full">Chantilly, VA</span>
+        <h1 class="font-kids text-4xl lg:text-5xl leading-tight text-amber-50">A weekend of growth, laughter, and faith.</h1>
+        <p class="text-stone-300 text-sm max-w-sm leading-relaxed">Skip the long paragraphs. Use our dashboard to preview exactly what your child will experience this weekend.</p>
       </div>
     </aside>
 
     <main class="lg:w-[55%] flex flex-col justify-between p-6 lg:p-16 bg-cream">
       <nav class="flex flex-wrap gap-2 p-1.5 bg-stone-200/50 rounded-2xl max-w-xl mb-12">
-        <button onclick="switchTab('overview')" id="btn-overview" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide bg-emerald-700 text-white shadow-sm transition">Overview</button>
-        <button onclick="switchTab('curriculum')" id="btn-curriculum" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide text-stone-600 hover:text-stone-900 transition">Curriculum</button>
-        <button onclick="switchTab('camp')" id="btn-camp" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide text-stone-600 hover:text-stone-900 transition">Camp</button>
+        <button onclick="switchTab('overview')" id="btn-overview" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide bg-emerald-700 text-white shadow-sm transition">🌿 Overview</button>
+        <button onclick="switchTab('activities')" id="btn-activities" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide text-stone-600 hover:text-stone-900 transition">🍪 Activities</button>
+        <button onclick="switchTab('safety')" id="btn-safety" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide text-stone-600 hover:text-stone-900 transition">🛡️ Safety First</button>
       </nav>
 
       <div class="flex-grow">
-        <div id="tab-overview" class="tab-content active space-y-6">
-          <h2 class="font-kids text-3xl md:text-4xl text-stone-900">Why the page works</h2>
-          <p class="text-stone-600 leading-relaxed">The layout is easy to scan. Parents can understand the value proposition quickly and then drill into details if they want to.</p>
+        <div id="tab-overview" class="tab-content active space-y-6 animate-fade-in">
+          <h2 class="font-kids text-3xl md:text-4xl text-stone-900">Why weekend learning matters</h2>
+          <p class="text-stone-600 leading-relaxed">We anchor core Islamic knowledge in real-world actions. Children build, create, and connect alongside mentors.</p>
           <div class="grid grid-cols-2 gap-4 pt-4">
             <div class="p-4 bg-white border border-stone-200/60 rounded-2xl shadow-sm">
-              <span class="font-kids text-lg block text-stone-900">Fast decision</span>
-              <span class="text-xs text-stone-500">Clear hero and CTA</span>
+              <span class="text-3xl block mb-1">📅</span>
+              <span class="font-kids text-lg block text-stone-900">Flexible Slots</span>
+              <span class="text-xs text-stone-500">Saturdays or Sundays</span>
             </div>
             <div class="p-4 bg-white border border-stone-200/60 rounded-2xl shadow-sm">
-              <span class="font-kids text-lg block text-stone-900">Warm palette</span>
-              <span class="text-xs text-stone-500">Green and wood tones</span>
+              <span class="text-3xl block mb-1">📖</span>
+              <span class="font-kids text-lg block text-stone-900">Sunnah Core</span>
+              <span class="text-xs text-stone-500">Authentic materials only</span>
             </div>
           </div>
         </div>
 
-        <div id="tab-curriculum" class="tab-content space-y-6">
-          <h2 class="font-kids text-3xl text-stone-900">Curriculum as a progression</h2>
-          <p class="text-stone-600">Each card can represent a level or subject, letting the layout feel organized and trustworthy.</p>
+        <div id="tab-activities" class="tab-content space-y-6">
+          <h2 class="font-kids text-3xl text-stone-900">Less lectures, more doing</h2>
+          <p class="text-stone-600">Our signature approach translates dynamic concepts into tactile student projects.</p>
           <div class="space-y-3">
             <div class="flex items-center space-x-3 p-3 bg-white border border-stone-100 rounded-xl">
-              <span class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-800 font-bold">1</span>
-              <span class="text-sm font-semibold text-stone-700">Qur'an and tajweed</span>
+              <span class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-800 font-bold">1</span>
+              <span class="text-sm font-semibold text-stone-700">Animals in the Qur'an Cookie Workshops</span>
             </div>
             <div class="flex items-center space-x-3 p-3 bg-white border border-stone-100 rounded-xl">
-              <span class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-800 font-bold">2</span>
-              <span class="text-sm font-semibold text-stone-700">Arabic and adab</span>
+              <span class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-800 font-bold">2</span>
+              <span class="text-sm font-semibold text-stone-700">Hands-on Calligraphy &amp; Crafts</span>
             </div>
             <div class="flex items-center space-x-3 p-3 bg-white border border-stone-100 rounded-xl">
-              <span class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-800 font-bold">3</span>
-              <span class="text-sm font-semibold text-stone-700">Islamic studies and stories</span>
+              <span class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-800 font-bold">3</span>
+              <span class="text-sm font-semibold text-stone-700">Interactive Storytelling Frameworks</span>
             </div>
           </div>
         </div>
 
-        <div id="tab-camp" class="tab-content space-y-6">
-          <h2 class="font-kids text-3xl text-stone-900">Summer camp energy</h2>
-          <p class="text-stone-600">Use this tab for a more promotional angle focused on short-term seasonal excitement.</p>
+        <div id="tab-safety" class="tab-content space-y-6">
+          <h2 class="font-kids text-3xl text-stone-900">Your absolute peace of mind</h2>
+          <p class="text-stone-600">We maintain tight security protocols so parents can drop off their kids with confidence.</p>
           <ul class="space-y-2 text-stone-600 text-sm">
-            <li class="flex items-center space-x-2"><span class="text-emerald-600">Good fit</span> <span>Families looking for a bright seasonal program.</span></li>
-            <li class="flex items-center space-x-2"><span class="text-emerald-600">Good fit</span> <span>Kids who learn best through projects and movement.</span></li>
-            <li class="flex items-center space-x-2"><span class="text-emerald-600">Good fit</span> <span>Parents who want easy registration decisions.</span></li>
+            <li class="flex items-center space-x-2"><span class="text-emerald-600">✔</span> <span>Complete physical check-in and secure sign-out logs.</span></li>
+            <li class="flex items-center space-x-2"><span class="text-emerald-600">✔</span> <span>Fully vetted instructors with cleared background screens.</span></li>
+            <li class="flex items-center space-x-2"><span class="text-emerald-600">✔</span> <span>Allergen-conscious, transparent cooking workspaces.</span></li>
           </ul>
         </div>
       </div>
 
       <div class="mt-12 pt-6 border-t border-stone-200/60 flex items-center justify-between">
         <div>
-          <span class="text-xs font-bold text-stone-400 block uppercase tracking-wider">Open House</span>
-          <span class="font-kids text-xl text-stone-900">Tour and ask questions</span>
+          <span class="text-xs font-bold text-stone-400 block uppercase tracking-wider">Join Us Today</span>
+          <span class="font-kids text-xl text-stone-900">Classes filling quickly</span>
         </div>
-        <a href="#" class="bg-amber-700 hover:bg-amber-800 text-white font-kids px-6 py-3.5 rounded-2xl shadow-md transition">Book a Visit</a>
+        <a href="#" class="bg-amber-700 hover:bg-amber-800 text-white font-kids px-6 py-3.5 rounded-2xl shadow-md transition">Quick Registration</a>
       </div>
     </main>
   </div>
-
   <script>
     function switchTab(tabId) {
       document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
