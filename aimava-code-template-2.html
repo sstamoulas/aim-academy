@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anas Ibn Malik Academy | Split Story</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600&display=swap');
+    .font-kids { font-family: 'Fredoka', sans-serif; }
+    .font-body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .bg-cream { background-color: #FDFBF7; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+  </style>
+</head>
+<body class="bg-cream font-body text-stone-800 antialiased overflow-x-hidden">
+  <div class="min-h-screen flex flex-col lg:flex-row">
+    <aside class="lg:w-[45%] bg-stone-900 text-white relative flex flex-col justify-between p-8 lg:p-12 bg-cover bg-center min-h-[400px] lg:min-h-screen" style="background-image: linear-gradient(rgba(28, 25, 23, 0.35), rgba(28, 25, 23, 0.78)), radial-gradient(circle at top left, rgba(16,185,129,.25), transparent 35%), radial-gradient(circle at bottom right, rgba(180,83,9,.2), transparent 35%);">
+      <div class="flex items-center space-x-3 relative z-10">
+        <div class="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-kids text-xl shadow-md">A</div>
+        <span class="font-kids text-xl tracking-wide">Anas Ibn Malik Academy</span>
+      </div>
+      <div class="space-y-4 relative z-10 mt-auto">
+        <span class="bg-amber-600/90 text-white font-kids text-xs uppercase tracking-widest px-3 py-1 rounded-full">Chantilly, VA</span>
+        <h1 class="font-kids text-4xl lg:text-5xl leading-tight text-amber-50">A weekend of growth, laughter, and faith.</h1>
+        <p class="text-stone-300 text-sm max-w-sm leading-relaxed">A clean split layout that guides parents from emotion to details without visual clutter.</p>
+      </div>
+    </aside>
+
+    <main class="lg:w-[55%] flex flex-col justify-between p-6 lg:p-16 bg-cream">
+      <nav class="flex flex-wrap gap-2 p-1.5 bg-stone-200/50 rounded-2xl max-w-xl mb-12">
+        <button onclick="switchTab('overview')" id="btn-overview" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide bg-emerald-700 text-white shadow-sm transition">Overview</button>
+        <button onclick="switchTab('activities')" id="btn-activities" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide text-stone-600 hover:text-stone-900 transition">Activities</button>
+        <button onclick="switchTab('safety')" id="btn-safety" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide text-stone-600 hover:text-stone-900 transition">Safety First</button>
+      </nav>
+
+      <div class="flex-grow">
+        <div id="tab-overview" class="tab-content active space-y-6">
+          <h2 class="font-kids text-3xl md:text-4xl text-stone-900">Why weekend learning matters</h2>
+          <p class="text-stone-600 leading-relaxed">Core Islamic knowledge becomes easier to remember when children are learning through a rhythm of stories, craft, and guided practice.</p>
+          <div class="grid grid-cols-2 gap-4 pt-4">
+            <div class="p-4 bg-white border border-stone-200/60 rounded-2xl shadow-sm">
+              <span class="text-3xl block mb-1">Flexible</span>
+              <span class="font-kids text-lg block text-stone-900">Weekend Schedule</span>
+              <span class="text-xs text-stone-500">Saturdays or Sundays</span>
+            </div>
+            <div class="p-4 bg-white border border-stone-200/60 rounded-2xl shadow-sm">
+              <span class="text-3xl block mb-1">Faith</span>
+              <span class="font-kids text-lg block text-stone-900">Sunnah Core</span>
+              <span class="text-xs text-stone-500">Authentic materials</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-activities" class="tab-content space-y-6">
+          <h2 class="font-kids text-3xl text-stone-900">Less lecture, more doing</h2>
+          <p class="text-stone-600">Every lesson should leave a physical memory: a craft, a bake, a story, or a small challenge.</p>
+          <div class="space-y-3">
+            <div class="flex items-center space-x-3 p-3 bg-white border border-stone-100 rounded-xl">
+              <span class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-800 font-bold">1</span>
+              <span class="text-sm font-semibold text-stone-700">Qur'an and nature-themed workshops</span>
+            </div>
+            <div class="flex items-center space-x-3 p-3 bg-white border border-stone-100 rounded-xl">
+              <span class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-800 font-bold">2</span>
+              <span class="text-sm font-semibold text-stone-700">Hands-on calligraphy and arts</span>
+            </div>
+            <div class="flex items-center space-x-3 p-3 bg-white border border-stone-100 rounded-xl">
+              <span class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-800 font-bold">3</span>
+              <span class="text-sm font-semibold text-stone-700">Interactive storytime and reflection</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-safety" class="tab-content space-y-6">
+          <h2 class="font-kids text-3xl text-stone-900">Peace of mind for parents</h2>
+          <p class="text-stone-600">The page should answer safety questions quickly so the emotional friction stays low.</p>
+          <ul class="space-y-2 text-stone-600 text-sm">
+            <li class="flex items-center space-x-2"><span class="text-emerald-600">Yes</span> <span>Clear check-in and check-out flow.</span></li>
+            <li class="flex items-center space-x-2"><span class="text-emerald-600">Yes</span> <span>Vetted teachers and organized supervision.</span></li>
+            <li class="flex items-center space-x-2"><span class="text-emerald-600">Yes</span> <span>Transparent allergy-aware activity planning.</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="mt-12 pt-6 border-t border-stone-200/60 flex items-center justify-between">
+        <div>
+          <span class="text-xs font-bold text-stone-400 block uppercase tracking-wider">Join Us Today</span>
+          <span class="font-kids text-xl text-stone-900">Classes filling quickly</span>
+        </div>
+        <a href="#" class="bg-amber-700 hover:bg-amber-800 text-white font-kids px-6 py-3.5 rounded-2xl shadow-md transition">Quick Registration</a>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-emerald-700', 'text-white', 'shadow-sm');
+        btn.classList.add('text-stone-600', 'hover:text-stone-900');
+      });
+      document.getElementById('tab-' + tabId).classList.add('active');
+      const targetBtn = document.getElementById('btn-' + tabId);
+      targetBtn.classList.add('bg-emerald-700', 'text-white', 'shadow-sm');
+      targetBtn.classList.remove('text-stone-600', 'hover:text-stone-900');
+    }
+  </script>
+</body>
+</html>

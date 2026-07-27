@@ -181,6 +181,26 @@
         padding: 0 0 36px;
         line-height: 1.7;
       }
+      .section-title {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 18px;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+      }
+      .section-title h2 {
+        margin: 0;
+        font-family: "Fraunces", Georgia, serif;
+        font-size: clamp(1.7rem, 4vw, 2.5rem);
+        letter-spacing: -0.03em;
+      }
+      .section-title p {
+        margin: 0;
+        max-width: 54ch;
+        color: var(--muted);
+        line-height: 1.6;
+      }
       @media (max-width: 900px) {
         .template-card { grid-column: span 12; }
       }
@@ -330,8 +350,97 @@
         </article>
       </section>
 
+      <section class="hero" id="code-templates" style="padding-top: 0;">
+        <div class="section-title">
+          <div>
+            <div class="eyebrow">AIMAVA code-inspired pages</div>
+            <h2>Five pages closer to the layout you liked.</h2>
+          </div>
+          <p>
+            These follow the same warm visual language but borrow the stronger sticky nav, tabbed sections, and funnel flow from the template you shared.
+          </p>
+        </div>
+        <div class="topbar" style="margin-top: 0;">
+          <div class="meta">
+            <span class="pill">Sticky hero patterns</span>
+            <span class="pill">Tabbed interaction</span>
+            <span class="pill">CTA-first structure</span>
+          </div>
+          <a class="cta" href="aimava-code-gallery.html">Open code gallery</a>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="card template-card">
+          <strong>AIMAVA Code 1. Foundation Hero</strong>
+          <p>Classic long-form school homepage with hero, trust cards, programs, workshop block, and FAQ.</p>
+          <div class="preview">
+            <div class="preview-line"></div>
+            <div class="preview-grid">
+              <div class="mini" style="height:120px;"></div>
+              <div style="display:grid; gap:10px;">
+                <div class="mini"></div>
+                <div class="mini"></div>
+              </div>
+            </div>
+          </div>
+          <a class="cta" href="aimava-code-template-1.html">Open page</a>
+        </article>
+        <article class="card template-card">
+          <strong>AIMAVA Code 2. Split Story</strong>
+          <p>Two-column split layout with a fixed visual side and interactive detail tabs on the right.</p>
+          <div class="preview">
+            <div class="preview-line"></div>
+            <div style="display:grid; gap:10px;">
+              <div class="mini" style="width:82%"></div>
+              <div class="mini" style="width:94%"></div>
+              <div class="mini" style="width:70%"></div>
+            </div>
+          </div>
+          <a class="cta" href="aimava-code-template-2.html">Open page</a>
+        </article>
+        <article class="card template-card">
+          <strong>AIMAVA Code 3. Story Showcase</strong>
+          <p>Sticky minimal header with layered hero, filter controls, and a strong register block.</p>
+          <div class="preview">
+            <div class="preview-line"></div>
+            <div class="preview-grid">
+              <div class="mini" style="height:90px;"></div>
+              <div class="mini" style="height:90px;"></div>
+            </div>
+          </div>
+          <a class="cta" href="aimava-code-template-3.html">Open page</a>
+        </article>
+        <article class="card template-card">
+          <strong>AIMAVA Code 4. Experience Explorer</strong>
+          <p>Side panel story on the left and tabbed content on the right, good for guided browsing.</p>
+          <div class="preview">
+            <div class="preview-line"></div>
+            <div style="display:grid; gap:10px;">
+              <div class="mini" style="width:88%"></div>
+              <div class="mini" style="width:76%"></div>
+              <div class="mini" style="width:92%"></div>
+            </div>
+          </div>
+          <a class="cta" href="aimava-code-template-4.html">Open page</a>
+        </article>
+        <article class="card template-card">
+          <strong>AIMAVA Code 5. Mini Funnel</strong>
+          <p>Short, fast landing page focused on registrations and quick conversion.</p>
+          <div class="preview">
+            <div class="preview-line"></div>
+            <div class="preview-grid">
+              <div class="mini" style="height:80px;"></div>
+              <div class="mini" style="height:80px;"></div>
+            </div>
+          </div>
+          <a class="cta" href="aimava-code-template-5.html">Open page</a>
+        </article>
+      </section>
+
       <section class="footer">
         The templates are based on the public structure of AIMAVA, especially: About Us, Programs, Registration, Summer Camp 2026, and the workshop/event flow.
+        The new AIMAVA code set mirrors the style of the reference layout you shared, but keeps the school-specific language and brand goals.
       </section>
     </main>
   </body>
