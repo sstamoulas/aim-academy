@@ -1,109 +1,125 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Forest Path</title>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anas Ibn Malik Academy - Experience Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-      @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Nunito:wght@400;600;700;800&display=swap");
-      :root{--bg:#f5f0e5;--text:#213127;--muted:#617064;--green:#5f8550;--green2:#2c4931;--wood:#b4874b;--line:rgba(44,73,49,.14)}
-      *{box-sizing:border-box} html,body{margin:0;min-height:100%}
-      body{
-        font-family:"Nunito",sans-serif; color:var(--text);
-        background:
-          linear-gradient(180deg, rgba(95,133,80,.08), transparent 22%),
-          repeating-linear-gradient(90deg, rgba(184,135,79,.05) 0 14px, transparent 14px 84px),
-          linear-gradient(180deg,#faf6ee,#efe7d8);
-      }
-      .wrap{width:min(1120px,calc(100% - 32px)); margin:0 auto}
-      .top{display:flex; justify-content:space-between; align-items:center; padding:22px 0}
-      .logo{font-weight:900; letter-spacing:.03em}
-      .logo i{font-style:normal; color:var(--green)}
-      .nav-links{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
-      .btn{padding:13px 16px; border-radius:16px; text-decoration:none; font-weight:800}
-      .btn.primary{background:linear-gradient(135deg,var(--green2),var(--green)); color:#fff}
-      .btn.ghost{border:1px solid var(--line); color:var(--green2); background:rgba(255,255,255,.65)}
-      .hero{display:grid; grid-template-columns: .9fr 1.1fr; gap:18px; align-items:stretch; padding:8px 0 34px}
-      .panel{background:rgba(255,255,255,.76); border:1px solid var(--line); border-radius:30px; box-shadow:0 18px 50px rgba(39,55,41,.10); overflow:hidden}
-      .intro{padding:34px}
-      .eyebrow{display:inline-flex; padding:9px 13px; border-radius:999px; background:rgba(95,133,80,.12); color:var(--green2); font-weight:900}
-      h1{font-family:"Cormorant Garamond",serif; font-size:clamp(3.3rem,6.5vw,6rem); line-height:.88; margin:16px 0 12px; max-width:10ch}
-      .lead{font-size:1.05rem; line-height:1.8; color:var(--muted); max-width:54ch}
-      .stack{display:grid; gap:12px; margin-top:22px}
-      .row{display:grid; grid-template-columns:52px 1fr; gap:12px; align-items:start; padding:14px 16px; border-radius:18px; background:linear-gradient(180deg,rgba(95,133,80,.10),rgba(255,255,255,.75)); border:1px solid rgba(44,73,49,.08)}
-      .num{width:52px;height:52px;border-radius:18px; display:grid; place-items:center; background:linear-gradient(135deg,var(--green2),var(--wood)); color:#fff; font-weight:900}
-      .row strong{display:block; font-size:1.02rem}
-      .row span{color:var(--muted); font-size:.95rem}
-      .map{
-        display:grid; grid-template-columns: 72px 1fr; min-height: 600px;
-      }
-      .rail{
-        background:linear-gradient(180deg, rgba(44,73,49,.96), rgba(95,133,80,.88));
-        padding:20px 0; display:flex; flex-direction:column; align-items:center; gap:18px;
-      }
-      .rail .dot{width:16px;height:16px;border-radius:50%; background:#f4ecd9; box-shadow:0 0 0 6px rgba(255,255,255,.14)}
-      .rail .line{flex:1; width:4px; background:rgba(255,255,255,.16); border-radius:999px}
-      .content{padding:28px}
-      .cards{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px}
-      .card{border-radius:24px; padding:22px; border:1px solid rgba(44,73,49,.08); background:rgba(255,255,255,.8)}
-      .card h2{margin:0 0 8px; font-size:1.4rem}
-      .card p{margin:0; color:var(--muted); line-height:1.7}
-      .callout{margin-top:18px; padding:22px; border-radius:24px; background:linear-gradient(135deg, rgba(95,133,80,.14), rgba(184,135,79,.14)); border:1px solid rgba(44,73,49,.08)}
-      .callout strong{display:block; margin-bottom:6px}
-      .pager{display:flex; justify-content:space-between; gap:12px; padding:0 0 44px; flex-wrap:wrap}
-      .footer{display:grid; grid-template-columns: repeat(3,1fr); gap:14px; padding:0 0 44px}
-      .footer .mini{padding:18px; border-radius:20px; background:rgba(255,255,255,.72); border:1px solid rgba(44,73,49,.08)}
-      @media (max-width: 900px){ .hero,.cards,.footer{grid-template-columns:1fr} .map{grid-template-columns:1fr} .rail{display:none} }
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600&display=swap');
+        .font-kids { font-family: 'Fredoka', sans-serif; }
+        .font-body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .bg-cream { background-color: #FDFBF7; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
     </style>
-  </head>
-  <body>
-    <main class="wrap">
-      <header class="top">
-        <div class="logo">AIMA<i>VA</i> / Forest Path</div>
-        <div class="nav-links">
-          <a class="btn ghost" href="../index.html">Gallery</a>
-          <a class="btn ghost" href="sunlit-studio.html">Next: Sunlit Studio</a>
-        </div>
-      </header>
-      <section class="hero">
-        <section class="panel intro">
-          <div class="eyebrow">A calm path through learning</div>
-          <h1>One page that gently guides families forward.</h1>
-          <p class="lead">
-            This template is built like a trail map. It starts with the emotional promise, then leads into programs, age groups,
-            and the registration step without feeling crowded.
-          </p>
-          <div class="stack">
-            <div class="row"><div class="num">1</div><div><strong>Warm welcome</strong><span>Open with a bright promise, not a wall of text.</span></div></div>
-            <div class="row"><div class="num">2</div><div><strong>Program waypoints</strong><span>Show Qur’an, Arabic, Islamic Studies, and crafts.</span></div></div>
-            <div class="row"><div class="num">3</div><div><strong>Action point</strong><span>Finish with registration and camp enrollment.</span></div></div>
-          </div>
-        </section>
-        <section class="panel map">
-          <div class="rail"><div class="dot"></div><div class="line"></div><div class="dot"></div><div class="line"></div><div class="dot"></div></div>
-          <div class="content">
-            <div class="cards">
-              <article class="card"><h2>Qur’an & Tajweed</h2><p>Clear recitation goals, fluency tracking, and qualified instruction.</p></article>
-              <article class="card"><h2>Arabic Language</h2><p>Functional vocabulary and confidence-building speaking practice.</p></article>
-              <article class="card"><h2>Islamic Studies</h2><p>Story-based learning for Seerah, Fiqh, Aqeedah, and manners.</p></article>
-              <article class="card"><h2>Hands-on activities</h2><p>Arts, baking, and Montessori-inspired creativity keep attention high.</p></article>
+</head>
+<body class="bg-cream font-body text-stone-800 antialiased overflow-x-hidden">
+
+    <div class="min-h-screen flex flex-col lg:flex-row">
+        <aside class="lg:w-[45%] bg-stone-900 text-white relative flex flex-col justify-between p-8 lg:p-12 bg-cover bg-center min-h-[400px] lg:min-h-screen" style="background-image: linear-gradient(rgba(28, 25, 23, 0.4), rgba(28, 25, 23, 0.75)), url('https://images.unsplash.com/photo-1588072432836-e10032774350?auto=format&fit=crop&q=80&w=900');">
+            <div class="flex items-center space-x-3 relative z-10">
+                <div class="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-kids text-xl shadow-md">A</div>
+                <span class="font-kids text-xl tracking-wide">Anas Ibn Malik Academy</span>
             </div>
-            <div class="callout">
-              <strong>Registration open for 2025-2026</strong>
-              <span>Sibling discounts, payment plans, and camp-style events can live here without breaking the visual rhythm.</span>
+
+            <div class="space-y-4 relative z-10 mt-auto">
+                <span class="bg-amber-600/90 text-white font-kids text-xs uppercase tracking-widest px-3 py-1 rounded-full">Chantilly, VA</span>
+                <h1 class="font-kids text-4xl lg:text-5xl leading-tight text-amber-50">A weekend of growth, laughter, and faith.</h1>
+                <p class="text-stone-300 text-sm max-w-sm leading-relaxed">Give parents a fast preview of the weekend experience, with strong trust signals and an obvious next step.</p>
             </div>
-          </div>
-        </section>
-      </section>
-      <div class="pager">
-        <a class="btn ghost" href="canopy-campus.html">Previous template</a>
-        <a class="btn primary" href="sunlit-studio.html">Next template</a>
-      </div>
-      <section class="footer">
-        <div class="mini"><strong>Trust cue</strong><br><span style="color:var(--muted)">Use a parent testimonial and years-in-service badge.</span></div>
-        <div class="mini"><strong>Conversion cue</strong><br><span style="color:var(--muted)">Keep one dominant CTA repeated twice.</span></div>
-        <div class="mini"><strong>Visual cue</strong><br><span style="color:var(--muted)">Use wood textures, warm surfaces, and leafy accents.</span></div>
-      </section>
-    </main>
-  </body>
+        </aside>
+
+        <main class="lg:w-[55%] flex flex-col justify-between p-6 lg:p-16 bg-cream">
+            <nav class="flex flex-wrap gap-2 p-1.5 bg-stone-200/50 rounded-2xl max-w-xl mb-12">
+                <button onclick="switchTab('overview')" id="btn-overview" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide bg-emerald-700 text-white shadow-sm transition">
+                    🌿 Overview
+                </button>
+                <button onclick="switchTab('activities')" id="btn-activities" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide text-stone-600 hover:text-stone-900 transition">
+                    🍪 Activities
+                </button>
+                <button onclick="switchTab('safety')" id="btn-safety" class="tab-btn px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide text-stone-600 hover:text-stone-900 transition">
+                    🛡️ Safety First
+                </button>
+            </nav>
+
+            <div class="flex-grow">
+                <div id="tab-overview" class="tab-content active space-y-6 animate-fade-in">
+                    <h2 class="font-kids text-3xl md:text-4xl text-stone-900">Why weekend learning matters</h2>
+                    <p class="text-stone-600 leading-relaxed">We connect Qur'an, Arabic, and adab to real activities so children stay engaged and parents feel the school has a clear purpose.</p>
+                    <div class="grid grid-cols-2 gap-4 pt-4">
+                        <div class="p-4 bg-white border border-stone-200/60 rounded-2xl shadow-sm">
+                            <span class="text-3xl block mb-1">📅</span>
+                            <span class="font-kids text-lg block text-stone-900">Flexible Slots</span>
+                            <span class="text-xs text-stone-500">Saturdays or Sundays</span>
+                        </div>
+                        <div class="p-4 bg-white border border-stone-200/60 rounded-2xl shadow-sm">
+                            <span class="text-3xl block mb-1">📖</span>
+                            <span class="font-kids text-lg block text-stone-900">Sunnah Core</span>
+                            <span class="text-xs text-stone-500">Authentic materials only</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-activities" class="tab-content space-y-6">
+                    <h2 class="font-kids text-3xl text-stone-900">Less lectures, more doing</h2>
+                    <p class="text-stone-600">Activities are organized to feel playful first, but every project points back to a clear learning outcome.</p>
+                    <div class="space-y-3">
+                        <div class="flex items-center space-x-3 p-3 bg-white border border-stone-100 rounded-xl">
+                            <span class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-800 font-bold">1</span>
+                            <span class="text-sm font-semibold text-stone-700">Animals in the Qur'an Cookie Baking Workshops</span>
+                        </div>
+                        <div class="flex items-center space-x-3 p-3 bg-white border border-stone-100 rounded-xl">
+                            <span class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-800 font-bold">2</span>
+                            <span class="text-sm font-semibold text-stone-700">Hands-on Calligraphy & Architecture Crafts</span>
+                        </div>
+                        <div class="flex items-center space-x-3 p-3 bg-white border border-stone-100 rounded-xl">
+                            <span class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-800 font-bold">3</span>
+                            <span class="text-sm font-semibold text-stone-700">Peer-led Interactive Storytelling Frameworks</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-safety" class="tab-content space-y-6">
+                    <h2 class="font-kids text-3xl text-stone-900">Your absolute peace of mind</h2>
+                    <p class="text-stone-600">The structure is intentionally clean so drop-off feels easy and the learning environment feels safe and organized.</p>
+                    <ul class="space-y-2 text-stone-600 text-sm">
+                        <li class="flex items-center space-x-2">
+                            <span class="text-emerald-600">✔</span> <span>Complete physical check-in and secure sign-out logs.</span>
+                        </li>
+                        <li class="flex items-center space-x-2">
+                            <span class="text-emerald-600">✔</span> <span>Fully vetted instructors with cleared background screens.</span>
+                        </li>
+                        <li class="flex items-center space-x-2">
+                            <span class="text-emerald-600">✔</span> <span>Allergen-conscious, transparent cooking workspaces.</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="mt-12 pt-6 border-t border-stone-200/60 flex items-center justify-between">
+                <div>
+                    <span class="text-xs font-bold text-stone-400 block uppercase tracking-wider">Join Us Today</span>
+                    <span class="font-kids text-xl text-stone-900">Classes filling quickly</span>
+                </div>
+                <a href="#" class="bg-amber-700 hover:bg-amber-800 text-white font-kids px-6 py-3.5 rounded-2xl shadow-md transition">Quick Registration</a>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-emerald-700', 'text-white', 'shadow-sm');
+                btn.classList.add('text-stone-600', 'hover:text-stone-900');
+            });
+
+            document.getElementById('tab-' + tabId).classList.add('active');
+            const targetBtn = document.getElementById('btn-' + tabId);
+            targetBtn.classList.add('bg-emerald-700', 'text-white', 'shadow-sm');
+            targetBtn.classList.remove('text-stone-600', 'hover:text-stone-900');
+        }
+    </script>
+</body>
 </html>

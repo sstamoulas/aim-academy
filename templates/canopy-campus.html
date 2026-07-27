@@ -1,147 +1,205 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Canopy Campus</title>
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anas Ibn Malik Academy | Weekend Islamic School in Chantilly, VA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Quicksand', 'sans-serif'] },
+                    colors: {
+                        sage: { 50: '#f4f7f5', 100: '#e6ede8', 600: '#557a61', 700: '#44624e' },
+                        amberAccent: '#d97706',
+                        woodDark: '#2b2118',
+                        creamBase: '#fbfaf7'
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-      @import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;700;800&display=swap");
-      :root{
-        --bg:#f4efe3; --panel:#fffaf1; --text:#1f3024; --muted:#5f6d61; --green:#5f8550; --green2:#2f4d34; --wood:#b8874f; --line:rgba(47,77,52,.14);
-        --shadow:0 18px 50px rgba(39,55,41,.12);
-      }
-      *{box-sizing:border-box} html,body{margin:0; min-height:100%}
-      body{
-        font-family:"Manrope",sans-serif; color:var(--text);
-        background:
-          radial-gradient(circle at 15% 10%, rgba(95,133,80,.18), transparent 22%),
-          radial-gradient(circle at 92% 15%, rgba(184,135,79,.18), transparent 24%),
-          linear-gradient(180deg,#faf7f0,#efeadf);
-      }
-      .wrap{width:min(1180px,calc(100% - 32px)); margin:0 auto}
-      .nav{display:flex; justify-content:space-between; align-items:center; padding:22px 0}
-      .brand{font-weight:900; letter-spacing:.04em}
-      .brand span{color:var(--green)}
-      .nav-links{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
-      .btn{padding:14px 18px; border-radius:16px; font-weight:800; text-decoration:none}
-      .btn.primary{background:linear-gradient(135deg,var(--green2),var(--green)); color:#fff; box-shadow:0 18px 28px rgba(47,77,52,.24)}
-      .btn.ghost{border:1px solid var(--line); background:rgba(255,255,255,.68); color:var(--green2)}
-      .hero{display:grid; grid-template-columns:1.1fr .9fr; gap:26px; align-items:stretch; padding:18px 0 26px}
-      .panel{background:rgba(255,255,255,.74); border:1px solid var(--line); border-radius:30px; box-shadow:var(--shadow); overflow:hidden}
-      .left{padding:34px}
-      .eyebrow{display:inline-flex; gap:10px; align-items:center; padding:9px 13px; border-radius:999px; background:rgba(95,133,80,.12); color:var(--green2); font-weight:800}
-      h1{font-family:"Fraunces",serif; font-size:clamp(3rem,6vw,5.6rem); line-height:.92; letter-spacing:-.05em; margin:16px 0 12px; max-width:11ch}
-      .lead{max-width:60ch; line-height:1.8; color:var(--muted); font-size:1.03rem}
-      .actions{display:flex; gap:12px; flex-wrap:wrap; margin-top:22px}
-      .proof{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:26px}
-      .stat{padding:16px; border-radius:20px; background:linear-gradient(180deg, rgba(95,133,80,.1), rgba(255,255,255,.8)); border:1px solid rgba(47,77,52,.08)}
-      .stat strong{display:block; font-size:1.4rem}
-      .stat span{color:var(--muted); font-size:.92rem}
-      .right{display:grid; grid-template-rows:auto 1fr auto}
-      .image{
-        min-height:320px;
-        background:
-          radial-gradient(circle at 20% 20%, rgba(255,255,255,.6), transparent 20%),
-          linear-gradient(140deg, rgba(44,74,52,.96), rgba(95,133,80,.82) 60%, rgba(184,135,79,.72));
-        position:relative;
-      }
-      .image:before,.image:after{
-        content:""; position:absolute; inset:auto; border-radius:999px; filter:blur(0);
-      }
-      .image:before{width:240px;height:240px; left:-32px; top:36px; background:rgba(255,255,255,.08)}
-      .image:after{width:210px;height:210px; right:18px; bottom:-62px; background:rgba(255,255,255,.1)}
-      .floating{
-        position:absolute; left:24px; bottom:22px; right:24px; padding:18px;
-        background:rgba(255,255,255,.14); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.16);
-        border-radius:22px; color:#fff;
-      }
-      .floating b{display:block; font-size:1.2rem; margin-bottom:4px}
-      .strip{padding:16px 18px; display:flex; gap:10px; flex-wrap:wrap}
-      .chip{padding:10px 12px; border-radius:999px; background:#fff; border:1px solid var(--line); color:var(--green2); font-weight:800}
-      .sections{display:grid; grid-template-columns:1fr 1fr; gap:18px; padding:0 0 44px}
-      .card{padding:22px}
-      .card h2{margin:0 0 10px; font-size:1.3rem}
-      .card p{margin:0; color:var(--muted); line-height:1.7}
-      .list{display:grid; gap:12px; margin-top:14px}
-      .item{display:flex; justify-content:space-between; gap:14px; align-items:center; padding:14px 16px; border-radius:18px; background:rgba(255,255,255,.75); border:1px solid rgba(47,77,52,.08)}
-      .item strong{display:block}
-      .item span{color:var(--muted); font-size:.92rem}
-      .timeline{display:grid; gap:12px; margin-top:14px}
-      .step{display:grid; grid-template-columns:44px 1fr; gap:12px; align-items:start; padding:14px 14px 14px 0}
-      .dot{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--green2),var(--wood)); color:#fff; display:grid; place-items:center; font-weight:900}
-      .pager{display:flex; justify-content:space-between; gap:12px; padding:0 0 44px; flex-wrap:wrap}
-      @media (max-width: 900px){ .hero,.sections{grid-template-columns:1fr} .proof{grid-template-columns:1fr} }
+        .wood-texture {
+            background-color: #3e3024;
+            background-image: linear-gradient(rgba(0,0,0,0.15) 1px, transparent 1px);
+            background-size: 100% 4px;
+        }
     </style>
-  </head>
-  <body>
-    <main class="wrap">
-      <header class="nav">
-        <div class="brand">AIMA<span>VA</span></div>
-        <div class="nav-links">
-          <a class="btn ghost" href="../index.html">Gallery</a>
-          <a class="btn ghost" href="forest-path.html">Next: Forest Path</a>
-        </div>
-      </header>
-
-      <section class="hero">
-        <section class="panel left">
-          <div class="eyebrow">Weekend school • joyful learning • calm confidence</div>
-          <h1>Learning that feels like a bright place to belong.</h1>
-          <p class="lead">
-            A split-screen homepage for a kids center that foregrounds faith, warmth, and structure. The design pulls attention with
-            immediate trust cues, then funnels families toward registration and program exploration.
-          </p>
-          <div class="actions">
-            <a class="btn primary" href="#">Reserve a spot</a>
-            <a class="btn ghost" href="#">See programs</a>
-          </div>
-          <div class="proof">
-            <div class="stat"><strong>Qur’an + Tajweed</strong><span>Strong, guided recitation tracks</span></div>
-            <div class="stat"><strong>Arabic + Adab</strong><span>Language, manners, and confidence</span></div>
-            <div class="stat"><strong>Montessori play</strong><span>Hands-on creativity built in</span></div>
-          </div>
-        </section>
-        <aside class="panel right">
-          <div class="image">
-            <div class="floating">
-              <b>Summer Camp 2026</b>
-              <span>Bright activities, faith-based stories, and a clean registration path.</span>
+</head>
+<body class="bg-creamBase font-sans text-stone-800 antialiased selection:bg-sage-100">
+    <header class="sticky top-0 z-50 bg-creamBase/95 backdrop-blur border-b border-stone-200/60 shadow-xs">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <a href="../index.html" class="flex items-center gap-3 group">
+                <div class="w-10 h-10 bg-sage-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-md transform group-hover:rotate-6 transition-transform">A</div>
+                <div class="flex flex-col">
+                    <span class="font-bold text-lg tracking-tight text-woodDark leading-none">Anas Ibn Malik</span>
+                    <span class="text-xs font-semibold text-sage-600 tracking-wider uppercase mt-1">Academy</span>
+                </div>
+            </a>
+            <nav class="hidden md:flex items-center gap-8 font-semibold text-stone-600">
+                <a href="#about" class="hover:text-sage-600 transition-colors">About</a>
+                <a href="#programs" class="hover:text-sage-600 transition-colors">Programs</a>
+                <a href="#gallery" class="hover:text-sage-600 transition-colors">Gallery</a>
+                <a href="#contact" class="hover:text-sage-600 transition-colors">Contact</a>
+            </nav>
+            <div class="hidden md:flex items-center">
+                <a href="#programs" class="bg-amberAccent hover:bg-amber-700 text-white font-bold px-6 py-2.5 rounded-full shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 text-center">
+                    Register Now
+                </a>
             </div>
-          </div>
-          <div class="strip">
-            <span class="chip">Ages 5+</span>
-            <span class="chip">Saturday / Sunday</span>
-            <span class="chip">Drop-off friendly</span>
-          </div>
-        </aside>
-      </section>
+            <button class="md:hidden p-2 text-stone-600 focus:outline-hidden" aria-label="Toggle Menu">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+        </div>
+    </header>
 
-      <section class="sections">
-        <article class="panel card">
-          <h2>What families need to know fast</h2>
-          <p>
-            A concise information card for tuition, age bands, and registration. The layout reduces friction by surfacing the
-            decision-making details where parents naturally pause.
-          </p>
-          <div class="list">
-            <div class="item"><div><strong>Registration</strong><span>Open for 2025-2026</span></div><b>Now</b></div>
-            <div class="item"><div><strong>Support</strong><span>Sibling discounts and plans</span></div><b>Available</b></div>
-            <div class="item"><div><strong>Format</strong><span>Weekend school with camp events</span></div><b>Flexible</b></div>
-          </div>
-        </article>
-        <article class="panel card">
-          <h2>How the page flows</h2>
-          <div class="timeline">
-            <div class="step"><div class="dot">1</div><div><strong>Hero promise</strong><p>Show the environment, the age range, and a main CTA above the fold.</p></div></div>
-            <div class="step"><div class="dot">2</div><div><strong>Program proof</strong><p>Use three clean cards for Qur’an, Arabic, and Islamic studies.</p></div></div>
-            <div class="step"><div class="dot">3</div><div><strong>Registration close</strong><p>End with one high-contrast button and a reassuring note.</p></div></div>
-          </div>
-        </article>
-      </section>
-      <div class="pager">
-        <a class="btn ghost" href="../index.html">Back to gallery</a>
-        <a class="btn primary" href="forest-path.html">Next template</a>
-      </div>
+    <main>
+        <section class="relative bg-sage-100 overflow-hidden py-16 lg:py-24">
+            <div class="absolute top-12 left-6 w-24 h-24 bg-sage-600/10 rounded-full blur-xl"></div>
+            <div class="absolute bottom-6 right-12 w-36 h-36 bg-amberAccent/10 rounded-full blur-2xl"></div>
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                <div class="lg:col-span-6 space-y-6 text-center lg:text-left">
+                    <span class="inline-flex items-center gap-1.5 bg-white border border-sage-600/20 text-sage-700 text-sm font-bold px-4 py-1.5 rounded-full shadow-xs">
+                        ✨ Enrolling for Fall 2026
+                    </span>
+                    <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-woodDark leading-tight tracking-tight">
+                        Building Bright Futures on <span class="text-sage-600">Sacred Foundations.</span>
+                    </h1>
+                    <p class="text-lg text-stone-600 max-w-xl mx-auto lg:mx-0 font-medium leading-relaxed">
+                        Nurturing minds, character, and faith through joyful, hands-on learning experiences designed to prepare children for the future.
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-2">
+                        <a href="#programs" class="bg-sage-600 hover:bg-sage-700 text-white font-bold px-8 py-4 rounded-full shadow-lg hover:shadow-xl transition-all text-center">
+                            Explore Our Programs
+                        </a>
+                        <a href="#about" class="bg-white hover:bg-stone-50 text-stone-700 border border-stone-300 font-bold px-8 py-4 rounded-full shadow-sm text-center transition-colors">
+                            Learn More
+                        </a>
+                    </div>
+                </div>
+                <div class="lg:col-span-6 relative">
+                    <div class="relative mx-auto max-w-md lg:max-w-none aspect-4/3 rounded-3xl overflow-hidden shadow-2xl border-4 border-white transform rotate-1">
+                        <img src="https://images.unsplash.com/photo-1588072432836-e10032774350?auto=format&fit=crop&w=800&q=80" alt="Children learning happily in a warm classroom environment" class="object-cover w-full h-full">
+                        <div class="absolute inset-0 bg-linear-to-t from-woodDark/40 via-transparent to-transparent"></div>
+                    </div>
+                    <div class="wood-texture absolute -bottom-4 -left-4 text-white p-4 rounded-2xl shadow-xl hidden sm:block max-w-xs border border-stone-700/50">
+                        <p class="text-sm font-semibold tracking-wide text-amber-200 uppercase">Our Objective</p>
+                        <p class="font-bold text-base mt-0.5 leading-snug">Based on the Quran and authentic Sunnah.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="about" class="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-3xl mx-auto mb-16 space-y-3">
+                <h2 class="text-3xl font-bold text-woodDark sm:text-4xl">A Different Kind of Weekend Academy</h2>
+                <div class="w-16 h-1 bg-amberAccent mx-auto rounded-full"></div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="bg-sage-50 border border-sage-600/10 rounded-2xl p-8 flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <div class="w-12 h-12 bg-sage-600/10 rounded-xl flex items-center justify-center text-sage-700 font-bold text-xl mb-6">📖</div>
+                        <h3 class="text-xl font-bold text-woodDark mb-3">Authentic Sunnah</h3>
+                        <p class="text-stone-600 font-medium leading-relaxed">Character built explicitly on core prophetic traditions and values, making faith relatable for today's children.</p>
+                    </div>
+                    <div class="mt-6 pt-4 border-t border-stone-200/60 text-xs font-bold uppercase tracking-wider text-sage-700">Pillar One</div>
+                </div>
+                <div class="wood-texture text-white border border-stone-800 rounded-2xl p-8 flex flex-col justify-between hover:shadow-lg transition-shadow">
+                    <div>
+                        <div class="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center text-xl mb-6">🎨</div>
+                        <h3 class="text-xl font-bold text-amber-200 mb-3">Hands-On Experience</h3>
+                        <p class="text-stone-200 font-medium leading-relaxed">Baking workshops, craft integration, and interactive challenges that turn lessons into life-long sticky memories.</p>
+                    </div>
+                    <div class="mt-6 pt-4 border-t border-white/10 text-xs font-bold uppercase tracking-wider text-amber-200">Pillar Two</div>
+                </div>
+                <div class="bg-stone-100 border border-stone-200 rounded-2xl p-8 flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <div class="w-12 h-12 bg-amberAccent/10 rounded-xl flex items-center justify-center text-xl mb-6">☀️</div>
+                        <h3 class="text-xl font-bold text-woodDark mb-3">Joyful Environment</h3>
+                        <p class="text-stone-600 font-medium leading-relaxed">Thoughtfully engineered space completely devoid of cold, gloomy institutional design. A place kids actually look forward to.</p>
+                    </div>
+                    <div class="mt-6 pt-4 border-t border-stone-200/60 text-xs font-bold uppercase tracking-wider text-stone-500">Pillar Three</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="programs" class="py-20 bg-stone-50/60 border-y border-stone-200/60">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center max-w-3xl mx-auto mb-16 space-y-3">
+                    <h2 class="text-3xl font-bold text-woodDark sm:text-4xl">Choose Your Child's Journey</h2>
+                    <p class="text-stone-500 font-medium">Streamlined enrollments to minimize overhead friction.</p>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                    <div class="bg-white rounded-3xl p-8 shadow-sm border border-stone-200/80 flex flex-col justify-between relative overflow-hidden group">
+                        <div class="space-y-6">
+                            <div class="aspect-video rounded-2xl overflow-hidden shadow-xs relative">
+                                <img src="https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=600&q=80" alt="Active learning session" class="object-cover w-full h-full transform group-hover:scale-102 transition-transform duration-300">
+                            </div>
+                            <div>
+                                <h3 class="text-2xl font-bold text-woodDark">The Weekend Academy</h3>
+                                <p class="text-stone-500 text-sm font-semibold mt-1">Ages 5 and up • Core Curriculum</p>
+                            </div>
+                            <p class="text-stone-600 font-medium leading-relaxed">
+                                A comprehensive multi-week framework focused on essential Islamic knowledge, sound text recitation, and identity formation tailored to western cultural landscapes.
+                            </p>
+                        </div>
+                        <div class="mt-8 pt-4">
+                            <a href="#" class="inline-flex items-center gap-2 text-sage-700 font-bold hover:text-sage-600 text-lg transition-colors group-hover:translate-x-1 transform duration-200">
+                                View School Schedule &amp; Schedule Visit →
+                            </a>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-3xl p-8 shadow-sm border border-stone-200/80 flex flex-col justify-between relative overflow-hidden group">
+                        <div class="absolute top-4 right-4 z-10 bg-amber-100 text-amberAccent text-xs font-extrabold uppercase tracking-widest px-3 py-1.5 rounded-full border border-amber-200">
+                            Sold Out
+                        </div>
+                        <div class="space-y-6">
+                            <div class="aspect-video rounded-2xl overflow-hidden shadow-xs relative opacity-90 grayscale-[20%]">
+                                <img src="https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=600&q=80" alt="Baking and learning kitchen workshop" class="object-cover w-full h-full">
+                                <div class="absolute inset-0 bg-stone-900/10 mix-blend-multiply"></div>
+                            </div>
+                            <div>
+                                <h3 class="text-2xl font-bold text-woodDark">Interactive Creative Workshops</h3>
+                                <p class="text-stone-500 text-sm font-semibold mt-1">Special Seasonal Sessions</p>
+                            </div>
+                            <p class="text-stone-600 font-medium leading-relaxed">
+                                Our community-favorite workshops (like the signature Animals in the Qur'an Cookie Workshop) sell out rapidly. Kids bake, build crafts, and extract deep moral value.
+                            </p>
+                        </div>
+                        <div class="mt-8 pt-6 border-t border-stone-100">
+                            <form id="waitlist-form" class="space-y-3">
+                                <label for="waitlist-email" class="block text-xs font-bold text-stone-500 uppercase tracking-wider">Join Next Workshop Waitlist</label>
+                                <div class="flex gap-2">
+                                    <input type="email" id="waitlist-email" required placeholder="Enter your email address" class="bg-stone-50 border border-stone-300 rounded-xl px-4 py-2.5 text-sm font-medium w-full focus:outline-hidden focus:border-sage-600 focus:bg-white transition-colors">
+                                    <button type="submit" class="bg-woodDark hover:bg-stone-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl whitespace-nowrap transition-colors">
+                                        Notify Me
+                                    </button>
+                                </div>
+                                <p id="waitlist-success" class="text-xs text-sage-700 font-bold hidden flex items-center gap-1">✓ Success! You are first in line for our next release.</p>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="gallery" class="wood-texture py-20 text-center relative overflow-hidden">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-6">
+                <div class="text-amber-300 text-2xl tracking-widest">★★★★★</div>
+                <blockquote class="text-2xl sm:text-3xl font-medium tracking-tight text-creamBase leading-relaxed">
+                    "My kids don't just learn here; they feel genuinely excited to come back every week."
+                </blockquote>
+                <cite class="block text-amber-200 text-sm font-bold uppercase tracking-widest not-italic">
+                    — AIMAVA Parent
+                </cite>
+            </div>
+            <div class="absolute inset-0 opacity-5 pointer-events-none bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
+        </section>
     </main>
-  </body>
+</body>
 </html>

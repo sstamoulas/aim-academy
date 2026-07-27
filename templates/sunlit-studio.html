@@ -1,136 +1,105 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Sunlit Studio</title>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIM Academy - Story Showcase</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-      @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap");
-      :root{--bg:#f6f0e5;--text:#21312a;--muted:#5d6a62;--green:#628a57;--green2:#2f4c35;--wood:#ba8850;--line:rgba(47,76,53,.12)}
-      *{box-sizing:border-box} html,body{margin:0;min-height:100%}
-      body{
-        font-family:"Space Grotesk",sans-serif; color:var(--text);
-        background:
-          radial-gradient(circle at 20% 15%, rgba(98,138,87,.14), transparent 25%),
-          radial-gradient(circle at 82% 10%, rgba(186,136,80,.16), transparent 23%),
-          linear-gradient(180deg,#fbf8f1,#efe7d9);
-      }
-      .wrap{width:min(1180px,calc(100% - 32px)); margin:0 auto}
-      .top{display:flex; justify-content:space-between; align-items:center; padding:22px 0}
-      .mark{font-weight:800; letter-spacing:.08em}
-      .mark span{color:var(--green)}
-      .nav-links{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
-      .btn{padding:13px 16px; border-radius:16px; font-weight:800; text-decoration:none}
-      .primary{background:linear-gradient(135deg,var(--green2),var(--green)); color:#fff}
-      .ghost{border:1px solid var(--line); color:var(--green2); background:rgba(255,255,255,.68)}
-      .hero{display:grid; grid-template-columns:1.05fr .95fr; gap:18px; padding:12px 0 30px}
-      .panel{border-radius:32px; background:rgba(255,255,255,.76); border:1px solid var(--line); overflow:hidden; box-shadow:0 18px 50px rgba(39,55,41,.10)}
-      .story{padding:34px}
-      .eyebrow{display:inline-flex; padding:9px 13px; border-radius:999px; background:rgba(98,138,87,.12); font-weight:700; color:var(--green2)}
-      h1{font-family:"Fraunces",serif; font-size:clamp(3rem,6vw,5.6rem); line-height:.92; letter-spacing:-.05em; margin:16px 0 12px; max-width:10ch}
-      .lead{max-width:58ch; color:var(--muted); font-size:1.03rem; line-height:1.8}
-      .quote{
-        margin-top:22px; padding:22px; border-left:5px solid var(--wood); background:linear-gradient(90deg,rgba(186,136,80,.12),rgba(255,255,255,.55));
-        border-radius:0 24px 24px 0;
-      }
-      .quote strong{display:block; margin-bottom:6px}
-      .art{
-        display:grid; grid-template-rows:1.2fr .8fr;
-      }
-      .collage{
-        padding:22px; min-height:360px;
-        background:
-          linear-gradient(135deg, rgba(47,76,53,.94), rgba(98,138,87,.82) 55%, rgba(186,136,80,.72));
-        position:relative;
-      }
-      .tile{position:absolute; border-radius:24px; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.18); backdrop-filter:blur(6px)}
-      .tile.a{left:22px; top:22px; width:42%; height:42%}
-      .tile.b{right:22px; top:44px; width:28%; height:24%}
-      .tile.c{right:34px; bottom:24px; width:36%; height:28%}
-      .tile.d{left:50%; transform:translateX(-50%); top:34%; width:24%; height:34%}
-      .overlay{position:absolute; left:22px; right:22px; bottom:22px; padding:18px 20px; border-radius:22px; background:rgba(255,255,255,.16); color:#fff}
-      .overlay b{display:block; font-size:1.2rem}
-      .photo-strip{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; padding:18px}
-      .shot{min-height:110px; border-radius:22px; background:linear-gradient(180deg, rgba(98,138,87,.16), rgba(255,255,255,.82)); border:1px solid rgba(47,76,53,.08)}
-      .bottom{display:grid; grid-template-columns:1.1fr .9fr; gap:18px; padding:0 0 44px}
-      .panel2{padding:22px}
-      .list{display:grid; gap:12px; margin-top:14px}
-      .item{padding:16px 18px; border-radius:18px; background:rgba(255,255,255,.76); border:1px solid rgba(47,76,53,.08)}
-      .item strong{display:block; margin-bottom:4px}
-      .item span{color:var(--muted)}
-      .testimonial{padding:28px; border-radius:28px; background:linear-gradient(135deg, rgba(98,138,87,.12), rgba(186,136,80,.12)); border:1px solid rgba(47,76,53,.08); min-height:100%}
-      .testimonial p{font-size:1.05rem; line-height:1.9; color:#324139}
-      .testimonial cite{font-style:normal; color:var(--muted)}
-      .pager{display:flex; justify-content:space-between; gap:12px; padding:0 0 44px; flex-wrap:wrap}
-      @media (max-width: 900px){ .hero,.bottom{grid-template-columns:1fr} }
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600&display=swap');
+        .font-kids { font-family: 'Fredoka', sans-serif; }
+        .font-body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .bg-cream { background-color: #FDFBF7; }
     </style>
-  </head>
-  <body>
-    <main class="wrap">
-      <header class="top">
-        <div class="mark">AIMA<span>VA</span> / Sunlit Studio</div>
-        <div class="nav-links">
-          <a class="btn ghost" href="../index.html">Gallery</a>
-          <a class="btn ghost" href="woodgrain-atelier.html">Next: Woodgrain Atelier</a>
+</head>
+<body class="bg-cream font-body text-stone-800 antialiased py-8 px-4 sm:px-6">
+
+    <header class="max-w-4xl mx-auto bg-white/80 backdrop-blur-md border border-stone-200/60 p-4 rounded-2xl shadow-sm flex justify-between items-center sticky top-4 z-50">
+        <div class="flex items-center space-x-2">
+            <span class="w-3 h-3 rounded-full bg-emerald-600 block"></span>
+            <span class="font-kids text-lg text-stone-900">AIM Academy</span>
         </div>
-      </header>
-      <section class="hero">
-        <article class="panel story">
-          <div class="eyebrow">Story-led homepage for families</div>
-          <h1>A brighter way to tell the school story.</h1>
-          <p class="lead">
-            This version uses editorial pacing and strong typographic contrast to feel premium, welcoming, and memorable. It works
-            well when you want the school’s values and the parent testimonial to do the heavy lifting.
-          </p>
-          <div class="quote">
-            <strong>"AIMAVA has been a blessing for our family."</strong>
-            <span>That kind of social proof should be visually prominent and immediately believable.</span>
-          </div>
-        </article>
-        <article class="panel art">
-          <div class="collage">
-            <div class="tile a"></div>
-            <div class="tile b"></div>
-            <div class="tile c"></div>
-            <div class="tile d"></div>
-            <div class="overlay">
-              <b>Weekend learning, summer camp, and joyful hands-on activities</b>
-              <span>Use this panel for an image collage or short class video on GitHub Pages.</span>
+        <a href="#register" class="bg-stone-950 hover:bg-stone-800 text-white text-xs font-bold uppercase tracking-wider px-4 py-2 rounded-xl transition">
+            Enroll Now
+        </a>
+    </header>
+
+    <main class="max-w-4xl mx-auto mt-12 space-y-16">
+        <section class="space-y-6">
+            <span class="text-xs font-bold text-emerald-800 uppercase tracking-widest bg-emerald-100 px-3.5 py-1.5 rounded-full inline-block">Chantilly's Brightest Weekend Space</span>
+            <h1 class="font-kids text-4xl sm:text-5xl text-stone-900 leading-tight">
+                An authentic weekend academy built entirely for kids.
+            </h1>
+
+            <div class="w-full h-80 sm:h-96 rounded-[32px] overflow-hidden shadow-lg bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&q=80&w=1000');">
+                <div class="w-full h-full bg-stone-900/20 p-6 flex items-end">
+                    <span class="bg-white/90 backdrop-blur-sm text-stone-900 font-kids px-4 py-2 rounded-xl text-sm shadow-sm">Active Classrooms ● Enrolling Now</span>
+                </div>
             </div>
-          </div>
-          <div class="photo-strip">
-            <div class="shot"></div>
-            <div class="shot"></div>
-            <div class="shot"></div>
-          </div>
-        </article>
-      </section>
-      <section class="bottom">
-        <article class="panel panel2">
-          <h2 style="margin:0 0 8px;">Program highlights</h2>
-          <div class="list">
-            <div class="item"><strong>Qur’an & Tajweed</strong><span>Recitation, fluency, and confidence.</span></div>
-            <div class="item"><strong>Arabic Language</strong><span>Speaking and comprehension with a practical focus.</span></div>
-            <div class="item"><strong>Islamic Studies</strong><span>Seerah, fiqh, aqeedah, and adab in a story-first format.</span></div>
-          </div>
-        </article>
-        <article class="testimonial">
-          <h2 style="margin-top:0;">Why this UI works</h2>
-          <p>
-            The editorial layout slows the eye just enough to make the school feel established and intentional, while the warm green
-            and wood gradients keep it kid-friendly instead of corporate.
-          </p>
-          <p>
-            Keep the top section focused on one emotional claim, one trust signal, and one action button. That combination converts
-            better than a dense feature dump.
-          </p>
-          <cite>Designed to feel hopeful, organized, and reassuring.</cite>
-        </article>
-      </section>
-      <div class="pager">
-        <a class="btn ghost" href="forest-path.html">Previous template</a>
-        <a class="btn primary" href="woodgrain-atelier.html">Next template</a>
-      </div>
+        </section>
+
+        <section class="bg-white border border-stone-200/80 rounded-[36px] p-6 sm:p-10 shadow-sm space-y-6">
+            <div class="flex justify-between items-center flex-wrap gap-4 border-b border-stone-100 pb-4">
+                <div>
+                    <h3 class="font-kids text-2xl text-stone-900">What happens next?</h3>
+                    <p class="text-xs text-stone-500 mt-0.5">Select a track below to instantly filter details</p>
+                </div>
+                <div class="flex space-x-2">
+                    <button onclick="filterDeck('baking')" id="filter-btn-baking" class="px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-kids text-xs transition shadow-sm">🍪 Workshops</button>
+                    <button onclick="filterDeck('school')" id="filter-btn-school" class="px-4 py-2 rounded-xl bg-stone-100 text-stone-600 font-kids text-xs transition">🏫 Academy</button>
+                </div>
+            </div>
+
+            <div id="filter-baking" class="deck-filter-content space-y-4">
+                <p class="text-stone-600 text-sm sm:text-base">Our interactive weekend workshops let children bake, craft, and explore beautiful lessons from the Qur'an in a fun, hands-on environment.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="p-3 bg-cream rounded-xl text-center font-semibold text-xs text-stone-700 border border-stone-200/40">✨ Cookie Decorating</div>
+                    <div class="p-3 bg-cream rounded-xl text-center font-semibold text-xs text-stone-700 border border-stone-200/40">🎨 Live Crafting Projects</div>
+                    <div class="p-3 bg-cream rounded-xl text-center font-semibold text-xs text-stone-700 border border-stone-200/40">📖 Engaging Storytime</div>
+                </div>
+            </div>
+
+            <div id="filter-school" class="deck-filter-content hidden space-y-4">
+                <p class="text-stone-600 text-sm sm:text-base">The core academy path focuses on systematic Arabic study, recitation support, and gentle mentorship that feels grounded and reassuring.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="p-4 bg-cream rounded-xl border border-stone-200/40">
+                        <span class="font-kids block text-emerald-800 text-sm">Saturday Sessions</span>
+                        <span class="text-xs text-stone-500 block mt-0.5">Structured learning with clear milestones</span>
+                    </div>
+                    <div class="p-4 bg-cream rounded-xl border border-stone-200/40">
+                        <span class="font-kids block text-amber-800 text-sm">Sunday Sessions</span>
+                        <span class="text-xs text-stone-500 block mt-0.5">Interactive practice and character development</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="register" class="bg-emerald-800 rounded-[36px] p-8 sm:p-12 text-white relative overflow-hidden shadow-xl text-center space-y-6">
+            <h3 class="font-kids text-3xl max-w-xl mx-auto leading-tight">Secure your child's place in our active modern community</h3>
+            <p class="text-emerald-100/70 text-xs sm:text-sm max-w-sm mx-auto">Registration updates are dispatched via text and email. Seats stay intentionally limited so the environment stays warm and personal.</p>
+
+            <div class="pt-2">
+                <a href="#" class="bg-amber-600 hover:bg-amber-700 text-white font-kids text-base px-8 py-4 rounded-xl shadow-md transition inline-block">
+                    Open Registration Portal
+                </a>
+            </div>
+        </section>
     </main>
-  </body>
+
+    <script>
+        function filterDeck(targetId) {
+            document.querySelectorAll('.deck-filter-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById('filter-' + targetId).classList.remove('hidden');
+
+            document.getElementById('filter-btn-baking').className = "px-4 py-2 rounded-xl bg-stone-100 text-stone-600 font-kids text-xs transition";
+            document.getElementById('filter-btn-school').className = "px-4 py-2 rounded-xl bg-stone-100 text-stone-600 font-kids text-xs transition";
+
+            if (targetId === 'baking') {
+                document.getElementById('filter-btn-baking').className = "px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-kids text-xs transition shadow-sm";
+            } else {
+                document.getElementById('filter-btn-school').className = "px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-kids text-xs transition shadow-sm";
+            }
+        }
+    </script>
+</body>
 </html>
