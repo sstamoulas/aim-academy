@@ -1,0 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;700;800&family=Fredoka:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600&family=Quicksand:wght@500;600;700&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  --color-sage-50: #f5f7f4;
+  --color-sage-100: #e6ede7;
+  --color-sage-600: #5d8162;
+  --color-sage-700: #4c6950;
+  --color-wood: #8c5a31;
+  --color-wood-dark: #2b2118;
+  --color-cream: #fdfbf7;
+
+  --font-family-kids: 'Fredoka', sans-serif;
+  --font-family-body: 'Plus Jakarta Sans', sans-serif;
+  --font-family-quick: 'Quicksand', sans-serif;
+  --font-family-display: 'Fraunces', Georgia, serif;
+  --font-family-sans: 'Manrope', 'Segoe UI', sans-serif;
+}
+
+.wood-texture {
+  background-color: #3f3024;
+  background-image: linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px);
+  background-size: 100% 4px;
+}
