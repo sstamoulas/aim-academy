@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 
 export default function ForestCanopy() {
   const [activeTab, setActiveTab] = useState<string>('overview')
@@ -13,13 +12,13 @@ export default function ForestCanopy() {
           <aside className="relative min-h-[420px] text-white bg-cover bg-center" style={{ backgroundImage: "linear-gradient(rgba(28,25,23,.38), rgba(28,25,23,.78)), url('https://images.unsplash.com/photo-1588072432836-e10032774350?auto=format&fit=crop&q=80&w=1100')" }}>
             <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/50 via-transparent to-amber-900/25"></div>
             <div className="relative z-10 h-full p-8 flex flex-col justify-between">
-              <Link to="/" className="flex items-center space-x-3">
+              <a href="/" className="flex items-center space-x-3">
                 <div className="w-11 h-11 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-kids text-xl shadow-md">A</div>
                 <div>
                   <div className="font-kids text-xl">Anas Ibn Malik Academy</div>
                   <div className="text-xs uppercase tracking-widest text-emerald-100/80 font-bold">Forest Path</div>
                 </div>
-              </Link>
+              </a>
               <div className="space-y-5 max-w-md mt-8">
                 <span className="inline-flex bg-amber-600/90 text-white font-kids text-xs uppercase tracking-widest px-3 py-1 rounded-full">Chantilly, VA</span>
                 <h1 className="font-kids text-4xl leading-tight">A weekend path that feels steady, bright, and welcoming.</h1>
@@ -153,13 +152,13 @@ export default function ForestCanopy() {
       <div className="hidden lg:block font-quick text-stone-800 selection:bg-sage-100">
         <header className="sticky top-0 z-50 bg-cream/95 backdrop-blur border-b border-stone-200/70">
           <div className="max-w-7xl mx-auto px-8 h-20 flex items-center justify-between">
-            <Link to="/" className="flex items-center gap-3">
+            <a href="/" className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-sage-600 text-white font-bold text-xl flex items-center justify-center shadow-md">A</div>
               <div className="leading-none">
                 <div className="text-lg font-bold tracking-tight text-wood-dark">Anas Ibn Malik</div>
                 <div className="text-xs font-semibold uppercase tracking-wider text-sage-700">Academy</div>
               </div>
-            </Link>
+            </a>
             <nav className="flex items-center gap-8 font-semibold text-stone-600">
               <a href="#dc-rhythm" className="hover:text-sage-700 transition-colors">Rhythm</a>
               <a href="#dc-tracks" className="hover:text-sage-700 transition-colors">Tracks</a>
