@@ -126,7 +126,7 @@ export default function PaymentModal({ isOpen, onClose, amount, description }: P
       <div className="absolute inset-0 bg-wood-dark/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Panel */}
-      <div className="relative w-full max-w-md bg-cream rounded-[28px] shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-md bg-cream rounded-[28px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="wood-texture text-white px-7 py-5 flex items-center justify-between">
           <div>
@@ -140,7 +140,7 @@ export default function PaymentModal({ isOpen, onClose, amount, description }: P
         </div>
 
         {/* Body */}
-        <div className="px-7 py-6">
+        <div className="px-7 py-6 overflow-y-auto">
           {success ? (
             <div className="text-center py-6 space-y-3">
               <div className="text-5xl">✅</div>

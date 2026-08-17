@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "aim-academy-7fdae"
+    "default": "aim-academy-7fdae",
+    "staging": "aim-academy-7fdae",
+    "production": "aim-academy-prod"
   }
 }
