@@ -7,15 +7,17 @@ import {
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js'
-import { getFunctions, httpsCallable } from 'firebase/functions'
-import { app } from '../firebase'
-
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
-const functions = getFunctions(app)
-const createPaymentIntent = httpsCallable<
-  { amount: number; currency: string; description: string },
-  { clientSecret: string }
->(functions, 'createPaymentIntent')
+
+async function createPaymentIntent(data: { amount: number; currency: string; description: string }) {
+  const res = await fetch('/api/createPaymentIntent', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error('Failed to create payment intent')
+  return res.json() as Promise<{ clientSecret: string }>
+}
 
 // ── Inner checkout form ──────────────────────────────────────────────────────
 
@@ -109,7 +111,7 @@ export default function PaymentModal({ isOpen, onClose, amount, description }: P
     }
     setLoading(true)
     createPaymentIntent({ amount, currency: 'usd', description })
-      .then(({ data }) => setClientSecret(data.clientSecret))
+      .then((data) => setClientSecret(data.clientSecret))
       .catch(() => setFetchError('Could not start checkout. Please try again.'))
       .finally(() => setLoading(false))
   }, [isOpen, amount, description])

@@ -32,26 +32,38 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createPaymentIntent = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const app_1 = require("firebase-admin/app");
+const cors_1 = __importDefault(require("cors"));
 (0, app_1.initializeApp)();
 const stripeSecret = (0, params_1.defineSecret)('STRIPE_SECRET_KEY');
-exports.createPaymentIntent = (0, https_1.onCall)({ secrets: [stripeSecret], cors: true }, async (request) => {
-    const Stripe = (await Promise.resolve().then(() => __importStar(require('stripe')))).default;
-    const stripe = new Stripe(stripeSecret.value());
-    const { amount, currency = 'usd', description } = request.data;
-    if (!amount || typeof amount !== 'number' || amount < 50) {
-        throw new https_1.HttpsError('invalid-argument', 'Amount must be a number ≥ 50 (cents)');
-    }
-    const paymentIntent = await stripe.paymentIntents.create({
-        amount,
-        currency,
-        description,
-        automatic_payment_methods: { enabled: true },
+const corsMiddleware = (0, cors_1.default)({ origin: true });
+exports.createPaymentIntent = (0, https_1.onRequest)({ secrets: [stripeSecret] }, (req, res) => {
+    corsMiddleware(req, res, async () => {
+        if (req.method !== 'POST') {
+            res.status(405).json({ error: 'Method not allowed' });
+            return;
+        }
+        const { amount, currency = 'usd', description } = req.body;
+        if (!amount || typeof amount !== 'number' || amount < 50) {
+            res.status(400).json({ error: 'Amount must be a number ≥ 50 (cents)' });
+            return;
+        }
+        const Stripe = (await Promise.resolve().then(() => __importStar(require('stripe')))).default;
+        const stripe = new Stripe(stripeSecret.value());
+        const paymentIntent = await stripe.paymentIntents.create({
+            amount,
+            currency,
+            description,
+            automatic_payment_methods: { enabled: true },
+        });
+        res.json({ clientSecret: paymentIntent.client_secret });
     });
-    return { clientSecret: paymentIntent.client_secret };
 });
 //# sourceMappingURL=index.js.map
