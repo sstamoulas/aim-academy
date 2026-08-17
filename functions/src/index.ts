@@ -17,7 +17,9 @@ export const createPaymentIntent = onRequest(
         return
       }
 
-      const { amount, currency = 'usd', description } = req.body as {
+      // Support both direct POST body and Firebase callable {data:{}} wrapper
+      const payload = req.body?.data ?? req.body
+      const { amount, currency = 'usd', description } = payload as {
         amount: number
         currency?: string
         description?: string

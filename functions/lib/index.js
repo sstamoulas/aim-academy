@@ -46,11 +46,14 @@ const stripeSecret = (0, params_1.defineSecret)('STRIPE_SECRET_KEY');
 const corsMiddleware = (0, cors_1.default)({ origin: true });
 exports.createPaymentIntent = (0, https_1.onRequest)({ secrets: [stripeSecret] }, (req, res) => {
     corsMiddleware(req, res, async () => {
+        var _a, _b;
         if (req.method !== 'POST') {
             res.status(405).json({ error: 'Method not allowed' });
             return;
         }
-        const { amount, currency = 'usd', description } = req.body;
+        // Support both direct POST body and Firebase callable {data:{}} wrapper
+        const payload = (_b = (_a = req.body) === null || _a === void 0 ? void 0 : _a.data) !== null && _b !== void 0 ? _b : req.body;
+        const { amount, currency = 'usd', description } = payload;
         if (!amount || typeof amount !== 'number' || amount < 50) {
             res.status(400).json({ error: 'Amount must be a number ≥ 50 (cents)' });
             return;
