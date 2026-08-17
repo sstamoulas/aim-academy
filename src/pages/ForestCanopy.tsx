@@ -1,7 +1,13 @@
 import { useState } from 'react'
+import PaymentModal from '../components/PaymentModal'
+
+// TODO: set final registration amount in cents (e.g. 15000 = $150.00)
+const REGISTRATION_AMOUNT = 15000
+const REGISTRATION_DESCRIPTION = 'Weekend Academy Registration'
 
 export default function ForestCanopy() {
   const [activeTab, setActiveTab] = useState<string>('overview')
+  const [paymentOpen, setPaymentOpen] = useState(false)
 
   return (
     <div className="bg-cream antialiased overflow-x-hidden">
@@ -142,7 +148,7 @@ export default function ForestCanopy() {
                 <div className="text-xs font-bold uppercase tracking-widest text-stone-400">Join Us Today</div>
                 <div className="font-kids text-xl text-stone-900">Classes filling quickly</div>
               </div>
-              <a href="#" className="bg-amber-700 hover:bg-amber-800 text-white font-kids px-6 py-3.5 rounded-2xl shadow-md transition text-center">Quick Registration</a>
+              <button onClick={() => setPaymentOpen(true)} className="bg-amber-700 hover:bg-amber-800 text-white font-kids px-6 py-3.5 rounded-2xl shadow-md transition text-center">Quick Registration</button>
             </div>
           </main>
         </div>
@@ -163,7 +169,7 @@ export default function ForestCanopy() {
               <a href="#dc-rhythm" className="hover:text-sage-700 transition-colors">Rhythm</a>
               <a href="#dc-tracks" className="hover:text-sage-700 transition-colors">Tracks</a>
               <a href="#dc-stories" className="hover:text-sage-700 transition-colors">Stories</a>
-              <a href="#dc-join" className="bg-wood text-white px-5 py-2.5 rounded-full shadow-md hover:brightness-95 transition">Register Now</a>
+              <button onClick={() => setPaymentOpen(true)} className="bg-wood text-white px-5 py-2.5 rounded-full shadow-md hover:brightness-95 transition">Register Now</button>
             </nav>
           </div>
         </header>
@@ -302,12 +308,18 @@ export default function ForestCanopy() {
                 <div className="text-xs font-bold uppercase tracking-widest text-stone-400">Ready to visit?</div>
                 <div className="text-2xl font-bold text-wood-dark">Request a registration link</div>
               </div>
-              <a href="#" className="bg-wood text-white font-bold px-7 py-3.5 rounded-full shadow-md hover:brightness-95 transition">Register Now</a>
+              <button onClick={() => setPaymentOpen(true)} className="bg-wood text-white font-bold px-7 py-3.5 rounded-full shadow-md hover:brightness-95 transition">Register Now</button>
             </div>
           </section>
         </main>
       </div>
 
+      <PaymentModal
+        isOpen={paymentOpen}
+        onClose={() => setPaymentOpen(false)}
+        amount={REGISTRATION_AMOUNT}
+        description={REGISTRATION_DESCRIPTION}
+      />
     </div>
   )
 }
