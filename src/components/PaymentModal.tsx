@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { loadStripe } from '@stripe/stripe-js'
 import {
   Elements,
@@ -117,7 +118,7 @@ export default function PaymentModal({ isOpen, onClose, amount, description }: P
 
   const dollarsLabel = `$${(amount / 100).toFixed(2)}`
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-wood-dark/60 backdrop-blur-sm" onClick={onClose} />
@@ -180,6 +181,7 @@ export default function PaymentModal({ isOpen, onClose, amount, description }: P
           ) : null}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
