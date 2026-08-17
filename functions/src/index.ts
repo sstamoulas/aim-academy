@@ -7,7 +7,7 @@ initializeApp()
 const stripeSecret = defineSecret('STRIPE_SECRET_KEY')
 
 export const createPaymentIntent = onCall(
-  { secrets: [stripeSecret] },
+  { secrets: [stripeSecret], cors: ['https://aim-academy-7fdae.web.app'] },
   async (request) => {
     const Stripe = (await import('stripe')).default
     const stripe = new Stripe(stripeSecret.value())

@@ -39,7 +39,7 @@ const params_1 = require("firebase-functions/params");
 const app_1 = require("firebase-admin/app");
 (0, app_1.initializeApp)();
 const stripeSecret = (0, params_1.defineSecret)('STRIPE_SECRET_KEY');
-exports.createPaymentIntent = (0, https_1.onCall)({ secrets: [stripeSecret] }, async (request) => {
+exports.createPaymentIntent = (0, https_1.onCall)({ secrets: [stripeSecret], cors: ['https://aim-academy-7fdae.web.app'] }, async (request) => {
     const Stripe = (await Promise.resolve().then(() => __importStar(require('stripe')))).default;
     const stripe = new Stripe(stripeSecret.value());
     const { amount, currency = 'usd', description } = request.data;
