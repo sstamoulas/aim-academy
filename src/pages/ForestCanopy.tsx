@@ -15,11 +15,11 @@ export default function ForestCanopy() {
       {/* MOBILE LAYOUT (hidden at lg+) */}
       <div className="block lg:hidden font-body text-stone-800">
         <div className="min-h-screen">
-          <aside className="relative min-h-[420px] text-white bg-cover bg-center" style={{ backgroundImage: "linear-gradient(rgba(28,25,23,.38), rgba(28,25,23,.78)), url('https://i0.wp.com/aimava.org/wp-content/uploads/2024/06/photo-2024-06-03-13-40-53-1.jpg')" }}>
+          <aside className="relative min-h-[420px] text-white bg-cover bg-center" style={{ backgroundImage: "linear-gradient(rgba(28,25,23,.38), rgba(28,25,23,.78)), url('/class-photo.jpg')" }}>
             <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/50 via-transparent to-amber-900/25"></div>
             <div className="relative z-10 h-full p-8 flex flex-col justify-between">
               <a href="/" className="flex items-center space-x-3">
-                <img src="https://i0.wp.com/aimava.org/wp-content/uploads/2023/09/anas-ibn-malik-3.png" alt="Anas Ibn Malik Academy" className="w-11 h-11 rounded-xl shadow-md object-contain bg-white p-0.5" />
+                <img src="/logo.png" alt="Anas Ibn Malik Academy" className="w-11 h-11 rounded-xl shadow-md object-contain bg-white p-0.5" />
                 <div>
                   <div className="font-kids text-xl">Anas Ibn Malik Academy</div>
                   <div className="text-xs uppercase tracking-widest text-emerald-100/80 font-bold">Chantilly, VA</div>
@@ -156,7 +156,7 @@ export default function ForestCanopy() {
         <header className="sticky top-0 z-50 bg-cream/95 backdrop-blur border-b border-stone-200/70">
           <div className="max-w-7xl mx-auto px-8 h-20 flex items-center justify-between">
             <a href="/" className="flex items-center gap-3">
-              <img src="https://i0.wp.com/aimava.org/wp-content/uploads/2023/09/anas-ibn-malik-3.png" alt="Anas Ibn Malik Academy" className="w-10 h-10 rounded-xl shadow-md object-contain bg-white p-0.5" />
+              <img src="/logo.png" alt="Anas Ibn Malik Academy" className="w-10 h-10 rounded-xl shadow-md object-contain bg-white p-0.5" />
               <div className="leading-none">
                 <div className="text-lg font-bold tracking-tight text-wood-dark">Anas Ibn Malik</div>
                 <div className="text-xs font-semibold uppercase tracking-wider text-sage-700">Academy</div>
@@ -194,7 +194,7 @@ export default function ForestCanopy() {
 
               <div className="col-span-7 grid grid-cols-12 gap-4">
                 <div className="col-span-7 bg-white rounded-[28px] shadow-xl border border-stone-100 overflow-hidden">
-                  <div className="aspect-[4/3] bg-cover bg-center" style={{ backgroundImage: "linear-gradient(to top, rgba(43,33,24,.45), rgba(43,33,24,.05)), url('https://i0.wp.com/aimava.org/wp-content/uploads/2024/06/photo-2024-06-03-13-40-53-1.jpg')" }}></div>
+                  <div className="aspect-[4/3] bg-cover bg-center" style={{ backgroundImage: "linear-gradient(to top, rgba(43,33,24,.45), rgba(43,33,24,.05)), url('/class-photo.jpg')" }}></div>
                   <div className="p-5 flex items-center justify-between">
                     <div>
                       <div className="text-xs font-bold uppercase tracking-widest text-wood">Chantilly, VA</div>
@@ -263,7 +263,7 @@ export default function ForestCanopy() {
               </div>
               <div className="col-span-8 grid grid-cols-2 gap-6">
                 <article className="bg-white rounded-[28px] overflow-hidden shadow-sm border border-stone-200/70">
-                  <div className="aspect-[16/9] bg-cover bg-center" style={{ backgroundImage: "url('https://i0.wp.com/aimava.org/wp-content/uploads/2024/06/photo-2024-06-03-13-40-53-1.jpg')" }}></div>
+                  <div className="aspect-[16/9] bg-cover bg-center" style={{ backgroundImage: "url('/class-photo.jpg')" }}></div>
                   <div className="p-6 space-y-3">
                     <div className="text-xs font-bold uppercase tracking-widest text-sage-700">Weekend Academy</div>
                     <h3 className="text-2xl font-bold text-wood-dark">Consistent, structured learning</h3>
@@ -271,7 +271,7 @@ export default function ForestCanopy() {
                   </div>
                 </article>
                 <article className="bg-white rounded-[28px] overflow-hidden shadow-sm border border-stone-200/70">
-                  <div className="aspect-[16/9] bg-cover bg-top" style={{ backgroundImage: "linear-gradient(to top, rgba(43,33,24,.35), rgba(43,33,24,.05)), url('https://i0.wp.com/aimava.org/wp-content/uploads/2025/10/img_3724.jpeg')" }}></div>
+                  <div className="aspect-[16/9] bg-cover bg-top" style={{ backgroundImage: "linear-gradient(to top, rgba(43,33,24,.35), rgba(43,33,24,.05)), url('/portrait.jpeg')" }}></div>
                   <div className="p-6 space-y-3">
                     <div className="text-xs font-bold uppercase tracking-widest text-wood">Creative Workshops</div>
                     <h3 className="text-2xl font-bold text-wood-dark">Hands-on learning with lasting impact</h3>
