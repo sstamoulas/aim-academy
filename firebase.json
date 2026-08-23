@@ -26,6 +26,28 @@
       ]
     },
     {
+      "target": "production",
+      "public": "dist",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "headers": [
+        {
+          "source": "/.well-known/apple-developer-merchantid-domain-association",
+          "headers": [{ "key": "Content-Type", "value": "text/plain" }]
+        }
+      ],
+      "rewrites": [
+        {
+          "source": "/api/createPaymentIntent",
+          "function": "createPaymentIntent",
+          "region": "us-central1"
+        },
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    {
       "target": "staging",
       "public": "dist",
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
