@@ -106,7 +106,7 @@ export default function ForestCanopy() {
                         <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center text-xl">❤️</div>
                         <div>
                           <div className="font-bold text-wood-dark">Qualified Teachers</div>
-                          <div className="text-xs text-stone-500">Our instructors hold ijazaat in Qur'an and Tajweed</div>
+                          <div className="text-xs text-stone-500">Learn from experienced instructors with formal qualifications in Qur'an and Tajweed</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-4 p-4 rounded-2xl bg-stone-100">
@@ -244,7 +244,7 @@ export default function ForestCanopy() {
               <article className="wood-texture text-white rounded-[28px] p-7 shadow-xl border border-stone-800/40">
                 <div className="text-xs font-bold uppercase tracking-widest text-amber-200">02 / Trust</div>
                 <h3 className="text-2xl font-bold mt-3">Qualified Teachers</h3>
-                <p className="text-stone-200 mt-3 leading-relaxed">Our instructors hold ijazaat in Qur'an and Tajweed, bringing authentic scholarship and compassion to every class.</p>
+                <p className="text-stone-200 mt-3 leading-relaxed">Learn from experienced instructors with formal qualifications in Qur'an and Tajweed, bringing authentic scholarship and compassion to every class.</p>
               </article>
               <article className="bg-stone-100 rounded-[28px] p-7 shadow-sm border border-stone-200/70">
                 <div className="text-xs font-bold uppercase tracking-widest text-wood">03 / Grow</div>
