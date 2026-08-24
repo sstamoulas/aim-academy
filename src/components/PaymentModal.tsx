@@ -3,10 +3,12 @@ import { createPortal } from 'react-dom'
 import { loadStripe } from '@stripe/stripe-js'
 import {
   Elements,
+  ExpressCheckoutElement,
   PaymentElement,
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js'
+
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
 
 async function createPaymentIntent(data: { amount: number; currency: string; description: string }) {
@@ -26,63 +28,99 @@ function CheckoutForm({ onSuccess, onCancel }: { onSuccess: () => void; onCancel
   const elements = useElements()
   const [error, setError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
+  const [expressAvailable, setExpressAvailable] = useState(false)
+
+  async function confirmPayment() {
+    if (!stripe || !elements) return false
+    const result = await stripe.confirmPayment({
+      elements,
+      confirmParams: { return_url: window.location.href },
+      redirect: 'if_required',
+    })
+    if (result.error) {
+      setError(result.error.message ?? 'Payment failed.')
+      setProcessing(false)
+      return false
+    }
+    onSuccess()
+    return true
+  }
+
+  async function handleExpressConfirm() {
+    setProcessing(true)
+    setError(null)
+    await confirmPayment()
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!stripe || !elements) return
-
     setProcessing(true)
     setError(null)
-
     const { error: submitError } = await elements.submit()
     if (submitError) {
       setError(submitError.message ?? 'Something went wrong.')
       setProcessing(false)
       return
     }
-
-    const result = await stripe.confirmPayment({
-      elements,
-      confirmParams: { return_url: window.location.href },
-      redirect: 'if_required',
-    })
-
-    if (result.error) {
-      setError(result.error.message ?? 'Payment failed.')
-      setProcessing(false)
-    } else {
-      onSuccess()
-    }
+    await confirmPayment()
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      <PaymentElement
+    <div className="space-y-5">
+      {/* Express wallets: Apple Pay / Google Pay */}
+      <ExpressCheckoutElement
+        onConfirm={handleExpressConfirm}
+        onReady={({ availablePaymentMethods }) => {
+          setExpressAvailable(!!availablePaymentMethods && Object.keys(availablePaymentMethods).length > 0)
+        }}
         options={{
-          layout: 'tabs',
-          wallets: { applePay: 'auto', googlePay: 'auto' },
+          paymentMethods: {
+            applePay: 'auto',
+            googlePay: 'auto',
+          },
+          layout: { maxColumns: 1, maxRows: 3 },
         }}
       />
-      {error && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2">{error}</p>
+
+      {/* Divider — only shown when wallet buttons are present */}
+      {expressAvailable && (
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-stone-200" />
+          <span className="text-xs text-stone-400 font-medium">or pay with card</span>
+          <div className="flex-1 h-px bg-stone-200" />
+        </div>
       )}
-      <div className="flex gap-3 pt-1">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="flex-1 border border-stone-300 text-stone-600 font-semibold py-3 rounded-full hover:bg-stone-50 transition"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={!stripe || processing}
-          className="flex-1 bg-sage-600 hover:bg-sage-700 disabled:opacity-50 text-white font-bold py-3 rounded-full shadow-md transition"
-        >
-          {processing ? 'Processing…' : 'Pay now'}
-        </button>
-      </div>
-    </form>
+
+      {/* Card form */}
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <PaymentElement
+          options={{
+            layout: 'accordion',
+            wallets: { applePay: 'never', googlePay: 'never' },
+          }}
+        />
+        {error && (
+          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2">{error}</p>
+        )}
+        <div className="flex gap-3 pt-1">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 border border-stone-300 text-stone-600 font-semibold py-3 rounded-full hover:bg-stone-50 transition"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={!stripe || processing}
+            className="flex-1 bg-sage-600 hover:bg-sage-700 disabled:opacity-50 text-white font-bold py-3 rounded-full shadow-md transition"
+          >
+            {processing ? 'Processing…' : 'Pay now'}
+          </button>
+        </div>
+      </form>
+    </div>
   )
 }
 
