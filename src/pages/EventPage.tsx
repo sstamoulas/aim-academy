@@ -155,8 +155,19 @@ export default function EventPage({ slug }: { slug: string }) {
           </div>
         )}
 
+        {/* Registration closed notice */}
+        {event.registrationClosed && (
+          <div className="bg-rose-50 border border-rose-200 rounded-[28px] px-8 py-6 mb-6 text-center">
+            <div className="text-3xl mb-3">🔒</div>
+            <h2 className="font-kids text-xl text-rose-700 mb-2">Registration Closed</h2>
+            <p className="text-rose-600 text-sm font-quick leading-relaxed">
+              {event.registrationClosedReason || 'We reached maximum capacity for this event. Jazak Allah khayran for the overwhelming interest and community support!'}
+            </p>
+          </div>
+        )}
+
         {/* External registration link — shown when registrationUrl is set but no Stripe pricing */}
-        {event.status === 'upcoming' && event.registrationUrl && (!event.pricing || event.pricing.filter(t => t.amount > 0).length === 0) && (
+        {!event.registrationClosed && event.status === 'upcoming' && event.registrationUrl && (!event.pricing || event.pricing.filter(t => t.amount > 0).length === 0) && (
           <div className="bg-white rounded-[28px] shadow-sm border border-stone-200/70 p-8 mb-6 text-center">
             <h2 className="font-kids text-2xl text-wood-dark mb-2">Registration</h2>
             <p className="text-stone-500 text-sm font-quick mb-6">Click the button below to complete your registration.</p>
@@ -172,7 +183,7 @@ export default function EventPage({ slug }: { slug: string }) {
         )}
 
         {/* Pricing selector + registration for upcoming events */}
-        {event.status === 'upcoming' && event.pricing && (
+        {!event.registrationClosed && event.status === 'upcoming' && event.pricing && (
           (() => {
             const tiers = event.pricing!.filter(t => t.amount > 0)
             if (tiers.length === 0) return null

@@ -568,6 +568,42 @@ function EventForm({ initial, onSave, onCancel }: {
             Use this instead of (or alongside) Stripe pricing — e.g. a Google Form, Jotform, or Eventbrite link. If set with no pricing, shows a "Register Now →" button. If set with pricing, shows as a secondary option below the payment button.
           </p>
         </div>
+
+        {/* Registration closed toggle */}
+        <div className={`rounded-2xl border-2 p-5 transition-all ${form.registrationClosed ? 'border-rose-300 bg-rose-50' : 'border-stone-200 bg-stone-50'}`}>
+          <div className="flex items-center justify-between mb-1">
+            <div>
+              <p className="text-sm font-bold font-quick text-stone-700">Close Registration</p>
+              <p className="text-xs text-stone-400 font-quick mt-0.5">
+                Hides all registration options and shows a notice on the event page.
+              </p>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer flex-shrink-0">
+              <div className="relative">
+                <input type="checkbox" checked={!!form.registrationClosed}
+                  onChange={e => set('registrationClosed', e.target.checked)} className="sr-only peer" />
+                <div className="w-10 h-6 bg-stone-300 peer-checked:bg-rose-500 rounded-full transition peer-focus:ring-2 peer-focus:ring-rose-300" />
+                <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-4 shadow-sm" />
+              </div>
+              <span className={`text-xs font-bold font-quick ${form.registrationClosed ? 'text-rose-600' : 'text-stone-400'}`}>
+                {form.registrationClosed ? 'Closed' : 'Open'}
+              </span>
+            </label>
+          </div>
+          {form.registrationClosed && (
+            <div className="mt-4">
+              <label className="block text-xs font-semibold text-stone-600 font-quick mb-1.5">
+                Message shown to visitors
+              </label>
+              <textarea
+                value={form.registrationClosedReason ?? 'We reached maximum capacity for this event. Jazak Allah khayran for the overwhelming interest and community support!'}
+                onChange={e => set('registrationClosedReason', e.target.value)}
+                rows={3}
+                className="w-full rounded-xl border border-rose-200 bg-white px-3 py-2.5 text-sm text-stone-800 resize-none focus:outline-none focus:ring-2 focus:ring-rose-300"
+              />
+            </div>
+          )}
+        </div>
       </section>
 
       {/* ── Flyer image ── */}

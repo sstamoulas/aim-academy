@@ -46,4 +46,6 @@ export interface AcademyEvent {
   sections: EventSection[]
   published: boolean
   createdAt: string
+  registrationClosed?: boolean
+  registrationClosedReason?: string
 }
