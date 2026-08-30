@@ -51,11 +51,15 @@ export default function EventPage({ slug }: { slug: string }) {
 
   useEffect(() => {
     async function load() {
-      const snap = await getDoc(doc(db, 'events', slug))
-      if (!snap.exists() || !snap.data().published) {
+      try {
+        const snap = await getDoc(doc(db, 'events', slug))
+        if (!snap.exists()) {
+          setNotFound(true)
+        } else {
+          setEvent({ id: snap.id, ...snap.data() } as AcademyEvent)
+        }
+      } catch {
         setNotFound(true)
-      } else {
-        setEvent({ id: snap.id, ...snap.data() } as AcademyEvent)
       }
       setLoading(false)
     }

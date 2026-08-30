@@ -13,23 +13,24 @@ export default function ForestCanopy() {
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [upcomingEvents, setUpcomingEvents] = useState<AcademyEvent[]>([])
+  const [pastEvents, setPastEvents] = useState<AcademyEvent[]>([])
 
   useEffect(() => {
-    async function loadUpcoming() {
+    async function loadEvents() {
       try {
-        const q = query(
+        const snap = await getDocs(query(
           collection(db, 'events'),
           where('published', '==', true),
-          where('status', '==', 'upcoming'),
           orderBy('createdAt', 'desc')
-        )
-        const snap = await getDocs(q)
-        setUpcomingEvents(snap.docs.map(d => ({ id: d.id, ...d.data() } as AcademyEvent)))
+        ))
+        const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as AcademyEvent))
+        setUpcomingEvents(all.filter(e => e.status === 'upcoming'))
+        setPastEvents(all.filter(e => e.status === 'past' || e.status === 'sold-out'))
       } catch {
         // Firestore may not be configured yet; fail silently
       }
     }
-    loadUpcoming()
+    loadEvents()
   }, [])
 
   return (
@@ -90,18 +91,26 @@ export default function ForestCanopy() {
                   <div className="border-t border-white/10 mx-5 my-2" />
 
                   {/* Events group */}
-                  <div className="px-5 pt-1 pb-1 text-xs font-bold uppercase tracking-widest text-emerald-200/70">Events</div>
-                  <a href="/events/animals-in-quran" className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
-                    🐾 Animals in Quran
-                  </a>
-                  <a href="/events/prophet-yunus-water-slime" className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
-                    💧 Prophet Yunus Water Slime
-                  </a>
-                  {upcomingEvents.map(event => (
-                    <a key={event.id} href={`/events/${event.slug}`} className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
-                      🌟 {event.title}
-                    </a>
-                  ))}
+                  {upcomingEvents.length > 0 && (
+                    <>
+                      <div className="px-5 pt-1 pb-1 text-xs font-bold uppercase tracking-widest text-emerald-200/70">Upcoming Events</div>
+                      {upcomingEvents.map(event => (
+                        <a key={event.id} href={`/events/${event.slug}`} className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
+                          🌟 {event.title}
+                        </a>
+                      ))}
+                    </>
+                  )}
+                  {pastEvents.length > 0 && (
+                    <>
+                      <div className="px-5 pt-1 pb-1 text-xs font-bold uppercase tracking-widest text-emerald-200/70">Past Events</div>
+                      {pastEvents.map(event => (
+                        <a key={event.id} href={`/events/${event.slug}`} className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
+                          {event.title}
+                        </a>
+                      ))}
+                    </>
+                  )}
 
                   <div className="border-t border-white/10 mx-5 my-2" />
 
@@ -310,16 +319,19 @@ export default function ForestCanopy() {
                             <span className="text-base">🌟</span> {event.title}
                           </a>
                         ))}
-                        <div className="border-t border-stone-100 mt-1 pt-1" />
+                        {pastEvents.length > 0 && <div className="border-t border-stone-100 mt-1 pt-1" />}
                       </>
                     )}
-                    <div className="px-4 pt-1 pb-2 text-xs font-bold uppercase tracking-widest text-stone-400">Past events</div>
-                    <a href="/events/animals-in-quran" className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
-                      <span className="text-base">🐾</span> Animals in Quran
-                    </a>
-                    <a href="/events/prophet-yunus-water-slime" className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
-                      <span className="text-base">💧</span> Prophet Yunus Water Slime
-                    </a>
+                    {pastEvents.length > 0 && (
+                      <>
+                        <div className="px-4 pt-1 pb-2 text-xs font-bold uppercase tracking-widest text-stone-400">Past Events</div>
+                        {pastEvents.map(event => (
+                          <a key={event.id} href={`/events/${event.slug}`} className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
+                            {event.title}
+                          </a>
+                        ))}
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
