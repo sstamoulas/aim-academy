@@ -25,21 +25,23 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Classes — admin manages; teachers can read their own
+    // Classes — admin manages; teachers + parents can read
     match /classes/{classId} {
       allow read, write: if isAdmin();
-      allow read: if isTeacher();
+      allow read: if isTeacher() || isParent();
     }
 
-    // Students — admin manages; teachers can read/write for attendance purposes
+    // Students — admin manages; teachers can read/write; parents can read their own children
     match /students/{studentId} {
       allow read, write: if isAdmin();
       allow read, write: if isTeacher();
+      allow read: if isParent() && resource.data.parentEmail == request.auth.token.email;
     }
 
-    // Attendance sessions — staff can read/write
+    // Attendance sessions — staff can read/write; parents can read (app filters by child)
     match /attendance/{sessionId} {
       allow read, write: if isStaff();
+      allow read: if isParent();
     }
 
     // Announcements — staff can create; published ones readable by parents

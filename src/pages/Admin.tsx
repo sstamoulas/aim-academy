@@ -970,7 +970,7 @@ function UsersTab() {
 // ── Classes Tab ───────────────────────────────────────────────────────────────
 
 const EMPTY_CLASS: Omit<AcademyClass, 'id' | 'createdAt'> = {
-  name: '', description: '', teacherUid: '', teacherName: '', schedule: '',
+  name: '', description: '', teacherUid: '', teacherName: '', schedule: '', tuitionAmount: 0,
 }
 
 const EMPTY_STUDENT: Omit<Student, 'id' | 'classIds' | 'createdAt'> = {
@@ -1078,7 +1078,7 @@ function ClassesTab() {
   }
 
   function openEditClass(cls: AcademyClass) {
-    setClassForm({ name: cls.name, description: cls.description ?? '', teacherUid: cls.teacherUid, teacherName: cls.teacherName, schedule: cls.schedule ?? '' })
+    setClassForm({ name: cls.name, description: cls.description ?? '', teacherUid: cls.teacherUid, teacherName: cls.teacherName, schedule: cls.schedule ?? '', tuitionAmount: cls.tuitionAmount ?? 0 })
     setEditingClassId(cls.id)
     setClassFormOpen(true)
   }
@@ -1387,6 +1387,19 @@ function ClassFormModal({
             <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Description</label>
             <textarea value={form.description} onChange={e => onChange({ ...form, description: e.target.value })} rows={2}
               className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm resize-none" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Monthly Tuition (optional)</label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 text-sm font-quick">$</span>
+              <input
+                type="number" min="0" step="0.01"
+                value={form.tuitionAmount ? (form.tuitionAmount / 100).toFixed(2) : ''}
+                onChange={e => onChange({ ...form, tuitionAmount: e.target.value ? Math.round(parseFloat(e.target.value) * 100) : 0 })}
+                placeholder="0.00"
+                className="w-full rounded-2xl border border-stone-200 bg-stone-50 pl-8 pr-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
+              />
+            </div>
           </div>
         </div>
         <div className="flex gap-3 mt-6">
