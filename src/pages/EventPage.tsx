@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '../firebase'
-import type { AcademyEvent } from '../types/event'
+import type { AcademyEvent, EventSection } from '../types/event'
 import PaymentModal from '../components/PaymentModal'
 
 type ChildOption = 'oneChild' | 'twoChildren' | 'threeChildren'
@@ -11,6 +11,43 @@ const CHILD_OPTIONS: { key: ChildOption; label: string; sub: string }[] = [
   { key: 'twoChildren',  label: '2 Children', sub: 'Best for siblings' },
   { key: 'threeChildren',label: '3 Children', sub: 'Family discount' },
 ]
+
+function renderSection(section: EventSection) {
+  switch (section.type) {
+    case 'list':
+      return (
+        <div key={section.id} className="bg-white rounded-[28px] shadow-sm border border-stone-200/70 p-8 mb-6">
+          <h2 className="font-kids text-2xl text-wood-dark mb-4">{section.title}</h2>
+          <ul className="space-y-2 text-stone-700">
+            {(section.items ?? []).map((item, i) => (
+              <li key={i} className="flex items-start gap-3"><span className="mt-0.5">✨</span> {item}</li>
+            ))}
+          </ul>
+        </div>
+      )
+    case 'faq':
+      return (
+        <div key={section.id} className="bg-white rounded-[28px] shadow-sm border border-stone-200/70 p-8 mb-6 space-y-5">
+          <h2 className="font-kids text-2xl text-wood-dark mb-2">{section.title}</h2>
+          {(section.faqs ?? []).map(({ q, a }, i) => (
+            <div key={i}>
+              <p className="font-semibold text-stone-800 font-quick mb-1">{q}</p>
+              <p className="text-stone-500 text-sm leading-relaxed">{a}</p>
+            </div>
+          ))}
+        </div>
+      )
+    case 'text':
+      return (
+        <div key={section.id} className="bg-white rounded-[28px] shadow-sm border border-stone-200/70 p-8 mb-6">
+          <h2 className="font-kids text-2xl text-wood-dark mb-4">{section.title}</h2>
+          <p className="text-stone-600 leading-relaxed whitespace-pre-line">{section.body}</p>
+        </div>
+      )
+    default:
+      return null
+  }
+}
 
 export default function EventPage({ slug }: { slug: string }) {
   const [event, setEvent] = useState<AcademyEvent | null>(null)
@@ -109,15 +146,15 @@ export default function EventPage({ slug }: { slug: string }) {
         )}
 
         {/* Event details */}
-        {(event.date || event.time || event.location || event.price || event.ages) && (
+        {event.details && event.details.length > 0 && (
           <div className="bg-white rounded-[28px] shadow-sm border border-stone-200/70 p-8 mb-6 space-y-3">
             <h2 className="font-kids text-2xl text-wood-dark mb-4">Event Details</h2>
-            {event.date     && <p className="text-stone-700 flex items-center gap-3"><span className="text-xl">📅</span> {event.date}</p>}
-            {event.time     && <p className="text-stone-700 flex items-center gap-3"><span className="text-xl">🕟</span> {event.time}</p>}
-            {event.location && <p className="text-stone-700 flex items-center gap-3"><span className="text-xl">📍</span> {event.location}</p>}
-            {event.ages     && <p className="text-stone-700 flex items-center gap-3"><span className="text-xl">👧</span> {event.ages}</p>}
-            {event.price    && <p className="text-stone-700 flex items-center gap-3"><span className="text-xl">💲</span> {event.price}</p>}
-            {event.isDropOff && <p className="text-stone-500 text-sm font-quick pt-1">Drop-off event</p>}
+            {event.details.map((detail) => (
+              <p key={detail.id} className="text-stone-700 flex items-center gap-3">
+                <span className="text-xl">{detail.icon}</span>
+                <span><span className="font-semibold font-quick text-stone-500 text-sm mr-1">{detail.label}:</span>{detail.value}</span>
+              </p>
+            ))}
           </div>
         )}
 
@@ -178,53 +215,8 @@ export default function EventPage({ slug }: { slug: string }) {
           })()
         )}
 
-        {/* Activities */}
-        {event.activities && event.activities.length > 0 && (
-          <div className="bg-white rounded-[28px] shadow-sm border border-stone-200/70 p-8 mb-6">
-            <h2 className="font-kids text-2xl text-wood-dark mb-4">Your child will enjoy</h2>
-            <ul className="space-y-2 text-stone-700">
-              {event.activities.map((a, i) => (
-                <li key={i} className="flex items-start gap-3"><span className="mt-0.5">✨</span> {a}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Included + Allergy */}
-        {(event.included?.length > 0 || event.allergyInfo?.length > 0) && (
-          <div className={`grid gap-4 mb-6 ${event.included?.length > 0 && event.allergyInfo?.length > 0 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            {event.included?.length > 0 && (
-              <div className="bg-sage-50 rounded-[24px] border border-sage-100 p-6">
-                <h3 className="font-kids text-lg text-wood-dark mb-3">What's Included</h3>
-                <ul className="space-y-1.5 text-sm text-stone-600">
-                  {event.included.map((item, i) => <li key={i}>✔ {item}</li>)}
-                </ul>
-              </div>
-            )}
-            {event.allergyInfo?.length > 0 && (
-              <div className="bg-orange-50 rounded-[24px] border border-orange-100 p-6">
-                <h3 className="font-kids text-lg text-wood-dark mb-3">Allergy Info</h3>
-                <p className="text-sm text-stone-500 mb-2">May contain:</p>
-                <ul className="space-y-1.5 text-sm text-stone-600">
-                  {event.allergyInfo.map((item, i) => <li key={i}>• {item}</li>)}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* FAQ */}
-        {event.faq && event.faq.length > 0 && (
-          <div className="bg-white rounded-[28px] shadow-sm border border-stone-200/70 p-8 mb-8 space-y-5">
-            <h2 className="font-kids text-2xl text-wood-dark mb-2">Frequently Asked Questions</h2>
-            {event.faq.map(({ q, a }, i) => (
-              <div key={i}>
-                <p className="font-semibold text-stone-800 font-quick mb-1">{q}</p>
-                <p className="text-stone-500 text-sm leading-relaxed">{a}</p>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Dynamic content sections */}
+        {event.sections && event.sections.map(section => renderSection(section))}
 
         {/* CTA */}
         <div className="wood-texture text-white rounded-[28px] p-8 shadow-xl border border-stone-800/40 text-center">

@@ -1,41 +1,46 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged, type User,
 } from 'firebase/auth'
 import {
-  collection, doc, getDocs, setDoc, deleteDoc,
-  orderBy, query,
+  collection, doc, getDocs, setDoc, deleteDoc, orderBy, query,
 } from 'firebase/firestore'
-import { auth, db } from '../firebase'
-import type { AcademyEvent, EventPricing } from '../types/event'
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
+import { auth, db, storage } from '../firebase'
+import type { AcademyEvent, EventDetail, EventSection, SectionType, EventPricing } from '../types/event'
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-function slugify(title: string) {
-  return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+function uid() { return Math.random().toString(36).slice(2) }
+
+function slugify(t: string) {
+  return t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 }
 
-const EMPTY: Omit<AcademyEvent, 'id' | 'createdAt'> = {
-  slug: '', title: '', description: '',
-  date: '', time: '', location: '',
-  price: '', ages: 'Ages 5+', isDropOff: true,
-  status: 'upcoming', flyerImageUrl: '', registrationUrl: '',
-  pricing: { oneChild: 0, twoChildren: 0, threeChildren: 0 },
-  activities: [''], included: [''], allergyInfo: [''],
-  faq: [{ q: '', a: '' }],
-  published: false,
-}
-
-function dollars(cents: number) {
-  return cents > 0 ? (cents / 100).toFixed(2) : ''
-}
-
-function toCents(val: string) {
-  const n = parseFloat(val.replace(/[^0-9.]/g, ''))
+function dollars(cents: number) { return cents > 0 ? (cents / 100).toFixed(2) : '' }
+function toCents(v: string) {
+  const n = parseFloat(v.replace(/[^0-9.]/g, ''))
   return isNaN(n) ? 0 : Math.round(n * 100)
 }
 
-// ── Login ────────────────────────────────────────────────────────────────────
+const DEFAULT_DETAILS: EventDetail[] = [
+  { id: uid(), icon: '📅', label: 'Date', value: '' },
+  { id: uid(), icon: '🕟', label: 'Time', value: '' },
+  { id: uid(), icon: '📍', label: 'Location', value: '' },
+  { id: uid(), icon: '👧', label: 'Ages', value: '' },
+  { id: uid(), icon: '💲', label: 'Price', value: '' },
+]
+
+const EMPTY: Omit<AcademyEvent, 'id' | 'createdAt'> = {
+  slug: '', title: '', description: '',
+  status: 'upcoming', flyerImageUrl: '', registrationUrl: '',
+  pricing: { oneChild: 0, twoChildren: 0, threeChildren: 0 },
+  details: DEFAULT_DETAILS,
+  sections: [],
+  published: false,
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────────
 
 function LoginForm() {
   const [email, setEmail] = useState('')
@@ -44,16 +49,10 @@ function LoginForm() {
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
-    try {
-      await signInWithEmailAndPassword(auth, email, password)
-    } catch {
-      setError('Invalid email or password.')
-    } finally {
-      setLoading(false)
-    }
+    e.preventDefault(); setError(null); setLoading(true)
+    try { await signInWithEmailAndPassword(auth, email, password) }
+    catch { setError('Invalid email or password.') }
+    finally { setLoading(false) }
   }
 
   return (
@@ -68,12 +67,12 @@ function LoginForm() {
           <div>
             <label className="block text-sm font-semibold text-stone-700 font-quick mb-2">Email</label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:border-transparent transition" />
+              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 transition" />
           </div>
           <div>
             <label className="block text-sm font-semibold text-stone-700 font-quick mb-2">Password</label>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
-              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:border-transparent transition" />
+              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 transition" />
           </div>
           {error && <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">{error}</p>}
           <button type="submit" disabled={loading}
@@ -86,68 +85,255 @@ function LoginForm() {
   )
 }
 
-// ── Dynamic list helpers ─────────────────────────────────────────────────────
+// ── Image Uploader ────────────────────────────────────────────────────────────
 
-function StringList({ label, items, onChange }: {
-  label: string
-  items: string[]
-  onChange: (items: string[]) => void
+function ImageUploader({ value, slug, onChange }: {
+  value: string
+  slug: string
+  onChange: (url: string) => void
 }) {
-  return (
-    <div>
-      <label className="block text-sm font-semibold text-stone-700 font-quick mb-2">{label}</label>
-      <div className="space-y-2">
-        {items.map((item, i) => (
-          <div key={i} className="flex gap-2">
-            <input value={item} onChange={e => { const n = [...items]; n[i] = e.target.value; onChange(n) }}
-              className="flex-1 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400" />
-            <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))}
-              className="text-stone-400 hover:text-rose-500 transition px-2">✕</button>
-          </div>
-        ))}
-        <button type="button" onClick={() => onChange([...items, ''])}
-          className="text-sm text-sage-700 font-quick font-semibold hover:underline">+ Add item</button>
-      </div>
-    </div>
-  )
-}
+  const [uploading, setUploading] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [dragOver, setDragOver] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
-function FaqList({ items, onChange }: {
-  items: Array<{ q: string; a: string }>
-  onChange: (items: Array<{ q: string; a: string }>) => void
-}) {
+  function handleFile(file: File) {
+    if (!file.type.startsWith('image/')) return
+    if (!slug) { alert('Set a slug first before uploading an image.'); return }
+    setUploading(true)
+    const storageRef = ref(storage, `events/${slug}/flyer_${Date.now()}`)
+    const task = uploadBytesResumable(storageRef, file)
+    task.on('state_changed',
+      snap => setProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
+      err => { console.error(err); setUploading(false) },
+      async () => {
+        const url = await getDownloadURL(task.snapshot.ref)
+        onChange(url); setUploading(false); setProgress(0)
+      }
+    )
+  }
+
   return (
-    <div>
-      <label className="block text-sm font-semibold text-stone-700 font-quick mb-2">FAQ</label>
-      <div className="space-y-4">
-        {items.map((item, i) => (
-          <div key={i} className="bg-stone-50 rounded-2xl p-4 border border-stone-200 space-y-2">
-            <div className="flex gap-2 items-start">
-              <div className="flex-1 space-y-2">
-                <input placeholder="Question" value={item.q}
-                  onChange={e => { const n = [...items]; n[i] = { ...n[i], q: e.target.value }; onChange(n) }}
-                  className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400" />
-                <textarea placeholder="Answer" value={item.a} rows={2}
-                  onChange={e => { const n = [...items]; n[i] = { ...n[i], a: e.target.value }; onChange(n) }}
-                  className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 resize-none" />
-              </div>
-              <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))}
-                className="text-stone-400 hover:text-rose-500 transition mt-1">✕</button>
+    <div className="space-y-3">
+      {/* Dropzone */}
+      <div
+        onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
+        onClick={() => fileRef.current?.click()}
+        className={`relative border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors ${
+          dragOver ? 'border-sage-500 bg-sage-50' : 'border-stone-200 hover:border-sage-300 hover:bg-stone-50'
+        }`}
+      >
+        <input ref={fileRef} type="file" accept="image/*" className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
+        {uploading ? (
+          <div className="space-y-2">
+            <div className="w-8 h-8 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin mx-auto" />
+            <p className="text-sm text-stone-500 font-quick">Uploading… {progress}%</p>
+            <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+              <div className="h-full bg-sage-600 transition-all" style={{ width: `${progress}%` }} />
             </div>
           </div>
+        ) : (
+          <>
+            <div className="text-3xl mb-2">🖼️</div>
+            <p className="text-sm font-semibold text-stone-600 font-quick">Drop an image or click to upload</p>
+            <p className="text-xs text-stone-400 mt-1">PNG, JPG, WEBP</p>
+          </>
+        )}
+      </div>
+
+      {/* URL fallback */}
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-px bg-stone-200" />
+        <span className="text-xs text-stone-400 font-quick">or paste a URL</span>
+        <div className="flex-1 h-px bg-stone-200" />
+      </div>
+      <input value={value} onChange={e => onChange(e.target.value)}
+        placeholder="https://…"
+        className="w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400" />
+
+      {/* Preview */}
+      {value && (
+        <div className="relative group">
+          <img src={value} alt="Preview" className="w-full max-h-64 object-contain rounded-2xl border border-stone-200 bg-stone-50" />
+          <button type="button" onClick={() => onChange('')}
+            className="absolute top-2 right-2 bg-white/90 backdrop-blur rounded-full w-7 h-7 flex items-center justify-center text-stone-500 hover:text-rose-600 shadow transition opacity-0 group-hover:opacity-100">
+            ✕
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Dynamic Details ───────────────────────────────────────────────────────────
+
+function DetailsList({ items, onChange }: {
+  items: EventDetail[]
+  onChange: (items: EventDetail[]) => void
+}) {
+  function update(id: string, field: keyof EventDetail, val: string) {
+    onChange(items.map(d => d.id === id ? { ...d, [field]: val } : d))
+  }
+
+  return (
+    <div className="space-y-2">
+      {items.map((d, i) => (
+        <div key={d.id} className="flex items-center gap-2">
+          <input value={d.icon} onChange={e => update(d.id, 'icon', e.target.value)}
+            placeholder="📅" maxLength={4}
+            className="w-12 text-center rounded-xl border border-stone-200 bg-stone-50 px-2 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-sage-400" />
+          <input value={d.label} onChange={e => update(d.id, 'label', e.target.value)}
+            placeholder="Label"
+            className="w-28 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400" />
+          <input value={d.value} onChange={e => update(d.id, 'value', e.target.value)}
+            placeholder="Value"
+            className="flex-1 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400" />
+          <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))}
+            className="text-stone-300 hover:text-rose-500 transition px-1.5 text-lg">✕</button>
+        </div>
+      ))}
+      <button type="button"
+        onClick={() => onChange([...items, { id: uid(), icon: '📌', label: '', value: '' }])}
+        className="text-sm text-sage-700 font-quick font-semibold hover:underline mt-1">
+        + Add detail
+      </button>
+    </div>
+  )
+}
+
+// ── Section Editors ───────────────────────────────────────────────────────────
+
+function ListSectionEditor({ section, onChange }: { section: EventSection; onChange: (s: EventSection) => void }) {
+  const items = section.items ?? ['']
+  return (
+    <div className="space-y-2">
+      {items.map((item, i) => (
+        <div key={i} className="flex gap-2">
+          <input value={item} onChange={e => { const n = [...items]; n[i] = e.target.value; onChange({ ...section, items: n }) }}
+            className="flex-1 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400" />
+          <button type="button" onClick={() => onChange({ ...section, items: items.filter((_, j) => j !== i) })}
+            className="text-stone-300 hover:text-rose-500 transition px-1">✕</button>
+        </div>
+      ))}
+      <button type="button" onClick={() => onChange({ ...section, items: [...items, ''] })}
+        className="text-sm text-sage-700 font-quick font-semibold hover:underline">+ Add item</button>
+    </div>
+  )
+}
+
+function FaqSectionEditor({ section, onChange }: { section: EventSection; onChange: (s: EventSection) => void }) {
+  const faqs = section.faqs ?? [{ q: '', a: '' }]
+  return (
+    <div className="space-y-3">
+      {faqs.map((faq, i) => (
+        <div key={i} className="bg-stone-50 rounded-2xl p-4 border border-stone-200 space-y-2">
+          <div className="flex gap-2 items-start">
+            <div className="flex-1 space-y-2">
+              <input placeholder="Question" value={faq.q}
+                onChange={e => { const n = [...faqs]; n[i] = { ...n[i], q: e.target.value }; onChange({ ...section, faqs: n }) }}
+                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400" />
+              <textarea placeholder="Answer" value={faq.a} rows={2}
+                onChange={e => { const n = [...faqs]; n[i] = { ...n[i], a: e.target.value }; onChange({ ...section, faqs: n }) }}
+                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-sage-400" />
+            </div>
+            <button type="button" onClick={() => onChange({ ...section, faqs: faqs.filter((_, j) => j !== i) })}
+              className="text-stone-300 hover:text-rose-500 transition mt-1">✕</button>
+          </div>
+        </div>
+      ))}
+      <button type="button" onClick={() => onChange({ ...section, faqs: [...faqs, { q: '', a: '' }] })}
+        className="text-sm text-sage-700 font-quick font-semibold hover:underline">+ Add question</button>
+    </div>
+  )
+}
+
+function TextSectionEditor({ section, onChange }: { section: EventSection; onChange: (s: EventSection) => void }) {
+  return (
+    <textarea value={section.body ?? ''} rows={4}
+      onChange={e => onChange({ ...section, body: e.target.value })}
+      placeholder="Write your content here…"
+      className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 resize-none focus:outline-none focus:ring-2 focus:ring-sage-400" />
+  )
+}
+
+// ── Sections List ─────────────────────────────────────────────────────────────
+
+const SECTION_ICONS: Record<SectionType, string> = { list: '📋', faq: '❓', text: '📝' }
+const SECTION_LABELS: Record<SectionType, string> = { list: 'List', faq: 'FAQ', text: 'Text' }
+
+function SectionsList({ sections, onChange }: {
+  sections: EventSection[]
+  onChange: (sections: EventSection[]) => void
+}) {
+  function update(id: string, updated: EventSection) {
+    onChange(sections.map(s => s.id === id ? updated : s))
+  }
+  function remove(id: string) { onChange(sections.filter(s => s.id !== id)) }
+  function addSection(type: SectionType) {
+    const base = { id: uid(), type, title: '' }
+    const defaults: Partial<EventSection> =
+      type === 'list' ? { items: [''] } :
+      type === 'faq'  ? { faqs: [{ q: '', a: '' }] } :
+      { body: '' }
+    onChange([...sections, { ...base, ...defaults }])
+  }
+  function move(i: number, dir: -1 | 1) {
+    const n = [...sections]
+    const j = i + dir
+    if (j < 0 || j >= n.length) return
+    ;[n[i], n[j]] = [n[j], n[i]]
+    onChange(n)
+  }
+
+  return (
+    <div className="space-y-4">
+      {sections.map((section, i) => (
+        <div key={section.id} className="bg-white rounded-[20px] border border-stone-200/70 shadow-sm overflow-hidden">
+          {/* Section header */}
+          <div className="flex items-center gap-3 px-5 py-3 bg-stone-50 border-b border-stone-100">
+            <span className="text-base">{SECTION_ICONS[section.type]}</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-stone-400 font-quick">{SECTION_LABELS[section.type]}</span>
+            <input value={section.title} onChange={e => update(section.id, { ...section, title: e.target.value })}
+              placeholder="Section title…"
+              className="flex-1 bg-transparent text-sm font-semibold text-stone-700 placeholder-stone-300 outline-none border-b border-transparent focus:border-sage-400 pb-0.5 transition" />
+            <div className="flex items-center gap-1 ml-auto">
+              <button type="button" onClick={() => move(i, -1)} disabled={i === 0}
+                className="text-stone-300 hover:text-stone-600 transition disabled:opacity-30 px-1">↑</button>
+              <button type="button" onClick={() => move(i, 1)} disabled={i === sections.length - 1}
+                className="text-stone-300 hover:text-stone-600 transition disabled:opacity-30 px-1">↓</button>
+              <button type="button" onClick={() => remove(section.id)}
+                className="text-stone-300 hover:text-rose-500 transition px-1 ml-1">✕</button>
+            </div>
+          </div>
+          {/* Section content */}
+          <div className="p-5">
+            {section.type === 'list' && <ListSectionEditor section={section} onChange={s => update(section.id, s)} />}
+            {section.type === 'faq'  && <FaqSectionEditor  section={section} onChange={s => update(section.id, s)} />}
+            {section.type === 'text' && <TextSectionEditor section={section} onChange={s => update(section.id, s)} />}
+          </div>
+        </div>
+      ))}
+
+      {/* Add section buttons */}
+      <div className="flex gap-2 flex-wrap">
+        <span className="text-xs font-bold uppercase tracking-widest text-stone-400 font-quick self-center mr-1">Add section:</span>
+        {(['list', 'faq', 'text'] as SectionType[]).map(type => (
+          <button key={type} type="button" onClick={() => addSection(type)}
+            className="flex items-center gap-1.5 text-sm font-quick font-semibold text-stone-600 bg-white border border-stone-200 hover:border-sage-400 hover:text-sage-700 px-4 py-2 rounded-full transition shadow-sm">
+            {SECTION_ICONS[type]} {SECTION_LABELS[type]}
+          </button>
         ))}
-        <button type="button" onClick={() => onChange([...items, { q: '', a: '' }])}
-          className="text-sm text-sage-700 font-quick font-semibold hover:underline">+ Add question</button>
       </div>
     </div>
   )
 }
 
-// ── Event Form ───────────────────────────────────────────────────────────────
+// ── Event Form ────────────────────────────────────────────────────────────────
 
-function EventForm({
-  initial, onSave, onCancel,
-}: {
+function EventForm({ initial, onSave, onCancel }: {
   initial: Partial<AcademyEvent>
   onSave: (data: Omit<AcademyEvent, 'id'>) => Promise<void>
   onCancel: () => void
@@ -157,6 +343,8 @@ function EventForm({
     ...EMPTY,
     createdAt: new Date().toISOString(),
     ...initial,
+    details: initial.details ?? DEFAULT_DETAILS.map(d => ({ ...d, id: uid() })),
+    sections: initial.sections ?? [],
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -175,30 +363,30 @@ function EventForm({
     e.preventDefault()
     if (!form.slug) { setError('Slug is required.'); return }
     if (!form.title) { setError('Title is required.'); return }
-    setSaving(true)
-    setError(null)
+    setSaving(true); setError(null)
     try {
-      const clean = {
+      await onSave({
         ...form,
-        activities: form.activities.filter(Boolean),
-        included: form.included.filter(Boolean),
-        allergyInfo: form.allergyInfo.filter(Boolean),
-        faq: form.faq.filter(f => f.q || f.a),
-      }
-      await onSave(clean)
+        details: form.details.filter(d => d.label || d.value),
+        sections: form.sections.map(s => ({
+          ...s,
+          items: s.items?.filter(Boolean),
+          faqs: s.faqs?.filter(f => f.q || f.a),
+        })),
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed.')
       setSaving(false)
     }
   }
 
-  const inputCls = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 focus:border-transparent transition'
+  const inputCls = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 transition'
   const labelCls = 'block text-sm font-semibold text-stone-700 font-quick mb-1.5'
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <form onSubmit={handleSubmit} className="space-y-6">
 
-      {/* Basic info */}
+      {/* ── Basic info ── */}
       <section className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-6 space-y-5">
         <h3 className="font-kids text-xl text-wood-dark">Basic Info</h3>
 
@@ -210,7 +398,7 @@ function EventForm({
         <div>
           <label className={labelCls}>
             Slug <span className="text-rose-500">*</span>
-            <span className="text-stone-400 font-normal ml-1">(used in URL: /events/your-slug)</span>
+            <span className="text-stone-400 font-normal ml-1">— appears in URL: /events/<em>slug</em></span>
           </label>
           <input value={form.slug}
             onChange={e => { setSlugManual(true); set('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-')) }}
@@ -218,7 +406,7 @@ function EventForm({
         </div>
 
         <div>
-          <label className={labelCls}>Description</label>
+          <label className={labelCls}>Short Description</label>
           <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3}
             className={inputCls + ' resize-none'} />
         </div>
@@ -226,8 +414,7 @@ function EventForm({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Status</label>
-            <select value={form.status} onChange={e => set('status', e.target.value as AcademyEvent['status'])}
-              className={inputCls}>
+            <select value={form.status} onChange={e => set('status', e.target.value as AcademyEvent['status'])} className={inputCls}>
               <option value="upcoming">Upcoming</option>
               <option value="sold-out">Sold Out</option>
               <option value="past">Past</option>
@@ -246,114 +433,60 @@ function EventForm({
         </div>
 
         <div>
-          <label className={labelCls}>Flyer Image URL</label>
-          <input value={form.flyerImageUrl} onChange={e => set('flyerImageUrl', e.target.value)}
-            placeholder="https://..." className={inputCls} />
-          {form.flyerImageUrl && (
-            <div className="mt-3 rounded-2xl overflow-hidden border border-stone-200 max-h-48 w-auto inline-block">
-              <img src={form.flyerImageUrl} alt="Preview" className="max-h-48 object-contain" />
-            </div>
-          )}
-        </div>
-
-        <div>
-          <label className={labelCls}>Registration URL <span className="text-stone-400 font-normal">(for upcoming events)</span></label>
+          <label className={labelCls}>Registration URL <span className="text-stone-400 font-normal">(optional, for external form)</span></label>
           <input value={form.registrationUrl} onChange={e => set('registrationUrl', e.target.value)}
-            placeholder="https://forms.gle/..." className={inputCls} />
+            placeholder="https://forms.gle/…" className={inputCls} />
         </div>
       </section>
 
-      {/* Event details */}
-      <section className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-6 space-y-5">
-        <h3 className="font-kids text-xl text-wood-dark">Event Details</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelCls}>Date</label>
-            <input value={form.date} onChange={e => set('date', e.target.value)}
-              placeholder="Friday, July 17, 2026" className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>Time</label>
-            <input value={form.time} onChange={e => set('time', e.target.value)}
-              placeholder="4:30 – 7:30 PM" className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>Price</label>
-            <input value={form.price} onChange={e => set('price', e.target.value)}
-              placeholder="$24.99" className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>Ages</label>
-            <input value={form.ages} onChange={e => set('ages', e.target.value)}
-              placeholder="Ages 5+" className={inputCls} />
-          </div>
-        </div>
-        <div>
-          <label className={labelCls}>Location</label>
-          <input value={form.location} onChange={e => set('location', e.target.value)}
-            placeholder="14325 Willard Rd Unit D, Chantilly, VA 20151" className={inputCls} />
-        </div>
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input type="checkbox" checked={form.isDropOff} onChange={e => set('isDropOff', e.target.checked)}
-            className="w-4 h-4 accent-sage-600" />
-          <span className="text-sm font-semibold text-stone-700 font-quick">Drop-off event</span>
-        </label>
+      {/* ── Flyer image ── */}
+      <section className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-6 space-y-4">
+        <h3 className="font-kids text-xl text-wood-dark">Flyer / Banner Image</h3>
+        <ImageUploader value={form.flyerImageUrl} slug={form.slug} onChange={url => set('flyerImageUrl', url)} />
       </section>
 
-      {/* Pricing */}
+      {/* ── Pricing ── */}
       <section className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-6 space-y-5">
         <div>
           <h3 className="font-kids text-xl text-wood-dark">Pricing</h3>
-          <p className="text-sm text-stone-400 font-quick mt-1">Set per-child pricing. Leave at $0 to hide the payment section.</p>
+          <p className="text-sm text-stone-400 font-quick mt-1">Set per-child pricing. Leave at $0 to hide that tier.</p>
         </div>
-        {(
-          [
-            ['oneChild',     '1 Child'],
-            ['twoChildren',  '2 Children'],
-            ['threeChildren','3 Children'],
-          ] as const
-        ).map(([key, label]) => (
+        {([['oneChild', '1 Child'], ['twoChildren', '2 Children'], ['threeChildren', '3 Children']] as const).map(([key, label]) => (
           <div key={key} className="flex items-center gap-4">
             <label className="w-32 text-sm font-semibold text-stone-700 font-quick">{label}</label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
-              <input
-                type="number" min="0" step="0.01"
+              <input type="number" min="0" step="0.01"
                 value={dollars(form.pricing?.[key] ?? 0)}
                 onChange={e => set('pricing', { ...form.pricing, [key]: toCents(e.target.value) } as EventPricing)}
                 placeholder="0.00"
-                className="pl-7 pr-4 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-800 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-sage-400"
-              />
+                className="pl-7 pr-4 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-800 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-sage-400" />
             </div>
           </div>
         ))}
       </section>
 
-      {/* Activities */}
-      <section className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-6">
-        <h3 className="font-kids text-xl text-wood-dark mb-4">Activities</h3>
-        <StringList label="Your child will enjoy" items={form.activities}
-          onChange={v => set('activities', v)} />
+      {/* ── Event Details ── */}
+      <section className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-6 space-y-4">
+        <div>
+          <h3 className="font-kids text-xl text-wood-dark">Event Details</h3>
+          <p className="text-sm text-stone-400 font-quick mt-1">Add, remove, or reorder any detail rows.</p>
+        </div>
+        <DetailsList items={form.details} onChange={v => set('details', v)} />
       </section>
 
-      {/* Included + Allergy */}
-      <section className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-6 space-y-6">
-        <h3 className="font-kids text-xl text-wood-dark">Included & Allergy</h3>
-        <StringList label="What's included" items={form.included}
-          onChange={v => set('included', v)} />
-        <StringList label="Allergy info (ingredients that may be present)" items={form.allergyInfo}
-          onChange={v => set('allergyInfo', v)} />
-      </section>
-
-      {/* FAQ */}
-      <section className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-6">
-        <h3 className="font-kids text-xl text-wood-dark mb-4">FAQ</h3>
-        <FaqList items={form.faq} onChange={v => set('faq', v)} />
+      {/* ── Content Sections ── */}
+      <section className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-6 space-y-4">
+        <div>
+          <h3 className="font-kids text-xl text-wood-dark">Content Sections</h3>
+          <p className="text-sm text-stone-400 font-quick mt-1">Build the event page with lists, FAQs, and text blocks — add as many as you need.</p>
+        </div>
+        <SectionsList sections={form.sections} onChange={v => set('sections', v)} />
       </section>
 
       {error && <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">{error}</p>}
 
-      <div className="flex gap-3">
+      <div className="flex gap-3 pb-10">
         <button type="submit" disabled={saving}
           className="flex-1 bg-wood text-white font-bold font-quick py-3.5 rounded-full shadow-md hover:brightness-95 transition disabled:opacity-60">
           {saving ? 'Saving…' : (isNew ? 'Create Event' : 'Save Changes')}
@@ -367,11 +500,9 @@ function EventForm({
   )
 }
 
-// ── Event List ───────────────────────────────────────────────────────────────
+// ── Event List ────────────────────────────────────────────────────────────────
 
-function EventList({
-  events, onNew, onEdit, onDelete, onTogglePublish,
-}: {
+function EventList({ events, onNew, onEdit, onDelete, onTogglePublish }: {
   events: AcademyEvent[]
   onNew: () => void
   onEdit: (event: AcademyEvent) => void
@@ -398,7 +529,7 @@ function EventList({
         <div className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-12 text-center">
           <div className="text-4xl mb-3">🌿</div>
           <p className="font-kids text-xl text-stone-400">No events yet</p>
-          <p className="text-stone-400 text-sm mt-1 font-quick">Click "New Event" to create your first event.</p>
+          <p className="text-stone-400 text-sm mt-1 font-quick">Click "New Event" to get started.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -415,7 +546,11 @@ function EventList({
                   </span>
                 </div>
                 <div className="text-xs text-stone-400 font-quick mt-0.5">/events/{event.slug}</div>
-                {event.date && <div className="text-sm text-stone-500 mt-0.5">{event.date}</div>}
+                {event.details.find(d => d.label === 'Date')?.value && (
+                  <div className="text-sm text-stone-500 mt-0.5">
+                    {event.details.find(d => d.label === 'Date')?.value}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <label className="relative inline-flex items-center cursor-pointer" title={event.published ? 'Published' : 'Draft'}>
@@ -440,7 +575,7 @@ function EventList({
   )
 }
 
-// ── Admin Root ───────────────────────────────────────────────────────────────
+// ── Admin Root ────────────────────────────────────────────────────────────────
 
 export default function Admin() {
   const [user, setUser] = useState<User | null>(null)
@@ -453,10 +588,7 @@ export default function Admin() {
     return onAuthStateChanged(auth, u => { setUser(u); setAuthLoading(false) })
   }, [])
 
-  useEffect(() => {
-    if (!user) return
-    loadEvents()
-  }, [user])
+  useEffect(() => { if (user) loadEvents() }, [user])
 
   async function loadEvents() {
     const q = query(collection(db, 'events'), orderBy('createdAt', 'desc'))
@@ -493,7 +625,6 @@ export default function Admin() {
 
   return (
     <div className="bg-cream min-h-screen font-body">
-      {/* Admin header */}
       <header className="sticky top-0 z-50 bg-cream/95 backdrop-blur border-b border-stone-200/70">
         <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -514,7 +645,7 @@ export default function Admin() {
         {editing ? (
           <div>
             <button onClick={() => setEditing(null)}
-              className="text-sm font-quick font-semibold text-stone-500 hover:text-sage-700 transition mb-6 flex items-center gap-1">
+              className="text-sm font-quick font-semibold text-stone-500 hover:text-sage-700 transition mb-6">
               ← Back to events
             </button>
             <h2 className="font-kids text-3xl text-wood-dark mb-8">
@@ -533,7 +664,6 @@ export default function Admin() {
         )}
       </main>
 
-      {/* Delete confirmation modal */}
       {deleting && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-6">
           <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-sm w-full text-center">
