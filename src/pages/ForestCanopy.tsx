@@ -166,12 +166,77 @@ export default function ForestCanopy() {
                 <div className="text-xs font-semibold uppercase tracking-wider text-sage-700">Academy</div>
               </div>
             </a>
-            <nav className="flex items-center gap-8 font-semibold text-stone-600">
-              <a href="#dc-about" className="hover:text-sage-700 transition-colors">About</a>
-              <a href="#dc-programs" className="hover:text-sage-700 transition-colors">Programs</a>
-              <a href="#dc-achievements" className="hover:text-sage-700 transition-colors">Achievements</a>
-              <a href="/contact" className="hover:text-sage-700 transition-colors">Contact</a>
-              <button onClick={() => setPaymentOpen(true)} className="bg-wood text-white px-5 py-2.5 rounded-full shadow-md hover:brightness-95 transition">Register Now</button>
+            <nav className="flex items-center gap-1 font-semibold text-stone-600">
+
+              {/* Home */}
+              <div className="group relative">
+                <button className="flex items-center gap-1 px-4 py-2 rounded-xl hover:bg-stone-100 hover:text-sage-700 transition-colors">
+                  Home
+                  <svg className="w-3.5 h-3.5 mt-px text-stone-400 group-hover:text-sage-600 transition-transform group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                <div className="absolute top-full left-0 pt-2 opacity-0 -translate-y-1 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-200 z-50">
+                  <div className="bg-white rounded-2xl shadow-xl border border-stone-200/70 py-2 min-w-[180px]">
+                    <a href="#dc-about" className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
+                      <span className="text-base">🌿</span> About Us
+                    </a>
+                    <a href="#dc-achievements" className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
+                      <span className="text-base">🏆</span> Achievements
+                    </a>
+                    <a href="/contact" className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
+                      <span className="text-base">✉️</span> Contact Us
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* Programs */}
+              <div className="group relative">
+                <button className="flex items-center gap-1 px-4 py-2 rounded-xl hover:bg-stone-100 hover:text-sage-700 transition-colors">
+                  Programs
+                  <svg className="w-3.5 h-3.5 mt-px text-stone-400 group-hover:text-sage-600 transition-transform group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                <div className="absolute top-full left-0 pt-2 opacity-0 -translate-y-1 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-200 z-50">
+                  <div className="bg-white rounded-2xl shadow-xl border border-stone-200/70 py-2 min-w-[220px]">
+                    <a href="#dc-programs" className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
+                      <span className="text-base">📖</span> Saturday Weekend School
+                    </a>
+                    <div className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-400 cursor-default select-none">
+                      <span className="text-base">☀️</span>
+                      <span>Summer Camp</span>
+                      <span className="ml-auto text-xs font-normal bg-stone-100 text-stone-400 px-2 py-0.5 rounded-full">Coming soon</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Events */}
+              <div className="group relative">
+                <button className="flex items-center gap-1 px-4 py-2 rounded-xl hover:bg-stone-100 hover:text-sage-700 transition-colors">
+                  Events
+                  <svg className="w-3.5 h-3.5 mt-px text-stone-400 group-hover:text-sage-600 transition-transform group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                <div className="absolute top-full left-0 pt-2 opacity-0 -translate-y-1 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-200 z-50">
+                  <div className="bg-white rounded-2xl shadow-xl border border-stone-200/70 py-2 min-w-[240px]">
+                    <div className="px-4 pt-1 pb-2 text-xs font-bold uppercase tracking-widest text-stone-400">Past events</div>
+                    <a href="#" className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
+                      <span className="text-base">🐾</span> Animals in Quran
+                    </a>
+                    <a href="#" className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
+                      <span className="text-base">💧</span> Prophet Yunus Water Slime
+                    </a>
+                    <div className="border-t border-stone-100 mt-1 pt-1">
+                      <div className="px-4 pt-2 pb-1 text-xs font-bold uppercase tracking-widest text-stone-400">Upcoming</div>
+                      <div className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-400 cursor-default select-none">
+                        <span className="text-base">🌟</span>
+                        <span>Future Event</span>
+                        <span className="ml-auto text-xs font-normal bg-stone-100 text-stone-400 px-2 py-0.5 rounded-full">TBA</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button onClick={() => setPaymentOpen(true)} className="ml-3 bg-wood text-white px-5 py-2.5 rounded-full shadow-md hover:brightness-95 transition">Register Now</button>
             </nav>
           </div>
         </header>
