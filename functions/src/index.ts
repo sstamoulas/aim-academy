@@ -1,7 +1,8 @@
-import { onRequest } from 'firebase-functions/v2/https'
+import { onRequest, onCall, HttpsError } from 'firebase-functions/v2/https'
 import { defineSecret } from 'firebase-functions/params'
 import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
+import { getAuth as getAdminAuth } from 'firebase-admin/auth'
 import cors from 'cors'
 import * as https from 'https'
 import * as nodemailer from 'nodemailer'
@@ -175,5 +176,98 @@ export const createPaymentIntent = onRequest(
         res.status(500).json({ error: message })
       }
     })
+  }
+)
+
+// ── Role management (admin-only) ──────────────────────────────────────────────
+
+const VALID_ROLES = ['admin', 'teacher', 'parent'] as const
+type UserRole = typeof VALID_ROLES[number]
+
+/** Change an existing user's role. Caller must have role === 'admin'. */
+export const setUserRole = onCall(async (request) => {
+  if (request.auth?.token?.role !== 'admin') {
+    throw new HttpsError('permission-denied', 'Only admins can set user roles.')
+  }
+  const { uid, role } = request.data as { uid: string; role: UserRole }
+  if (!uid || !VALID_ROLES.includes(role)) {
+    throw new HttpsError('invalid-argument', 'uid and a valid role are required.')
+  }
+  await getAdminAuth().setCustomUserClaims(uid, { role })
+  await getFirestore().collection('users').doc(uid).set({ role }, { merge: true })
+  return { success: true }
+})
+
+/** Invite a new user by email with a role. Creates the account if needed and
+ *  emails them a password-setup link. Caller must have role === 'admin'. */
+export const inviteUser = onCall(
+  { secrets: [gmailAppPassword] },
+  async (request) => {
+    if (request.auth?.token?.role !== 'admin') {
+      throw new HttpsError('permission-denied', 'Only admins can invite users.')
+    }
+    const { email, role, displayName } = request.data as {
+      email: string
+      role: UserRole
+      displayName?: string
+    }
+    if (!email || !VALID_ROLES.includes(role)) {
+      throw new HttpsError('invalid-argument', 'email and a valid role are required.')
+    }
+
+    // Create or fetch user
+    let uid: string
+    try {
+      const existing = await getAdminAuth().getUserByEmail(email)
+      uid = existing.uid
+    } catch {
+      const created = await getAdminAuth().createUser({
+        email,
+        displayName: displayName || undefined,
+      })
+      uid = created.uid
+    }
+
+    // Set custom claim
+    await getAdminAuth().setCustomUserClaims(uid, { role })
+
+    // Persist to users collection
+    await getFirestore().collection('users').doc(uid).set({
+      email,
+      displayName: displayName || '',
+      role,
+      createdAt: new Date().toISOString(),
+      invitedBy: request.auth.uid,
+    }, { merge: true })
+
+    // Generate password-reset link and email it
+    const resetLink = await getAdminAuth().generatePasswordResetLink(email)
+    const roleLabel = role.charAt(0).toUpperCase() + role.slice(1)
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: GMAIL_USER, pass: gmailAppPassword.value() },
+    })
+
+    await transporter.sendMail({
+      from: `"Anas Ibn Malik Academy" <${GMAIL_USER}>`,
+      to: email,
+      subject: `You've been invited to AIM Academy as ${roleLabel}`,
+      text: [
+        `You have been invited to the Anas Ibn Malik Academy portal as a ${roleLabel}.`,
+        '',
+        'Click the link below to set your password and get started:',
+        resetLink,
+        '',
+        'This link expires in 1 hour.',
+      ].join('\n'),
+      html: `
+        <p>You have been invited to the <strong>Anas Ibn Malik Academy</strong> portal as a <strong>${roleLabel}</strong>.</p>
+        <p><a href="${resetLink}">Click here to set your password and get started →</a></p>
+        <p style="color:#888;font-size:12px;">This link expires in 1 hour.</p>
+      `,
+    })
+
+    return { success: true }
   }
 )

@@ -6,9 +6,35 @@ import {
   collection, doc, getDocs, setDoc, deleteDoc, orderBy, query,
 } from 'firebase/firestore'
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
-import { auth, db, storage } from '../firebase'
+import { httpsCallable } from 'firebase/functions'
+import { auth, db, storage, functions } from '../firebase'
 import type { AcademyEvent, EventDetail, EventSection, SectionType, PricingTier, PricingModel } from '../types/event'
 import { PRICING_MODEL_LABELS } from '../types/event'
+
+// ── User management types ─────────────────────────────────────────────────────
+
+type UserRole = 'admin' | 'teacher' | 'parent'
+
+interface UserRecord {
+  uid: string
+  email: string
+  displayName: string
+  role: UserRole
+  createdAt: string
+  invitedBy: string | null
+}
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  admin: 'Admin',
+  teacher: 'Teacher',
+  parent: 'Parent',
+}
+
+const ROLE_COLORS: Record<UserRole, string> = {
+  admin: 'bg-amber-100 text-amber-700 border-amber-200',
+  teacher: 'bg-sage-100 text-sage-700 border-sage-200',
+  parent: 'bg-sky-100 text-sky-700 border-sky-200',
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -745,20 +771,226 @@ function EventList({ events, onNew, onEdit, onDelete, onTogglePublish }: {
   )
 }
 
+// ── Users Tab ─────────────────────────────────────────────────────────────────
+
+function UsersTab() {
+  const [users, setUsers] = useState<UserRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteName, setInviteName] = useState('')
+  const [inviteRole, setInviteRole] = useState<UserRole>('teacher')
+  const [inviting, setInviting] = useState(false)
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [inviteSuccess, setInviteSuccess] = useState(false)
+  const [changingRoleUid, setChangingRoleUid] = useState<string | null>(null)
+
+  const inviteUserFn = httpsCallable(functions, 'inviteUser')
+  const setUserRoleFn = httpsCallable(functions, 'setUserRole')
+
+  async function loadUsers() {
+    setLoading(true)
+    const snap = await getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc')))
+    setUsers(snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserRecord)))
+    setLoading(false)
+  }
+
+  useEffect(() => { loadUsers() }, [])
+
+  async function handleInvite(e: React.FormEvent) {
+    e.preventDefault()
+    setInviting(true); setInviteError(null)
+    try {
+      await inviteUserFn({ email: inviteEmail.trim(), role: inviteRole, displayName: inviteName.trim() })
+      setInviteSuccess(true)
+      setInviteEmail(''); setInviteName('')
+      await loadUsers()
+    } catch (err: unknown) {
+      setInviteError(err instanceof Error ? err.message : 'Failed to invite user.')
+    } finally {
+      setInviting(false)
+    }
+  }
+
+  async function handleRoleChange(uid: string, role: UserRole) {
+    setChangingRoleUid(uid)
+    try {
+      await setUserRoleFn({ uid, role })
+      setUsers(prev => prev.map(u => u.uid === uid ? { ...u, role } : u))
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to change role.')
+    } finally {
+      setChangingRoleUid(null)
+    }
+  }
+
+  function initials(u: UserRecord) {
+    if (u.displayName) return u.displayName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+    return u.email[0].toUpperCase()
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h2 className="font-kids text-3xl text-wood-dark">Users</h2>
+          <p className="text-stone-500 text-sm font-quick mt-1">
+            Manage who can access the admin and portal areas.
+          </p>
+        </div>
+        <button
+          onClick={() => { setInviteOpen(true); setInviteSuccess(false); setInviteError(null) }}
+          className="bg-wood text-white font-bold font-quick px-5 py-2.5 rounded-full shadow-md hover:brightness-95 transition text-sm"
+        >
+          + Invite User
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <div className="w-8 h-8 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" />
+        </div>
+      ) : users.length === 0 ? (
+        <div className="bg-white rounded-[28px] border border-stone-200/70 p-10 text-center text-stone-400 font-quick">
+          No users yet. Invite someone to get started.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {users.map(u => (
+            <div key={u.uid} className="bg-white rounded-2xl border border-stone-200/70 px-5 py-4 flex items-center gap-4">
+              {/* Avatar */}
+              <div className="w-10 h-10 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-sm flex-shrink-0">
+                {initials(u)}
+              </div>
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-stone-800 font-quick text-sm truncate">
+                  {u.displayName || <span className="text-stone-400 italic">No name</span>}
+                </div>
+                <div className="text-xs text-stone-400 font-quick truncate">{u.email}</div>
+              </div>
+              {/* Role badge / selector */}
+              <div className="flex-shrink-0">
+                {changingRoleUid === u.uid ? (
+                  <div className="w-5 h-5 border-2 border-sage-200 border-t-sage-600 rounded-full animate-spin" />
+                ) : (
+                  <select
+                    value={u.role}
+                    onChange={e => handleRoleChange(u.uid, e.target.value as UserRole)}
+                    className={`text-xs font-bold font-quick border rounded-full px-3 py-1 cursor-pointer focus:outline-none ${ROLE_COLORS[u.role]}`}
+                  >
+                    {(Object.keys(ROLE_LABELS) as UserRole[]).map(r => (
+                      <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Invite modal */}
+      {inviteOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-6">
+          <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-sm w-full">
+            <h3 className="font-kids text-2xl text-wood-dark mb-6">Invite User</h3>
+
+            {inviteSuccess ? (
+              <div className="text-center py-4">
+                <div className="text-4xl mb-3">✉️</div>
+                <p className="font-semibold text-stone-800 font-quick mb-1">Invitation sent!</p>
+                <p className="text-stone-500 text-sm font-quick mb-6">
+                  They'll receive an email with a link to set their password.
+                </p>
+                <button
+                  onClick={() => { setInviteOpen(false); setInviteSuccess(false) }}
+                  className="w-full bg-wood text-white font-bold font-quick py-3 rounded-full hover:brightness-95 transition"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleInvite} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-stone-700 font-quick mb-1.5">Email</label>
+                  <input
+                    type="email" required value={inviteEmail}
+                    onChange={e => setInviteEmail(e.target.value)}
+                    placeholder="teacher@example.com"
+                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 transition text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-stone-700 font-quick mb-1.5">Display Name</label>
+                  <input
+                    type="text" value={inviteName}
+                    onChange={e => setInviteName(e.target.value)}
+                    placeholder="Sister Fatima (optional)"
+                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 transition text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-stone-700 font-quick mb-1.5">Role</label>
+                  <select
+                    value={inviteRole}
+                    onChange={e => setInviteRole(e.target.value as UserRole)}
+                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 transition text-sm"
+                  >
+                    <option value="teacher">Teacher</option>
+                    <option value="parent">Parent</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                {inviteError && (
+                  <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
+                    {inviteError}
+                  </p>
+                )}
+                <div className="flex gap-3 pt-2">
+                  <button type="submit" disabled={inviting}
+                    className="flex-1 bg-wood text-white font-bold font-quick py-3 rounded-full hover:brightness-95 transition disabled:opacity-60">
+                    {inviting ? 'Sending…' : 'Send Invite'}
+                  </button>
+                  <button type="button" onClick={() => setInviteOpen(false)}
+                    className="flex-1 border border-stone-200 text-stone-600 font-quick font-semibold py-3 rounded-full hover:bg-stone-50 transition">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Admin Root ────────────────────────────────────────────────────────────────
 
 export default function Admin() {
   const [user, setUser] = useState<User | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<'events' | 'users'>('events')
   const [events, setEvents] = useState<AcademyEvent[]>([])
   const [editing, setEditing] = useState<Partial<AcademyEvent> | null>(null)
   const [deleting, setDeleting] = useState<AcademyEvent | null>(null)
 
   useEffect(() => {
-    return onAuthStateChanged(auth, u => { setUser(u); setAuthLoading(false) })
+    return onAuthStateChanged(auth, async u => {
+      setUser(u)
+      if (u) {
+        const token = await u.getIdTokenResult()
+        setIsAdmin(token.claims['role'] === 'admin')
+      } else {
+        setIsAdmin(false)
+      }
+      setAuthLoading(false)
+    })
   }, [])
 
-  useEffect(() => { if (user) loadEvents() }, [user])
+  useEffect(() => { if (user && isAdmin) loadEvents() }, [user, isAdmin])
 
   async function loadEvents() {
     const q = query(collection(db, 'events'), orderBy('createdAt', 'desc'))
@@ -793,6 +1025,22 @@ export default function Admin() {
 
   if (!user) return <LoginForm />
 
+  if (!isAdmin) {
+    return (
+      <div className="bg-cream min-h-screen flex flex-col items-center justify-center gap-4 font-body text-center px-6">
+        <div className="text-5xl">🔒</div>
+        <h1 className="font-kids text-3xl text-wood-dark">Access Denied</h1>
+        <p className="text-stone-500 text-sm max-w-xs">
+          Your account doesn't have admin access. Contact the academy if you think this is a mistake.
+        </p>
+        <button onClick={() => signOut(auth)}
+          className="font-quick text-sm font-semibold text-rose-600 hover:underline mt-2">
+          Sign Out
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-cream min-h-screen font-body">
       <header className="sticky top-0 z-50 bg-cream/95 backdrop-blur border-b border-stone-200/70">
@@ -809,28 +1057,48 @@ export default function Admin() {
             </button>
           </div>
         </div>
+        {/* Tab bar */}
+        <div className="max-w-4xl mx-auto px-6 flex gap-1 -mb-px">
+          {(['events', 'users'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => { setActiveTab(tab); setEditing(null) }}
+              className={`px-5 py-2.5 text-sm font-semibold font-quick border-b-2 transition ${
+                activeTab === tab
+                  ? 'border-sage-600 text-sage-700'
+                  : 'border-transparent text-stone-400 hover:text-stone-600'
+              }`}
+            >
+              {tab === 'events' ? 'Events' : 'Users'}
+            </button>
+          ))}
+        </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-10">
-        {editing ? (
-          <div>
-            <button onClick={() => setEditing(null)}
-              className="text-sm font-quick font-semibold text-stone-500 hover:text-sage-700 transition mb-6">
-              ← Back to events
-            </button>
-            <h2 className="font-kids text-3xl text-wood-dark mb-8">
-              {editing.id ? 'Edit Event' : 'New Event'}
-            </h2>
-            <EventForm initial={editing} onSave={handleSave} onCancel={() => setEditing(null)} />
-          </div>
+        {activeTab === 'events' ? (
+          editing ? (
+            <div>
+              <button onClick={() => setEditing(null)}
+                className="text-sm font-quick font-semibold text-stone-500 hover:text-sage-700 transition mb-6">
+                ← Back to events
+              </button>
+              <h2 className="font-kids text-3xl text-wood-dark mb-8">
+                {editing.id ? 'Edit Event' : 'New Event'}
+              </h2>
+              <EventForm initial={editing} onSave={handleSave} onCancel={() => setEditing(null)} />
+            </div>
+          ) : (
+            <EventList
+              events={events}
+              onNew={() => setEditing({})}
+              onEdit={setEditing}
+              onDelete={setDeleting}
+              onTogglePublish={handleTogglePublish}
+            />
+          )
         ) : (
-          <EventList
-            events={events}
-            onNew={() => setEditing({})}
-            onEdit={setEditing}
-            onDelete={setDeleting}
-            onTogglePublish={handleTogglePublish}
-          />
+          <UsersTab />
         )}
       </main>
 

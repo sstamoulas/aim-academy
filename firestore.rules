@@ -2,16 +2,40 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Events — authenticated admins can read/write, anyone can read published events
+    function isAdmin()   { return request.auth != null && request.auth.token.role == 'admin'; }
+    function isTeacher() { return request.auth != null && request.auth.token.role == 'teacher'; }
+    function isParent()  { return request.auth != null && request.auth.token.role == 'parent'; }
+    function isStaff()   { return isAdmin() || isTeacher(); }
+
+    // Events — public read for published events; admin-only write
     match /events/{eventId} {
       allow read: if resource.data.published == true;
-      allow read, write: if request.auth != null;
+      allow read, write: if isAdmin();
     }
 
-    // Contact submissions — anyone can create, only authenticated admins can read
+    // Contact submissions — anyone can submit; admin-only read
     match /contactSubmissions/{docId} {
       allow create: if true;
-      allow read, update, delete: if request.auth != null;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Users — admin can read/write all; users can read their own record
+    match /users/{uid} {
+      allow read: if isAdmin() || (request.auth != null && request.auth.uid == uid);
+      allow write: if isAdmin();
+    }
+
+    // (Future) Families / children — parent can read their own; teacher/admin can read all
+    match /families/{familyId} {
+      allow read, write: if isAdmin();
+      allow read: if isTeacher();
+      allow read: if isParent() && request.auth.uid == resource.data.parentUid;
+    }
+
+    // (Future) Classes and enrollment
+    match /classes/{classId} {
+      allow read, write: if isAdmin();
+      allow read: if isTeacher() || isParent();
     }
   }
 }
