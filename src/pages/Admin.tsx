@@ -518,22 +518,41 @@ function EventForm({ initial, onSave, onCancel }: {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className={labelCls}>Status</label>
+            <label className={labelCls}>
+              Event Status
+              <span className="text-stone-400 font-normal ml-1">— shown as a badge on the event page</span>
+            </label>
             <select value={form.status} onChange={e => set('status', e.target.value as AcademyEvent['status'])} className={inputCls}>
-              <option value="upcoming">Upcoming</option>
-              <option value="sold-out">Sold Out</option>
-              <option value="past">Past</option>
+              <option value="upcoming">Upcoming — registration open</option>
+              <option value="sold-out">Sold Out — registration closed</option>
+              <option value="past">Past — event has occurred</option>
             </select>
           </div>
-          <div className="flex items-center gap-3 pt-7">
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" checked={form.published} onChange={e => set('published', e.target.checked)} className="sr-only peer" />
-              <div className="w-10 h-6 bg-stone-200 peer-checked:bg-sage-600 rounded-full transition peer-focus:ring-2 peer-focus:ring-sage-400" />
-              <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-4 shadow-sm" />
-            </label>
-            <span className="text-sm font-semibold font-quick text-stone-700">
-              {form.published ? 'Published' : 'Draft'}
-            </span>
+          <div>
+            <label className={labelCls}>Visibility</label>
+            <div
+              onClick={() => set('published', !form.published)}
+              className={`cursor-pointer rounded-xl border-2 p-4 transition-all ${
+                form.published
+                  ? 'border-sage-500 bg-sage-50'
+                  : 'border-stone-200 bg-stone-50 hover:border-stone-300'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className={`text-sm font-bold font-quick ${form.published ? 'text-sage-700' : 'text-stone-500'}`}>
+                  {form.published ? '🟢 Live' : '⚪ Draft'}
+                </span>
+                <div className="relative">
+                  <div className={`w-10 h-6 rounded-full transition-colors ${form.published ? 'bg-sage-600' : 'bg-stone-300'}`} />
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${form.published ? 'left-5' : 'left-1'}`} />
+                </div>
+              </div>
+              <p className="text-xs text-stone-400 font-quick leading-snug">
+                {form.published
+                  ? 'Visible to the public and appears in the Events nav.'
+                  : 'Only you can see this. Not shown on the site.'}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -618,6 +637,11 @@ function EventList({ events, onNew, onEdit, onDelete, onTogglePublish }: {
         </button>
       </div>
 
+      {events.length > 0 && (
+        <div className="flex justify-end pr-1 mb-1">
+          <span className="text-xs text-stone-400 font-quick">Toggle to make live or draft</span>
+        </div>
+      )}
       {events.length === 0 ? (
         <div className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-12 text-center">
           <div className="text-4xl mb-3">🌿</div>
@@ -645,12 +669,18 @@ function EventList({ events, onNew, onEdit, onDelete, onTogglePublish }: {
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <label className="relative inline-flex items-center cursor-pointer" title={event.published ? 'Published' : 'Draft'}>
-                  <input type="checkbox" checked={event.published} onChange={() => onTogglePublish(event)} className="sr-only peer" />
-                  <div className="w-9 h-5 bg-stone-200 peer-checked:bg-sage-600 rounded-full transition" />
-                  <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-4 shadow-sm" />
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <label className="flex items-center gap-2 cursor-pointer group">
+                  <div className="relative">
+                    <input type="checkbox" checked={event.published} onChange={() => onTogglePublish(event)} className="sr-only peer" />
+                    <div className="w-9 h-5 bg-stone-200 peer-checked:bg-sage-600 rounded-full transition" />
+                    <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-4 shadow-sm" />
+                  </div>
+                  <span className={`text-xs font-bold font-quick ${event.published ? 'text-sage-700' : 'text-stone-400'}`}>
+                    {event.published ? 'Live' : 'Draft'}
+                  </span>
                 </label>
+                <div className="w-px h-5 bg-stone-200" />
                 <button onClick={() => onEdit(event)}
                   className="text-xs font-quick font-semibold text-stone-600 hover:text-sage-700 transition px-3 py-1.5 rounded-xl hover:bg-stone-50">
                   Edit
