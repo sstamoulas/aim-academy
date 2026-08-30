@@ -4,14 +4,6 @@ import { db } from '../firebase'
 import type { AcademyEvent, EventSection } from '../types/event'
 import PaymentModal from '../components/PaymentModal'
 
-type ChildOption = 'oneChild' | 'twoChildren' | 'threeChildren'
-
-const CHILD_OPTIONS: { key: ChildOption; label: string; sub: string }[] = [
-  { key: 'oneChild',     label: '1 Child',    sub: 'Per child rate' },
-  { key: 'twoChildren',  label: '2 Children', sub: 'Best for siblings' },
-  { key: 'threeChildren',label: '3 Children', sub: 'Family discount' },
-]
-
 function renderSection(section: EventSection) {
   switch (section.type) {
     case 'list':
@@ -53,7 +45,7 @@ export default function EventPage({ slug }: { slug: string }) {
   const [event, setEvent] = useState<AcademyEvent | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
-  const [selectedOption, setSelectedOption] = useState<ChildOption>('oneChild')
+  const [selectedTierId, setSelectedTierId] = useState<string | null>(null)
   const [paymentOpen, setPaymentOpen] = useState(false)
 
   useEffect(() => {
@@ -161,24 +153,24 @@ export default function EventPage({ slug }: { slug: string }) {
         {/* Pricing selector + registration for upcoming events */}
         {event.status === 'upcoming' && event.pricing && (
           (() => {
-            const p = event.pricing!
-            const hasAnyPrice = p.oneChild > 0 || p.twoChildren > 0 || p.threeChildren > 0
-            if (!hasAnyPrice) return null
-            const selectedAmount = p[selectedOption] ?? 0
+            const tiers = event.pricing!.filter(t => t.amount > 0)
+            if (tiers.length === 0) return null
+            const activeTierId = selectedTierId ?? tiers[0].id
+            const selectedTier = tiers.find(t => t.id === activeTierId) ?? tiers[0]
+            const cols = tiers.length === 1 ? 'grid-cols-1' : tiers.length === 2 ? 'grid-cols-2' : 'grid-cols-3'
             return (
               <div className="bg-white rounded-[28px] shadow-sm border border-stone-200/70 p-8 mb-6">
                 <h2 className="font-kids text-2xl text-wood-dark mb-5">Registration</h2>
 
-                {/* Child option cards */}
-                <div className="grid grid-cols-3 gap-3 mb-6">
-                  {CHILD_OPTIONS.filter(o => p[o.key] > 0).map(({ key, label, sub }) => {
-                    const amount = p[key]
-                    const selected = selectedOption === key
+                {/* Tier cards */}
+                <div className={`grid ${cols} gap-3 mb-6`}>
+                  {tiers.map(tier => {
+                    const selected = tier.id === activeTierId
                     return (
                       <button
-                        key={key}
+                        key={tier.id}
                         type="button"
-                        onClick={() => setSelectedOption(key)}
+                        onClick={() => setSelectedTierId(tier.id)}
                         className={`rounded-2xl border-2 p-4 text-left transition-all ${
                           selected
                             ? 'border-sage-600 bg-sage-50 shadow-sm'
@@ -186,12 +178,14 @@ export default function EventPage({ slug }: { slug: string }) {
                         }`}
                       >
                         <div className={`text-xs font-bold uppercase tracking-widest font-quick mb-2 ${selected ? 'text-sage-600' : 'text-stone-400'}`}>
-                          {selected && <span className="mr-1">✓</span>}{label}
+                          {selected && <span className="mr-1">✓</span>}{tier.label}
                         </div>
                         <div className="font-kids text-2xl text-wood-dark">
-                          ${(amount / 100).toFixed(2)}
+                          ${(tier.amount / 100).toFixed(2)}
                         </div>
-                        <div className="text-xs text-stone-400 font-quick mt-1">{sub}</div>
+                        {tier.sublabel && (
+                          <div className="text-xs text-stone-400 font-quick mt-1">{tier.sublabel}</div>
+                        )}
                       </button>
                     )
                   })}
@@ -201,14 +195,14 @@ export default function EventPage({ slug }: { slug: string }) {
                   onClick={() => setPaymentOpen(true)}
                   className="w-full bg-wood text-white font-bold font-quick py-4 rounded-full shadow-md hover:brightness-95 transition"
                 >
-                  Register Now — ${(selectedAmount / 100).toFixed(2)}
+                  Register Now — ${(selectedTier.amount / 100).toFixed(2)}
                 </button>
 
                 <PaymentModal
                   isOpen={paymentOpen}
                   onClose={() => setPaymentOpen(false)}
-                  amount={selectedAmount}
-                  description={`${event.title} — ${CHILD_OPTIONS.find(o => o.key === selectedOption)?.label}`}
+                  amount={selectedTier.amount}
+                  description={`${event.title} — ${selectedTier.label}`}
                 />
               </div>
             )

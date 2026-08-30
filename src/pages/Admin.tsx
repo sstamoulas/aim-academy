@@ -7,7 +7,7 @@ import {
 } from 'firebase/firestore'
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { auth, db, storage } from '../firebase'
-import type { AcademyEvent, EventDetail, EventSection, SectionType, EventPricing } from '../types/event'
+import type { AcademyEvent, EventDetail, EventSection, SectionType, PricingTier } from '../types/event'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -31,10 +31,16 @@ const DEFAULT_DETAILS: EventDetail[] = [
   { id: uid(), icon: '💲', label: 'Price', value: '' },
 ]
 
+const DEFAULT_PRICING: PricingTier[] = [
+  { id: uid(), label: '1 Child', sublabel: 'Per child rate', amount: 0 },
+  { id: uid(), label: '2 Children', sublabel: 'Best for siblings', amount: 0 },
+  { id: uid(), label: '3 Children', sublabel: 'Family discount', amount: 0 },
+]
+
 const EMPTY: Omit<AcademyEvent, 'id' | 'createdAt'> = {
   slug: '', title: '', description: '',
   status: 'upcoming', flyerImageUrl: '', registrationUrl: '',
-  pricing: { oneChild: 0, twoChildren: 0, threeChildren: 0 },
+  pricing: DEFAULT_PRICING.map(t => ({ ...t, id: uid() })),
   details: DEFAULT_DETAILS,
   sections: [],
   published: false,
@@ -259,6 +265,57 @@ function TextSectionEditor({ section, onChange }: { section: EventSection; onCha
   )
 }
 
+// ── Pricing List ──────────────────────────────────────────────────────────────
+
+function PricingList({ tiers, onChange }: {
+  tiers: PricingTier[]
+  onChange: (tiers: PricingTier[]) => void
+}) {
+  function update(id: string, field: keyof PricingTier, val: string | number) {
+    onChange(tiers.map(t => t.id === id ? { ...t, [field]: val } : t))
+  }
+
+  return (
+    <div className="space-y-3">
+      {tiers.map((tier, i) => (
+        <div key={tier.id} className="flex items-center gap-2">
+          <div className="flex-1 grid grid-cols-2 gap-2">
+            <input
+              value={tier.label}
+              onChange={e => update(tier.id, 'label', e.target.value)}
+              placeholder="Label (e.g. 1 Child)"
+              className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400"
+            />
+            <input
+              value={tier.sublabel ?? ''}
+              onChange={e => update(tier.id, 'sublabel', e.target.value)}
+              placeholder="Sublabel (e.g. Per child rate)"
+              className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-500 focus:outline-none focus:ring-2 focus:ring-sage-400"
+            />
+          </div>
+          <div className="relative flex-shrink-0">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
+            <input
+              type="number" min="0" step="0.01"
+              value={dollars(tier.amount)}
+              onChange={e => update(tier.id, 'amount', toCents(e.target.value))}
+              placeholder="0.00"
+              className="pl-7 pr-4 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-800 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-sage-400"
+            />
+          </div>
+          <button type="button" onClick={() => onChange(tiers.filter((_, j) => j !== i))}
+            className="text-stone-300 hover:text-rose-500 transition px-1.5 text-lg">✕</button>
+        </div>
+      ))}
+      <button type="button"
+        onClick={() => onChange([...tiers, { id: uid(), label: '', sublabel: '', amount: 0 }])}
+        className="text-sm text-sage-700 font-quick font-semibold hover:underline mt-1">
+        + Add tier
+      </button>
+    </div>
+  )
+}
+
 // ── Sections List ─────────────────────────────────────────────────────────────
 
 const SECTION_ICONS: Record<SectionType, string> = { list: '📋', faq: '❓', text: '📝' }
@@ -343,6 +400,7 @@ function EventForm({ initial, onSave, onCancel }: {
     ...EMPTY,
     createdAt: new Date().toISOString(),
     ...initial,
+    pricing: initial.pricing ?? DEFAULT_PRICING.map(t => ({ ...t, id: uid() })),
     details: initial.details ?? DEFAULT_DETAILS.map(d => ({ ...d, id: uid() })),
     sections: initial.sections ?? [],
   })
@@ -446,24 +504,12 @@ function EventForm({ initial, onSave, onCancel }: {
       </section>
 
       {/* ── Pricing ── */}
-      <section className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-6 space-y-5">
+      <section className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-6 space-y-4">
         <div>
           <h3 className="font-kids text-xl text-wood-dark">Pricing</h3>
-          <p className="text-sm text-stone-400 font-quick mt-1">Set per-child pricing. Leave at $0 to hide that tier.</p>
+          <p className="text-sm text-stone-400 font-quick mt-1">Add any number of tiers. Tiers with $0 are hidden on the event page.</p>
         </div>
-        {([['oneChild', '1 Child'], ['twoChildren', '2 Children'], ['threeChildren', '3 Children']] as const).map(([key, label]) => (
-          <div key={key} className="flex items-center gap-4">
-            <label className="w-32 text-sm font-semibold text-stone-700 font-quick">{label}</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
-              <input type="number" min="0" step="0.01"
-                value={dollars(form.pricing?.[key] ?? 0)}
-                onChange={e => set('pricing', { ...form.pricing, [key]: toCents(e.target.value) } as EventPricing)}
-                placeholder="0.00"
-                className="pl-7 pr-4 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-800 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-sage-400" />
-            </div>
-          </div>
-        ))}
+        <PricingList tiers={form.pricing ?? []} onChange={v => set('pricing', v)} />
       </section>
 
       {/* ── Event Details ── */}

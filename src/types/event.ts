@@ -1,7 +1,8 @@
-export interface EventPricing {
-  oneChild: number      // in cents
-  twoChildren: number   // in cents
-  threeChildren: number // in cents
+export interface PricingTier {
+  id: string
+  label: string      // e.g. "1 Child", "2 Children", "Family Pack"
+  sublabel?: string  // e.g. "Per child rate"
+  amount: number     // in cents
 }
 
 export interface EventDetail {
@@ -30,7 +31,7 @@ export interface AcademyEvent {
   status: 'upcoming' | 'sold-out' | 'past'
   flyerImageUrl: string
   registrationUrl: string
-  pricing?: EventPricing
+  pricing?: PricingTier[]
   details: EventDetail[]
   sections: EventSection[]
   published: boolean
