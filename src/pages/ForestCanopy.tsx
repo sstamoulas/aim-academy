@@ -1,5 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore'
 import PaymentModal from '../components/PaymentModal'
+import { db } from '../firebase'
+import type { AcademyEvent } from '../types/event'
 
 // TODO: set final registration amount in cents (e.g. 15000 = $150.00)
 const REGISTRATION_AMOUNT = 15000
@@ -9,6 +12,25 @@ export default function ForestCanopy() {
   const [activeTab, setActiveTab] = useState<string>('overview')
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [upcomingEvents, setUpcomingEvents] = useState<AcademyEvent[]>([])
+
+  useEffect(() => {
+    async function loadUpcoming() {
+      try {
+        const q = query(
+          collection(db, 'events'),
+          where('published', '==', true),
+          where('status', '==', 'upcoming'),
+          orderBy('createdAt', 'desc')
+        )
+        const snap = await getDocs(q)
+        setUpcomingEvents(snap.docs.map(d => ({ id: d.id, ...d.data() } as AcademyEvent)))
+      } catch {
+        // Firestore may not be configured yet; fail silently
+      }
+    }
+    loadUpcoming()
+  }, [])
 
   return (
     <div className="bg-cream antialiased overflow-x-hidden">
@@ -75,9 +97,11 @@ export default function ForestCanopy() {
                   <a href="/events/prophet-yunus-water-slime" className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
                     💧 Prophet Yunus Water Slime
                   </a>
-                  <div className="flex items-center gap-3 px-5 py-2.5 font-kids text-sm text-white/40">
-                    🌟 Future Event <span className="ml-auto text-xs bg-white/10 text-white/50 px-2 py-0.5 rounded-full">TBA</span>
-                  </div>
+                  {upcomingEvents.map(event => (
+                    <a key={event.id} href={`/events/${event.slug}`} className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
+                      🌟 {event.title}
+                    </a>
+                  ))}
 
                   <div className="border-t border-white/10 mx-5 my-2" />
 
@@ -278,6 +302,17 @@ export default function ForestCanopy() {
                 </button>
                 <div className="absolute top-full left-0 pt-2 opacity-0 -translate-y-1 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-200 z-50">
                   <div className="bg-white rounded-2xl shadow-xl border border-stone-200/70 py-2 min-w-[240px]">
+                    {upcomingEvents.length > 0 && (
+                      <>
+                        <div className="px-4 pt-1 pb-2 text-xs font-bold uppercase tracking-widest text-stone-400">Upcoming</div>
+                        {upcomingEvents.map(event => (
+                          <a key={event.id} href={`/events/${event.slug}`} className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
+                            <span className="text-base">🌟</span> {event.title}
+                          </a>
+                        ))}
+                        <div className="border-t border-stone-100 mt-1 pt-1" />
+                      </>
+                    )}
                     <div className="px-4 pt-1 pb-2 text-xs font-bold uppercase tracking-widest text-stone-400">Past events</div>
                     <a href="/events/animals-in-quran" className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
                       <span className="text-base">🐾</span> Animals in Quran
@@ -285,14 +320,6 @@ export default function ForestCanopy() {
                     <a href="/events/prophet-yunus-water-slime" className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
                       <span className="text-base">💧</span> Prophet Yunus Water Slime
                     </a>
-                    <div className="border-t border-stone-100 mt-1 pt-1">
-                      <div className="px-4 pt-2 pb-1 text-xs font-bold uppercase tracking-widest text-stone-400">Upcoming</div>
-                      <div className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-400 cursor-default select-none">
-                        <span className="text-base">🌟</span>
-                        <span>Future Event</span>
-                        <span className="ml-auto text-xs font-normal bg-stone-100 text-stone-400 px-2 py-0.5 rounded-full">TBA</span>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>
