@@ -311,6 +311,9 @@ export default function ForestCanopy() {
                 </button>
                 <div className="absolute top-full left-0 pt-2 opacity-0 -translate-y-1 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-200 z-50">
                   <div className="bg-white rounded-2xl shadow-xl border border-stone-200/70 py-2 min-w-[240px]">
+                    {upcomingEvents.length === 0 && pastEvents.length === 0 && (
+                      <div className="px-4 py-3 text-sm text-stone-400 font-quick">No events yet — check back soon!</div>
+                    )}
                     {upcomingEvents.length > 0 && (
                       <>
                         <div className="px-4 pt-1 pb-2 text-xs font-bold uppercase tracking-widest text-stone-400">Upcoming</div>
