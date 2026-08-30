@@ -271,3 +271,153 @@ export const inviteUser = onCall(
     return { success: true }
   }
 )
+
+// ── Registration approval ─────────────────────────────────────────────────────
+
+interface RegistrationChild {
+  firstName: string
+  lastName: string
+  dateOfBirth?: string
+  grade?: string
+}
+
+interface ClassAssignment {
+  childIndex: number
+  classIds: string[]
+}
+
+/** Approve a pending family registration. Sets parent role, creates students, sends welcome email. */
+export const approveRegistration = onCall(
+  { secrets: [gmailAppPassword] },
+  async (request) => {
+    if (request.auth?.token?.role !== 'admin') {
+      throw new HttpsError('permission-denied', 'Only admins can approve registrations.')
+    }
+    const { registrationId, classAssignments = [] } = request.data as {
+      registrationId: string
+      classAssignments: ClassAssignment[]
+    }
+    if (!registrationId) throw new HttpsError('invalid-argument', 'registrationId is required.')
+
+    const db = getFirestore()
+    const regRef = db.collection('registrations').doc(registrationId)
+    const regDoc = await regRef.get()
+    if (!regDoc.exists) throw new HttpsError('not-found', 'Registration not found.')
+
+    const reg = regDoc.data()!
+    const children: RegistrationChild[] = reg.children ?? []
+
+    // Set parent role claim
+    await getAdminAuth().setCustomUserClaims(registrationId, { role: 'parent' })
+
+    // Upsert user record
+    await db.collection('users').doc(registrationId).set({
+      email: reg.email,
+      displayName: reg.parentName,
+      role: 'parent',
+      createdAt: new Date().toISOString(),
+      invitedBy: request.auth.uid,
+    }, { merge: true })
+
+    // Create student records
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i]
+      const assignment = classAssignments.find(a => a.childIndex === i)
+      const classIds: string[] = assignment?.classIds ?? []
+      const studentId = Math.random().toString(36).slice(2)
+      await db.collection('students').doc(studentId).set({
+        firstName: child.firstName,
+        lastName: child.lastName,
+        dateOfBirth: child.dateOfBirth ?? null,
+        grade: child.grade ?? null,
+        classIds,
+        parentName: reg.parentName,
+        parentEmail: reg.email,
+        parentPhone: reg.phone,
+        notes: '',
+        createdAt: new Date().toISOString(),
+      })
+    }
+
+    // Mark registration approved
+    await regRef.update({
+      status: 'approved',
+      reviewedAt: new Date().toISOString(),
+      reviewedBy: request.auth.uid,
+    })
+
+    // Send welcome email
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: GMAIL_USER, pass: gmailAppPassword.value() },
+    })
+
+    await transporter.sendMail({
+      from: `"Anas Ibn Malik Academy" <${GMAIL_USER}>`,
+      to: reg.email,
+      subject: 'Your AIM Academy registration has been approved!',
+      text: `As-salamu alaykum ${reg.parentName},\n\nYour family registration with Anas Ibn Malik Academy has been approved!\n\nYou can now access the Parent Portal at https://aimava.org/portal/parent\n\nJazak Allah khayran,\nAnas Ibn Malik Academy`,
+      html: `
+        <p>As-salamu alaykum <strong>${reg.parentName}</strong>,</p>
+        <p>Your family registration with <strong>Anas Ibn Malik Academy</strong> has been approved!</p>
+        <p><a href="https://aimava.org/portal/parent">Click here to access the Parent Portal →</a></p>
+        <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br>Anas Ibn Malik Academy</p>
+      `,
+    })
+
+    return { success: true }
+  }
+)
+
+/** Reject a pending family registration with an optional reason. */
+export const rejectRegistration = onCall(
+  { secrets: [gmailAppPassword] },
+  async (request) => {
+    if (request.auth?.token?.role !== 'admin') {
+      throw new HttpsError('permission-denied', 'Only admins can reject registrations.')
+    }
+    const { registrationId, reason = '' } = request.data as {
+      registrationId: string
+      reason?: string
+    }
+    if (!registrationId) throw new HttpsError('invalid-argument', 'registrationId is required.')
+
+    const db = getFirestore()
+    const regRef = db.collection('registrations').doc(registrationId)
+    const regDoc = await regRef.get()
+    if (!regDoc.exists) throw new HttpsError('not-found', 'Registration not found.')
+
+    const reg = regDoc.data()!
+
+    await regRef.update({
+      status: 'rejected',
+      rejectReason: reason,
+      reviewedAt: new Date().toISOString(),
+      reviewedBy: request.auth.uid,
+    })
+
+    // Notify parent
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: GMAIL_USER, pass: gmailAppPassword.value() },
+    })
+
+    await transporter.sendMail({
+      from: `"Anas Ibn Malik Academy" <${GMAIL_USER}>`,
+      to: reg.email,
+      subject: 'AIM Academy — Registration Update',
+      text: [
+        `As-salamu alaykum ${reg.parentName},`,
+        '',
+        'We have reviewed your family registration with Anas Ibn Malik Academy.',
+        reason ? `Unfortunately, we are unable to approve your registration at this time.\n\nReason: ${reason}` : 'Unfortunately, we are unable to approve your registration at this time.',
+        '',
+        'Please contact us if you have any questions.',
+        '',
+        'Jazak Allah khayran,\nAnas Ibn Malik Academy',
+      ].join('\n'),
+    })
+
+    return { success: true }
+  }
+)

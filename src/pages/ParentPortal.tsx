@@ -324,15 +324,20 @@ export default function ParentPortal() {
   if (!user) return <LoginForm />
 
   if (role !== 'parent' && role !== 'admin') {
+    // No role — may be a pending registration
     return (
       <div className="bg-cream min-h-screen flex flex-col items-center justify-center gap-4 font-body text-center px-6">
-        <div className="text-5xl">🔒</div>
-        <h1 className="font-kids text-3xl text-wood-dark">Access Denied</h1>
+        <div className="text-5xl">⏳</div>
+        <h1 className="font-kids text-3xl text-wood-dark">Pending Approval</h1>
         <p className="text-stone-500 text-sm max-w-xs">
-          This portal is for parents only. Contact the academy if you need access.
+          Your account is awaiting admin approval. You'll receive an email once it's been reviewed.
         </p>
+        <a href="/portal/register"
+          className="font-quick text-sm font-semibold text-sage-700 hover:underline">
+          Check registration status →
+        </a>
         <button onClick={() => signOut(auth)}
-          className="font-quick text-sm font-semibold text-rose-600 hover:underline mt-2">
+          className="font-quick text-sm font-semibold text-stone-400 hover:text-rose-600 transition">
           Sign Out
         </button>
       </div>

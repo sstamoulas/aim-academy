@@ -37,6 +37,26 @@ export interface AttendanceSession {
   createdAt: string
 }
 
+export interface RegistrationChild {
+  firstName: string
+  lastName: string
+  dateOfBirth?: string
+  grade?: string
+}
+
+export interface Registration {
+  id: string // same as the parent's Firebase Auth UID
+  parentName: string
+  email: string
+  phone: string
+  children: RegistrationChild[]
+  status: 'pending' | 'approved' | 'rejected'
+  submittedAt: string
+  reviewedAt?: string
+  reviewedBy?: string
+  rejectReason?: string
+}
+
 export interface Announcement {
   id: string
   title: string

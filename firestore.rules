@@ -50,11 +50,12 @@ service cloud.firestore {
       allow read: if isParent() && resource.data.published == true;
     }
 
-    // (Future) Families / children
-    match /families/{familyId} {
-      allow read, write: if isAdmin();
-      allow read: if isTeacher();
-      allow read: if isParent() && request.auth.uid == resource.data.parentUid;
+    // Family registrations — any authenticated user can create/read their own;
+    // admin can read/write all
+    match /registrations/{uid} {
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow read, update: if isAdmin() || (request.auth != null && request.auth.uid == uid);
+      allow delete: if isAdmin();
     }
   }
 }

@@ -10,7 +10,7 @@ import { httpsCallable } from 'firebase/functions'
 import { auth, db, storage, functions } from '../firebase'
 import type { AcademyEvent, EventDetail, EventSection, SectionType, PricingTier, PricingModel } from '../types/event'
 import { PRICING_MODEL_LABELS } from '../types/event'
-import type { AcademyClass, Student } from '../types/portal'
+import type { AcademyClass, Student, Registration } from '../types/portal'
 
 // ── User management types ─────────────────────────────────────────────────────
 
@@ -1417,13 +1417,269 @@ function ClassFormModal({
   )
 }
 
+// ── Registrations Tab ─────────────────────────────────────────────────────────
+
+function RegistrationsTab() {
+  const [registrations, setRegistrations] = useState<Registration[]>([])
+  const [classes, setClasses] = useState<AcademyClass[]>([])
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState<string | null>(null)
+  // classAssignments[regId][childIndex] = classIds[]
+  const [assignments, setAssignments] = useState<Record<string, Record<number, string[]>>>({})
+  const [rejectTarget, setRejectTarget] = useState<Registration | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
+  const [processing, setProcessing] = useState<string | null>(null)
+
+  const approveRegistrationFn = httpsCallable(functions, 'approveRegistration')
+  const rejectRegistrationFn = httpsCallable(functions, 'rejectRegistration')
+
+  async function load() {
+    setLoading(true)
+    const [regSnap, clsSnap] = await Promise.all([
+      getDocs(query(collection(db, 'registrations'), orderBy('submittedAt', 'desc'))),
+      getDocs(query(collection(db, 'classes'), orderBy('createdAt', 'asc'))),
+    ])
+    setRegistrations(regSnap.docs.map(d => ({ id: d.id, ...d.data() } as Registration)))
+    setClasses(clsSnap.docs.map(d => ({ id: d.id, ...d.data() } as AcademyClass)))
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [])
+
+  function toggleAssignment(regId: string, childIndex: number, classId: string) {
+    setAssignments(prev => {
+      const regMap = prev[regId] ?? {}
+      const current = regMap[childIndex] ?? []
+      const updated = current.includes(classId)
+        ? current.filter(id => id !== classId)
+        : [...current, classId]
+      return { ...prev, [regId]: { ...regMap, [childIndex]: updated } }
+    })
+  }
+
+  async function handleApprove(reg: Registration) {
+    setProcessing(reg.id)
+    const regAssignments = assignments[reg.id] ?? {}
+    const classAssignments = reg.children.map((_, i) => ({
+      childIndex: i,
+      classIds: regAssignments[i] ?? [],
+    }))
+    try {
+      await approveRegistrationFn({ registrationId: reg.id, classAssignments })
+      await load()
+      setExpanded(null)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to approve.')
+    } finally { setProcessing(null) }
+  }
+
+  async function handleReject() {
+    if (!rejectTarget) return
+    setProcessing(rejectTarget.id)
+    try {
+      await rejectRegistrationFn({ registrationId: rejectTarget.id, reason: rejectReason.trim() })
+      await load()
+      setRejectTarget(null)
+      setRejectReason('')
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to reject.')
+    } finally { setProcessing(null) }
+  }
+
+  const pending = registrations.filter(r => r.status === 'pending')
+  const reviewed = registrations.filter(r => r.status !== 'pending')
+
+  const statusColor = (s: Registration['status']) =>
+    s === 'approved' ? 'bg-sage-100 text-sage-700 border-sage-200' :
+    s === 'rejected' ? 'bg-rose-100 text-rose-600 border-rose-200' :
+    'bg-amber-100 text-amber-700 border-amber-200'
+
+  function RegistrationCard({ reg }: { reg: Registration }) {
+    const isExpanded = expanded === reg.id
+    const regAssignments = assignments[reg.id] ?? {}
+    return (
+      <div className="bg-white rounded-2xl border border-stone-200/70 overflow-hidden">
+        <div className="px-5 py-4 flex items-center gap-4 cursor-pointer"
+          onClick={() => setExpanded(isExpanded ? null : reg.id)}>
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-stone-800 font-quick">{reg.parentName}</div>
+            <div className="text-xs text-stone-400 font-quick">
+              {reg.email} · {reg.children.length} {reg.children.length === 1 ? 'child' : 'children'} · {new Date(reg.submittedAt).toLocaleDateString()}
+            </div>
+          </div>
+          <span className={`text-xs font-bold font-quick border px-2.5 py-1 rounded-full capitalize flex-shrink-0 ${statusColor(reg.status)}`}>
+            {reg.status}
+          </span>
+          <span className="text-stone-300 flex-shrink-0">{isExpanded ? '▲' : '▼'}</span>
+        </div>
+
+        {isExpanded && (
+          <div className="border-t border-stone-100 px-5 py-5 space-y-5">
+            {/* Parent info */}
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+              <div className="text-stone-400 font-quick">Phone</div>
+              <div className="text-stone-700 font-quick">{reg.phone || '—'}</div>
+              <div className="text-stone-400 font-quick">Email</div>
+              <div className="text-stone-700 font-quick">{reg.email}</div>
+            </div>
+
+            {/* Children + class assignment */}
+            <div className="space-y-4">
+              <p className="text-xs font-bold font-quick text-stone-400 uppercase tracking-wider">Children</p>
+              {reg.children.map((child, i) => (
+                <div key={i} className="border border-stone-100 rounded-2xl p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center text-xs font-bold text-sage-700 font-quick flex-shrink-0">
+                      {child.firstName[0]}{child.lastName[0]}
+                    </div>
+                    <div>
+                      <div className="font-semibold text-stone-800 font-quick text-sm">{child.firstName} {child.lastName}</div>
+                      <div className="text-xs text-stone-400 font-quick">
+                        {[child.grade, child.dateOfBirth].filter(Boolean).join(' · ') || 'No additional info'}
+                      </div>
+                    </div>
+                  </div>
+                  {reg.status === 'pending' && classes.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold font-quick text-stone-500 mb-2">Assign to class(es):</p>
+                      <div className="flex flex-wrap gap-2">
+                        {classes.map(cls => {
+                          const selected = (regAssignments[i] ?? []).includes(cls.id)
+                          return (
+                            <button key={cls.id} type="button"
+                              onClick={() => toggleAssignment(reg.id, i, cls.id)}
+                              className={`text-xs font-quick font-semibold border px-3 py-1.5 rounded-full transition ${
+                                selected ? 'bg-sage-600 text-white border-sage-600' : 'border-stone-200 text-stone-500 hover:border-sage-300'
+                              }`}>
+                              {cls.name}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {reg.status !== 'pending' && (
+                    <p className="text-xs text-stone-400 font-quick italic">Review completed — edit assignments in Classes tab.</p>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Reject reason */}
+            {reg.status === 'rejected' && reg.rejectReason && (
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+                <p className="text-xs font-bold font-quick text-rose-400 mb-1">Rejection reason</p>
+                <p className="text-xs text-rose-700 font-quick">{reg.rejectReason}</p>
+              </div>
+            )}
+
+            {/* Actions */}
+            {reg.status === 'pending' && (
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleApprove(reg)}
+                  disabled={processing === reg.id}
+                  className="flex-1 bg-sage-600 text-white font-bold font-quick py-2.5 rounded-full hover:brightness-95 transition disabled:opacity-60 text-sm">
+                  {processing === reg.id ? 'Approving…' : 'Approve'}
+                </button>
+                <button
+                  onClick={() => { setRejectTarget(reg); setRejectReason('') }}
+                  disabled={processing === reg.id}
+                  className="flex-1 border border-rose-200 text-rose-600 font-quick font-semibold py-2.5 rounded-full hover:bg-rose-50 transition disabled:opacity-60 text-sm">
+                  Reject
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-16">
+        <div className="w-8 h-8 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div className="mb-8">
+        <h2 className="font-kids text-3xl text-wood-dark">Registrations</h2>
+        <p className="text-stone-500 text-sm font-quick mt-1">Review and approve new family registrations.</p>
+      </div>
+
+      {pending.length === 0 && reviewed.length === 0 ? (
+        <div className="bg-white rounded-[28px] border border-stone-200/70 p-10 text-center text-stone-400 font-quick">
+          No registrations yet.
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {pending.length > 0 && (
+            <div>
+              <p className="text-xs font-bold font-quick text-amber-600 uppercase tracking-wider mb-3">
+                Pending ({pending.length})
+              </p>
+              <div className="space-y-3">
+                {pending.map(reg => <RegistrationCard key={reg.id} reg={reg} />)}
+              </div>
+            </div>
+          )}
+          {reviewed.length > 0 && (
+            <div>
+              <p className="text-xs font-bold font-quick text-stone-400 uppercase tracking-wider mb-3">
+                Reviewed ({reviewed.length})
+              </p>
+              <div className="space-y-3">
+                {reviewed.map(reg => <RegistrationCard key={reg.id} reg={reg} />)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Reject modal */}
+      {rejectTarget && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-6">
+          <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-sm w-full">
+            <h3 className="font-kids text-2xl text-wood-dark mb-2">Reject Registration</h3>
+            <p className="text-stone-500 text-sm font-quick mb-5">
+              Rejecting <strong>{rejectTarget.parentName}</strong>. Optionally provide a reason.
+            </p>
+            <textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              rows={3}
+              placeholder="e.g. Class is currently full. Please check back next semester."
+              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm resize-none mb-5"
+            />
+            <div className="flex gap-3">
+              <button onClick={handleReject} disabled={processing === rejectTarget.id}
+                className="flex-1 bg-rose-600 text-white font-bold font-quick py-3 rounded-full hover:brightness-95 transition disabled:opacity-60">
+                {processing === rejectTarget.id ? 'Rejecting…' : 'Reject'}
+              </button>
+              <button onClick={() => { setRejectTarget(null); setRejectReason('') }}
+                className="flex-1 border border-stone-200 text-stone-600 font-quick font-semibold py-3 rounded-full hover:bg-stone-50 transition">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Admin Root ────────────────────────────────────────────────────────────────
 
 export default function Admin() {
   const [user, setUser] = useState<User | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'events' | 'classes' | 'users'>('events')
+  const [activeTab, setActiveTab] = useState<'events' | 'classes' | 'users' | 'registrations'>('events')
+  const [pendingCount, setPendingCount] = useState(0)
   const [events, setEvents] = useState<AcademyEvent[]>([])
   const [editing, setEditing] = useState<Partial<AcademyEvent> | null>(null)
   const [deleting, setDeleting] = useState<AcademyEvent | null>(null)
@@ -1441,7 +1697,15 @@ export default function Admin() {
     })
   }, [])
 
-  useEffect(() => { if (user && isAdmin) loadEvents() }, [user, isAdmin])
+  useEffect(() => {
+    if (user && isAdmin) {
+      loadEvents()
+      // Load pending registration count for badge
+      getDocs(query(collection(db, 'registrations'), where('status', '==', 'pending')))
+        .then(snap => setPendingCount(snap.size))
+        .catch(() => {})
+    }
+  }, [user, isAdmin])
 
   async function loadEvents() {
     const q = query(collection(db, 'events'), orderBy('createdAt', 'desc'))
@@ -1510,17 +1774,22 @@ export default function Admin() {
         </div>
         {/* Tab bar */}
         <div className="max-w-4xl mx-auto px-6 flex gap-1 -mb-px">
-          {([['events', 'Events'], ['classes', 'Classes'], ['users', 'Users']] as const).map(([tab, label]) => (
+          {(['events', 'classes', 'registrations', 'users'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => { setActiveTab(tab); setEditing(null) }}
-              className={`px-5 py-2.5 text-sm font-semibold font-quick border-b-2 transition ${
+              className={`px-5 py-2.5 text-sm font-semibold font-quick border-b-2 transition flex items-center gap-1.5 ${
                 activeTab === tab
                   ? 'border-sage-600 text-sage-700'
                   : 'border-transparent text-stone-400 hover:text-stone-600'
               }`}
             >
-              {label}
+              {tab === 'events' ? 'Events' : tab === 'classes' ? 'Classes' : tab === 'users' ? 'Users' : 'Registrations'}
+              {tab === 'registrations' && pendingCount > 0 && (
+                <span className="bg-amber-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                  {pendingCount}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -1550,6 +1819,8 @@ export default function Admin() {
           )
         ) : activeTab === 'classes' ? (
           <ClassesTab />
+        ) : activeTab === 'registrations' ? (
+          <RegistrationsTab />
         ) : (
           <UsersTab />
         )}
