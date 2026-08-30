@@ -155,6 +155,22 @@ export default function EventPage({ slug }: { slug: string }) {
           </div>
         )}
 
+        {/* External registration link — shown when registrationUrl is set but no Stripe pricing */}
+        {event.status === 'upcoming' && event.registrationUrl && (!event.pricing || event.pricing.filter(t => t.amount > 0).length === 0) && (
+          <div className="bg-white rounded-[28px] shadow-sm border border-stone-200/70 p-8 mb-6 text-center">
+            <h2 className="font-kids text-2xl text-wood-dark mb-2">Registration</h2>
+            <p className="text-stone-500 text-sm font-quick mb-6">Click the button below to complete your registration.</p>
+            <a
+              href={event.registrationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block bg-wood text-white font-bold font-quick px-8 py-4 rounded-full shadow-md hover:brightness-95 transition"
+            >
+              Register Now →
+            </a>
+          </div>
+        )}
+
         {/* Pricing selector + registration for upcoming events */}
         {event.status === 'upcoming' && event.pricing && (
           (() => {
@@ -212,6 +228,16 @@ export default function EventPage({ slug }: { slug: string }) {
                   amount={selectedTier.amount}
                   description={`${event.title} — ${selectedTier.label}`}
                 />
+
+                {event.registrationUrl && (
+                  <p className="text-center text-xs text-stone-400 font-quick mt-4">
+                    Prefer a form?{' '}
+                    <a href={event.registrationUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-sage-700 hover:underline font-semibold">
+                      Register via external form →
+                    </a>
+                  </p>
+                )}
               </div>
             )
           })()

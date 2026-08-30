@@ -557,9 +557,16 @@ function EventForm({ initial, onSave, onCancel }: {
         </div>
 
         <div>
-          <label className={labelCls}>Registration URL <span className="text-stone-400 font-normal">(optional, for external form)</span></label>
+          <label className={labelCls}>
+            External Registration URL
+            <span className="text-stone-400 font-normal ml-1">— optional</span>
+          </label>
           <input value={form.registrationUrl} onChange={e => set('registrationUrl', e.target.value)}
-            placeholder="https://forms.gle/…" className={inputCls} />
+            placeholder="https://forms.gle/… or any signup link"
+            className={inputCls} />
+          <p className="text-xs text-stone-400 font-quick mt-1">
+            Use this instead of (or alongside) Stripe pricing — e.g. a Google Form, Jotform, or Eventbrite link. If set with no pricing, shows a "Register Now →" button. If set with pricing, shows as a secondary option below the payment button.
+          </p>
         </div>
       </section>
 
