@@ -48,4 +48,21 @@ export interface AcademyEvent {
   createdAt: string
   registrationClosed?: boolean
   registrationClosedReason?: string
+  /** YYYY-MM-DD start date — used for date-driven nav categorisation */
+  eventDate?: string
+  /** YYYY-MM-DD end date — event is "current" while today is in [eventDate, eventEndDate] */
+  eventEndDate?: string
+}
+
+/** Returns 'upcoming' | 'current' | 'past' based on eventDate/eventEndDate,
+ *  falling back to the status field for events without dates set. */
+export function categorizeEvent(event: AcademyEvent): 'upcoming' | 'current' | 'past' {
+  const today = new Date().toISOString().split('T')[0]
+  if (event.eventDate) {
+    if (event.eventDate > today) return 'upcoming'
+    if (event.eventEndDate && event.eventEndDate >= today) return 'current'
+    return 'past'
+  }
+  if (event.status === 'upcoming') return 'upcoming'
+  return 'past'
 }

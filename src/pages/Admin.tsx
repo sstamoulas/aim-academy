@@ -583,6 +583,22 @@ function EventForm({ initial, onSave, onCancel }: {
           </div>
         </div>
 
+        {/* Event dates */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelCls}>Event Start Date <span className="text-stone-400 font-normal">— optional</span></label>
+            <input type="date" value={form.eventDate ?? ''} onChange={e => set('eventDate', e.target.value)}
+              className={inputCls} />
+            <p className="text-xs text-stone-400 font-quick mt-1">Used to auto-classify as upcoming / current / past in the nav.</p>
+          </div>
+          <div>
+            <label className={labelCls}>Event End Date <span className="text-stone-400 font-normal">— optional</span></label>
+            <input type="date" value={form.eventEndDate ?? ''} onChange={e => set('eventEndDate', e.target.value)}
+              className={inputCls} />
+            <p className="text-xs text-stone-400 font-quick mt-1">If set, event shows as "Current" while today is within the interval.</p>
+          </div>
+        </div>
+
         <div>
           <label className={labelCls}>
             External Registration URL

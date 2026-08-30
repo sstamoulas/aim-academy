@@ -1,18 +1,14 @@
 import { useState, useEffect } from 'react'
 import { collection, query, where, getDocs } from 'firebase/firestore'
-import PaymentModal from '../components/PaymentModal'
 import { db } from '../firebase'
 import type { AcademyEvent } from '../types/event'
-
-// TODO: set final registration amount in cents (e.g. 15000 = $150.00)
-const REGISTRATION_AMOUNT = 15000
-const REGISTRATION_DESCRIPTION = 'Weekend Academy Registration'
+import { categorizeEvent } from '../types/event'
 
 export default function ForestCanopy() {
   const [activeTab, setActiveTab] = useState<string>('overview')
-  const [paymentOpen, setPaymentOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [upcomingEvents, setUpcomingEvents] = useState<AcademyEvent[]>([])
+  const [currentEvents, setCurrentEvents] = useState<AcademyEvent[]>([])
   const [pastEvents, setPastEvents] = useState<AcademyEvent[]>([])
 
   useEffect(() => {
@@ -24,9 +20,10 @@ export default function ForestCanopy() {
         ))
         const all = snap.docs
           .map(d => ({ id: d.id, ...d.data() } as AcademyEvent))
-          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-        setUpcomingEvents(all.filter(e => e.status === 'upcoming'))
-        setPastEvents(all.filter(e => e.status === 'past' || e.status === 'sold-out'))
+          .sort((a, b) => (b.eventDate ?? b.createdAt).localeCompare(a.eventDate ?? a.createdAt))
+        setUpcomingEvents(all.filter(e => categorizeEvent(e) === 'upcoming'))
+        setCurrentEvents(all.filter(e => categorizeEvent(e) === 'current'))
+        setPastEvents(all.filter(e => categorizeEvent(e) === 'past'))
       } catch (e) {
         console.error('Failed to load events:', e)
       }
@@ -92,6 +89,16 @@ export default function ForestCanopy() {
                   <div className="border-t border-white/10 mx-5 my-2" />
 
                   {/* Events group */}
+                  {currentEvents.length > 0 && (
+                    <>
+                      <div className="px-5 pt-1 pb-1 text-xs font-bold uppercase tracking-widest text-emerald-200/70">Current Events</div>
+                      {currentEvents.map(event => (
+                        <a key={event.id} href={`/events/${event.slug}`} className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
+                          🔴 {event.title}
+                        </a>
+                      ))}
+                    </>
+                  )}
                   {upcomingEvents.length > 0 && (
                     <>
                       <div className="px-5 pt-1 pb-1 text-xs font-bold uppercase tracking-widest text-emerald-200/70">Upcoming Events</div>
@@ -115,9 +122,14 @@ export default function ForestCanopy() {
 
                   <div className="border-t border-white/10 mx-5 my-2" />
 
-                  <button onClick={() => { setMobileMenuOpen(false); setPaymentOpen(true) }} className="w-full flex items-center gap-3 px-5 py-3.5 text-amber-200 font-kids text-sm hover:bg-white/10 transition">
-                    ✨ Register Now
-                  </button>
+                  {/* Portal links */}
+                  <div className="px-5 pt-1 pb-1 text-xs font-bold uppercase tracking-widest text-emerald-200/70">Account</div>
+                  <a href="/portal/register" className="flex items-center gap-3 px-5 py-2.5 text-amber-200 font-kids text-sm hover:bg-white/10 transition">
+                    ✨ Sign Up
+                  </a>
+                  <a href="/portal/parent" className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
+                    🔑 Log In
+                  </a>
                 </div>
               )}
               <div className="space-y-5 max-w-md mt-8">
@@ -244,7 +256,7 @@ export default function ForestCanopy() {
                 <div className="text-xs font-bold uppercase tracking-widest text-stone-400">Join Us Today</div>
                 <div className="font-kids text-xl text-stone-900">Classes filling quickly</div>
               </div>
-              <button onClick={() => setPaymentOpen(true)} className="bg-amber-700 hover:bg-amber-800 text-white font-kids px-6 py-3.5 rounded-2xl shadow-md transition text-center">Quick Registration</button>
+              <a href="/portal/register" className="bg-amber-700 hover:bg-amber-800 text-white font-kids px-6 py-3.5 rounded-2xl shadow-md transition text-center">Sign Up</a>
             </div>
           </main>
         </div>
@@ -312,12 +324,23 @@ export default function ForestCanopy() {
                 </button>
                 <div className="absolute top-full left-0 pt-2 opacity-0 -translate-y-1 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-200 z-50">
                   <div className="bg-white rounded-2xl shadow-xl border border-stone-200/70 py-2 min-w-[240px]">
-                    {upcomingEvents.length === 0 && pastEvents.length === 0 && (
+                    {currentEvents.length === 0 && upcomingEvents.length === 0 && pastEvents.length === 0 && (
                       <div className="px-4 py-3 text-sm text-stone-400 font-quick">No events yet — check back soon!</div>
+                    )}
+                    {currentEvents.length > 0 && (
+                      <>
+                        <div className="px-4 pt-1 pb-2 text-xs font-bold uppercase tracking-widest text-rose-400">Happening Now</div>
+                        {currentEvents.map(event => (
+                          <a key={event.id} href={`/events/${event.slug}`} className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-rose-50 hover:text-rose-700 transition-colors">
+                            <span className="text-base">🔴</span> {event.title}
+                          </a>
+                        ))}
+                        {(upcomingEvents.length > 0 || pastEvents.length > 0) && <div className="border-t border-stone-100 mt-1 pt-1" />}
+                      </>
                     )}
                     {upcomingEvents.length > 0 && (
                       <>
-                        <div className="px-4 pt-1 pb-2 text-xs font-bold uppercase tracking-widest text-stone-400">Upcoming</div>
+                        <div className="px-4 pt-1 pb-2 text-xs font-bold uppercase tracking-widest text-stone-400">Up & Coming</div>
                         {upcomingEvents.map(event => (
                           <a key={event.id} href={`/events/${event.slug}`} className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
                             <span className="text-base">🌟</span> {event.title}
@@ -340,7 +363,10 @@ export default function ForestCanopy() {
                 </div>
               </div>
 
-              <button onClick={() => setPaymentOpen(true)} className="ml-3 bg-wood text-white px-5 py-2.5 rounded-full shadow-md hover:brightness-95 transition">Register Now</button>
+              <div className="ml-3 flex items-center gap-2">
+                <a href="/portal/register" className="bg-wood text-white px-5 py-2.5 rounded-full shadow-md hover:brightness-95 transition text-sm font-semibold">Sign Up</a>
+                <a href="/portal/parent" className="border border-stone-300 text-stone-600 px-5 py-2.5 rounded-full hover:bg-stone-50 transition text-sm font-semibold">Log In</a>
+              </div>
             </nav>
           </div>
         </header>
@@ -481,18 +507,11 @@ export default function ForestCanopy() {
                 <div className="text-xs font-bold uppercase tracking-widest text-stone-400">Ready to join?</div>
                 <div className="text-2xl font-bold text-wood-dark">Register for the Weekend Academy</div>
               </div>
-              <button onClick={() => setPaymentOpen(true)} className="bg-wood text-white font-bold px-7 py-3.5 rounded-full shadow-md hover:brightness-95 transition">Register Now</button>
+              <a href="/portal/register" className="bg-wood text-white font-bold px-7 py-3.5 rounded-full shadow-md hover:brightness-95 transition">Sign Up Now</a>
             </div>
           </section>
         </main>
       </div>
-
-      <PaymentModal
-        isOpen={paymentOpen}
-        onClose={() => setPaymentOpen(false)}
-        amount={REGISTRATION_AMOUNT}
-        description={REGISTRATION_DESCRIPTION}
-      />
     </div>
   )
 }

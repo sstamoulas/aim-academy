@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 import type { AcademyEvent, EventSection } from '../types/event'
-import { PRICING_MODEL_LABELS } from '../types/event'
+import { PRICING_MODEL_LABELS, categorizeEvent } from '../types/event'
 import PaymentModal from '../components/PaymentModal'
 
 function renderSection(section: EventSection) {
@@ -85,14 +85,17 @@ export default function EventPage({ slug }: { slug: string }) {
     )
   }
 
+  const dateCat = categorizeEvent(event)
   const statusLabel =
     event.status === 'sold-out' ? 'Sold Out' :
-    event.status === 'past' ? 'Past Event' : 'Upcoming'
+    dateCat === 'current' ? 'Happening Now' :
+    dateCat === 'upcoming' ? 'Upcoming' : 'Past Event'
 
   const statusColor =
-    event.status === 'upcoming'
-      ? 'bg-sage-100 text-sage-700 border-sage-200'
-      : 'bg-stone-100 text-stone-500 border-stone-200'
+    event.status === 'sold-out' ? 'bg-stone-100 text-stone-500 border-stone-200' :
+    dateCat === 'current' ? 'bg-rose-100 text-rose-600 border-rose-200' :
+    dateCat === 'upcoming' ? 'bg-sage-100 text-sage-700 border-sage-200' :
+    'bg-stone-100 text-stone-500 border-stone-200'
 
   return (
     <div className="bg-cream antialiased overflow-x-hidden min-h-screen">
