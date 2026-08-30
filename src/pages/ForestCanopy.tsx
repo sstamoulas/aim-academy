@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore'
+import { collection, query, where, getDocs } from 'firebase/firestore'
 import PaymentModal from '../components/PaymentModal'
 import { db } from '../firebase'
 import type { AcademyEvent } from '../types/event'
@@ -20,14 +20,15 @@ export default function ForestCanopy() {
       try {
         const snap = await getDocs(query(
           collection(db, 'events'),
-          where('published', '==', true),
-          orderBy('createdAt', 'desc')
+          where('published', '==', true)
         ))
-        const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as AcademyEvent))
+        const all = snap.docs
+          .map(d => ({ id: d.id, ...d.data() } as AcademyEvent))
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
         setUpcomingEvents(all.filter(e => e.status === 'upcoming'))
         setPastEvents(all.filter(e => e.status === 'past' || e.status === 'sold-out'))
-      } catch {
-        // Firestore may not be configured yet; fail silently
+      } catch (e) {
+        console.error('Failed to load events:', e)
       }
     }
     loadEvents()
