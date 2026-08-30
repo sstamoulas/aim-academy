@@ -1,12 +1,15 @@
 import { onRequest } from 'firebase-functions/v2/https'
 import { defineSecret } from 'firebase-functions/params'
 import { initializeApp } from 'firebase-admin/app'
+import { getFirestore } from 'firebase-admin/firestore'
 import cors from 'cors'
 import * as https from 'https'
+import * as nodemailer from 'nodemailer'
 
 initializeApp()
 
 const stripeSecret = defineSecret('STRIPE_SECRET_KEY')
+const gmailAppPassword = defineSecret('GMAIL_APP_PASSWORD')
 const corsMiddleware = cors({ origin: true })
 
 function createStripePaymentIntent(
@@ -63,6 +66,79 @@ function createStripePaymentIntent(
     req.end()
   })
 }
+
+const GMAIL_USER = 'aimacademyva@gmail.com'
+
+export const submitContactForm = onRequest(
+  { secrets: [gmailAppPassword], timeoutSeconds: 30 },
+  (req, res) => {
+    corsMiddleware(req, res, async () => {
+      if (req.method !== 'POST') {
+        res.status(405).json({ error: 'Method not allowed' })
+        return
+      }
+
+      const { name, phone, email, interests, message } = req.body as {
+        name?: string
+        phone?: string
+        email?: string
+        interests?: string[]
+        message?: string
+      }
+
+      if (!name?.trim() || !phone?.trim() || !email?.trim()) {
+        res.status(400).json({ error: 'name, phone, and email are required' })
+        return
+      }
+
+      try {
+        const db = getFirestore()
+        await db.collection('contactSubmissions').add({
+          name: name.trim(),
+          phone: phone.trim(),
+          email: email.trim(),
+          interests: interests ?? [],
+          message: message?.trim() ?? '',
+          submittedAt: new Date().toISOString(),
+        })
+
+        const transporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: { user: GMAIL_USER, pass: gmailAppPassword.value() },
+        })
+
+        const interestList = (interests ?? []).join(', ') || 'None selected'
+
+        await transporter.sendMail({
+          from: `"AIM Academy Website" <${GMAIL_USER}>`,
+          to: GMAIL_USER,
+          replyTo: email.trim(),
+          subject: `New contact form submission from ${name.trim()}`,
+          text: [
+            `Name: ${name.trim()}`,
+            `Phone: ${phone.trim()}`,
+            `Email: ${email.trim()}`,
+            `Interested in: ${interestList}`,
+            `Message: ${message?.trim() || '(none)'}`,
+          ].join('\n'),
+          html: `
+            <p><strong>Name:</strong> ${name.trim()}</p>
+            <p><strong>Phone:</strong> ${phone.trim()}</p>
+            <p><strong>Email:</strong> ${email.trim()}</p>
+            <p><strong>Interested in:</strong> ${interestList}</p>
+            <p><strong>Message:</strong> ${message?.trim() || '(none)'}</p>
+          `,
+        })
+
+        res.json({ success: true })
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error('Contact form error:', msg)
+        res.status(500).json({ error: 'Failed to save submission' })
+      }
+    })
+  }
+)
 
 export const createPaymentIntent = onRequest(
   { secrets: [stripeSecret], timeoutSeconds: 30 },

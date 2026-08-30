@@ -61,6 +61,10 @@ export default function ForestCanopy() {
                 onClick={() => setActiveTab('safety')}
                 className={`px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide transition ${activeTab === 'safety' ? 'bg-emerald-700 text-white shadow-sm' : 'text-stone-600 hover:text-stone-900'}`}
               >🏆 Achievements</button>
+              <a
+                href="/contact"
+                className="px-5 py-2.5 rounded-xl font-kids text-sm tracking-wide transition text-stone-600 hover:text-stone-900"
+              >✉️ Contact</a>
             </nav>
 
             <div className="space-y-8">
@@ -166,6 +170,7 @@ export default function ForestCanopy() {
               <a href="#dc-about" className="hover:text-sage-700 transition-colors">About</a>
               <a href="#dc-programs" className="hover:text-sage-700 transition-colors">Programs</a>
               <a href="#dc-achievements" className="hover:text-sage-700 transition-colors">Achievements</a>
+              <a href="/contact" className="hover:text-sage-700 transition-colors">Contact</a>
               <button onClick={() => setPaymentOpen(true)} className="bg-wood text-white px-5 py-2.5 rounded-full shadow-md hover:brightness-95 transition">Register Now</button>
             </nav>
           </div>
