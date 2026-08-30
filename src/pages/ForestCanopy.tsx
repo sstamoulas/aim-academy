@@ -8,6 +8,7 @@ const REGISTRATION_DESCRIPTION = 'Weekend Academy Registration'
 export default function ForestCanopy() {
   const [activeTab, setActiveTab] = useState<string>('overview')
   const [paymentOpen, setPaymentOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
     <div className="bg-cream antialiased overflow-x-hidden">
@@ -18,13 +19,45 @@ export default function ForestCanopy() {
           <aside className="relative min-h-[420px] text-white bg-cover bg-center" style={{ backgroundImage: "linear-gradient(rgba(28,25,23,.38), rgba(28,25,23,.78)), url('/class-photo.jpg')" }}>
             <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/50 via-transparent to-amber-900/25"></div>
             <div className="relative z-10 h-full p-8 flex flex-col justify-between">
-              <a href="/" className="flex items-center space-x-3">
-                <img src="/logo.png" alt="Anas Ibn Malik Academy" className="w-11 h-11 rounded-xl shadow-md object-contain bg-white p-0.5" />
-                <div>
-                  <div className="font-kids text-xl">Anas Ibn Malik Academy</div>
-                  <div className="text-xs uppercase tracking-widest text-emerald-100/80 font-bold">Chantilly, VA</div>
+              <div className="flex items-center justify-between">
+                <a href="/" className="flex items-center space-x-3">
+                  <img src="/logo.png" alt="Anas Ibn Malik Academy" className="w-11 h-11 rounded-xl shadow-md object-contain bg-white p-0.5" />
+                  <div>
+                    <div className="font-kids text-xl">Anas Ibn Malik Academy</div>
+                    <div className="text-xs uppercase tracking-widest text-emerald-100/80 font-bold">Chantilly, VA</div>
+                  </div>
+                </a>
+                <button
+                  onClick={() => setMobileMenuOpen(o => !o)}
+                  aria-label="Toggle menu"
+                  className="w-10 h-10 flex flex-col items-center justify-center gap-1.5 rounded-xl bg-white/15 backdrop-blur-sm border border-white/20 hover:bg-white/25 transition"
+                >
+                  <span className={`block w-5 h-0.5 bg-white rounded-full transition-all duration-200 ${mobileMenuOpen ? 'rotate-45 translate-y-2' : ''}`} />
+                  <span className={`block w-5 h-0.5 bg-white rounded-full transition-all duration-200 ${mobileMenuOpen ? 'opacity-0' : ''}`} />
+                  <span className={`block w-5 h-0.5 bg-white rounded-full transition-all duration-200 ${mobileMenuOpen ? '-rotate-45 -translate-y-2' : ''}`} />
+                </button>
+              </div>
+
+              {/* Mobile slide-down menu */}
+              {mobileMenuOpen && (
+                <div className="mt-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 overflow-hidden">
+                  <a href="#dc-about" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-5 py-3.5 text-white font-kids text-sm hover:bg-white/10 transition border-b border-white/10">
+                    🌿 About Us
+                  </a>
+                  <a href="#dc-programs" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-5 py-3.5 text-white font-kids text-sm hover:bg-white/10 transition border-b border-white/10">
+                    📖 Programs
+                  </a>
+                  <a href="#dc-achievements" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-5 py-3.5 text-white font-kids text-sm hover:bg-white/10 transition border-b border-white/10">
+                    🏆 Achievements
+                  </a>
+                  <a href="/contact" className="flex items-center gap-3 px-5 py-3.5 text-white font-kids text-sm hover:bg-white/10 transition border-b border-white/10">
+                    ✉️ Contact Us
+                  </a>
+                  <button onClick={() => { setMobileMenuOpen(false); setPaymentOpen(true) }} className="w-full flex items-center gap-3 px-5 py-3.5 text-amber-200 font-kids text-sm hover:bg-white/10 transition">
+                    ✨ Register Now
+                  </button>
                 </div>
-              </a>
+              )}
               <div className="space-y-5 max-w-md mt-8">
                 <span className="inline-flex bg-amber-600/90 text-white font-kids text-xs uppercase tracking-widest px-3 py-1 rounded-full">Chantilly, VA</span>
                 <h1 className="font-kids text-4xl leading-tight">A weekend Islamic school built on love for the Qur'an and Sunnah.</h1>
