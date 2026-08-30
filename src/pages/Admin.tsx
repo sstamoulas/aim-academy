@@ -729,11 +729,11 @@ function EventList({ events, onNew, onEdit, onDelete, onTogglePublish }: {
                   View
                 </a>
                 <button onClick={() => onEdit(event)}
-                  className="text-xs font-quick font-semibold text-stone-600 hover:text-sage-700 transition px-3 py-1.5 rounded-xl hover:bg-stone-50">
+                  className="text-xs font-quick font-semibold text-stone-600 hover:text-sage-700 transition px-3 py-1.5 rounded-xl hover:bg-stone-50 cursor-pointer">
                   Edit
                 </button>
                 <button onClick={() => onDelete(event)}
-                  className="text-xs font-quick font-semibold text-stone-400 hover:text-rose-600 transition px-3 py-1.5 rounded-xl hover:bg-rose-50">
+                  className="text-xs font-quick font-semibold text-stone-400 hover:text-rose-600 transition px-3 py-1.5 rounded-xl hover:bg-rose-50 cursor-pointer">
                   Delete
                 </button>
               </div>
