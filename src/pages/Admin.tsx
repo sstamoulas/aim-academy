@@ -724,6 +724,10 @@ function EventList({ events, onNew, onEdit, onDelete, onTogglePublish }: {
                   </span>
                 </label>
                 <div className="w-px h-5 bg-stone-200" />
+                <a href={`/events/${event.slug}`} target="_blank" rel="noopener noreferrer"
+                  className="text-xs font-quick font-semibold text-stone-600 hover:text-sage-700 transition px-3 py-1.5 rounded-xl hover:bg-stone-50">
+                  View
+                </a>
                 <button onClick={() => onEdit(event)}
                   className="text-xs font-quick font-semibold text-stone-600 hover:text-sage-700 transition px-3 py-1.5 rounded-xl hover:bg-stone-50">
                   Edit
