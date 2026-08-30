@@ -7,7 +7,7 @@ import {
   orderBy, query,
 } from 'firebase/firestore'
 import { auth, db } from '../firebase'
-import type { AcademyEvent } from '../types/event'
+import type { AcademyEvent, EventPricing } from '../types/event'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -20,9 +20,19 @@ const EMPTY: Omit<AcademyEvent, 'id' | 'createdAt'> = {
   date: '', time: '', location: '',
   price: '', ages: 'Ages 5+', isDropOff: true,
   status: 'upcoming', flyerImageUrl: '', registrationUrl: '',
+  pricing: { oneChild: 0, twoChildren: 0, threeChildren: 0 },
   activities: [''], included: [''], allergyInfo: [''],
   faq: [{ q: '', a: '' }],
   published: false,
+}
+
+function dollars(cents: number) {
+  return cents > 0 ? (cents / 100).toFixed(2) : ''
+}
+
+function toCents(val: string) {
+  const n = parseFloat(val.replace(/[^0-9.]/g, ''))
+  return isNaN(n) ? 0 : Math.round(n * 100)
 }
 
 // ── Login ────────────────────────────────────────────────────────────────────
@@ -288,6 +298,35 @@ function EventForm({
             className="w-4 h-4 accent-sage-600" />
           <span className="text-sm font-semibold text-stone-700 font-quick">Drop-off event</span>
         </label>
+      </section>
+
+      {/* Pricing */}
+      <section className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-6 space-y-5">
+        <div>
+          <h3 className="font-kids text-xl text-wood-dark">Pricing</h3>
+          <p className="text-sm text-stone-400 font-quick mt-1">Set per-child pricing. Leave at $0 to hide the payment section.</p>
+        </div>
+        {(
+          [
+            ['oneChild',     '1 Child'],
+            ['twoChildren',  '2 Children'],
+            ['threeChildren','3 Children'],
+          ] as const
+        ).map(([key, label]) => (
+          <div key={key} className="flex items-center gap-4">
+            <label className="w-32 text-sm font-semibold text-stone-700 font-quick">{label}</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
+              <input
+                type="number" min="0" step="0.01"
+                value={dollars(form.pricing?.[key] ?? 0)}
+                onChange={e => set('pricing', { ...form.pricing, [key]: toCents(e.target.value) } as EventPricing)}
+                placeholder="0.00"
+                className="pl-7 pr-4 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-800 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-sage-400"
+              />
+            </div>
+          </div>
+        ))}
       </section>
 
       {/* Activities */}

@@ -2,11 +2,22 @@ import { useState, useEffect } from 'react'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 import type { AcademyEvent } from '../types/event'
+import PaymentModal from '../components/PaymentModal'
+
+type ChildOption = 'oneChild' | 'twoChildren' | 'threeChildren'
+
+const CHILD_OPTIONS: { key: ChildOption; label: string; sub: string }[] = [
+  { key: 'oneChild',     label: '1 Child',    sub: 'Per child rate' },
+  { key: 'twoChildren',  label: '2 Children', sub: 'Best for siblings' },
+  { key: 'threeChildren',label: '3 Children', sub: 'Family discount' },
+]
 
 export default function EventPage({ slug }: { slug: string }) {
   const [event, setEvent] = useState<AcademyEvent | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [selectedOption, setSelectedOption] = useState<ChildOption>('oneChild')
+  const [paymentOpen, setPaymentOpen] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -110,18 +121,61 @@ export default function EventPage({ slug }: { slug: string }) {
           </div>
         )}
 
-        {/* Registration link for upcoming events */}
-        {event.status === 'upcoming' && event.registrationUrl && (
-          <div className="mb-6">
-            <a
-              href={event.registrationUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full text-center bg-wood text-white font-bold font-quick py-4 rounded-full shadow-md hover:brightness-95 transition"
-            >
-              Register Now
-            </a>
-          </div>
+        {/* Pricing selector + registration for upcoming events */}
+        {event.status === 'upcoming' && event.pricing && (
+          (() => {
+            const p = event.pricing!
+            const hasAnyPrice = p.oneChild > 0 || p.twoChildren > 0 || p.threeChildren > 0
+            if (!hasAnyPrice) return null
+            const selectedAmount = p[selectedOption] ?? 0
+            return (
+              <div className="bg-white rounded-[28px] shadow-sm border border-stone-200/70 p-8 mb-6">
+                <h2 className="font-kids text-2xl text-wood-dark mb-5">Registration</h2>
+
+                {/* Child option cards */}
+                <div className="grid grid-cols-3 gap-3 mb-6">
+                  {CHILD_OPTIONS.filter(o => p[o.key] > 0).map(({ key, label, sub }) => {
+                    const amount = p[key]
+                    const selected = selectedOption === key
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setSelectedOption(key)}
+                        className={`rounded-2xl border-2 p-4 text-left transition-all ${
+                          selected
+                            ? 'border-sage-600 bg-sage-50 shadow-sm'
+                            : 'border-stone-200 hover:border-sage-300 hover:bg-stone-50'
+                        }`}
+                      >
+                        <div className={`text-xs font-bold uppercase tracking-widest font-quick mb-2 ${selected ? 'text-sage-600' : 'text-stone-400'}`}>
+                          {selected && <span className="mr-1">✓</span>}{label}
+                        </div>
+                        <div className="font-kids text-2xl text-wood-dark">
+                          ${(amount / 100).toFixed(2)}
+                        </div>
+                        <div className="text-xs text-stone-400 font-quick mt-1">{sub}</div>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <button
+                  onClick={() => setPaymentOpen(true)}
+                  className="w-full bg-wood text-white font-bold font-quick py-4 rounded-full shadow-md hover:brightness-95 transition"
+                >
+                  Register Now — ${(selectedAmount / 100).toFixed(2)}
+                </button>
+
+                <PaymentModal
+                  isOpen={paymentOpen}
+                  onClose={() => setPaymentOpen(false)}
+                  amount={selectedAmount}
+                  description={`${event.title} — ${CHILD_OPTIONS.find(o => o.key === selectedOption)?.label}`}
+                />
+              </div>
+            )
+          })()
         )}
 
         {/* Activities */}
