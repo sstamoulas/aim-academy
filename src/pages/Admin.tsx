@@ -700,7 +700,7 @@ function EventList({ events, onNew, onEdit, onDelete, onTogglePublish }: {
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <button onClick={() => onEdit(event)} className="font-kids text-lg text-wood-dark truncate hover:text-sage-700 transition text-left">{event.title}</button>
+                  <button onClick={() => onEdit(event)} className="font-kids text-lg text-wood-dark truncate hover:text-sage-700 transition text-left cursor-pointer">{event.title}</button>
                   <span className={`text-xs font-semibold font-quick px-2.5 py-0.5 rounded-full ${statusColors[event.status]}`}>
                     {event.status}
                   </span>
