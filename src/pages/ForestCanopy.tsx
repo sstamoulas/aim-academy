@@ -69,10 +69,10 @@ export default function ForestCanopy() {
 
                   {/* Events group */}
                   <div className="px-5 pt-1 pb-1 text-xs font-bold uppercase tracking-widest text-emerald-200/70">Events</div>
-                  <a href="#" className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
+                  <a href="/events/animals-in-quran" className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
                     🐾 Animals in Quran
                   </a>
-                  <a href="#" className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
+                  <a href="/events/prophet-yunus-water-slime" className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
                     💧 Prophet Yunus Water Slime
                   </a>
                   <div className="flex items-center gap-3 px-5 py-2.5 font-kids text-sm text-white/40">
@@ -279,10 +279,10 @@ export default function ForestCanopy() {
                 <div className="absolute top-full left-0 pt-2 opacity-0 -translate-y-1 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-200 z-50">
                   <div className="bg-white rounded-2xl shadow-xl border border-stone-200/70 py-2 min-w-[240px]">
                     <div className="px-4 pt-1 pb-2 text-xs font-bold uppercase tracking-widest text-stone-400">Past events</div>
-                    <a href="#" className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
+                    <a href="/events/animals-in-quran" className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
                       <span className="text-base">🐾</span> Animals in Quran
                     </a>
-                    <a href="#" className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
+                    <a href="/events/prophet-yunus-water-slime" className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
                       <span className="text-base">💧</span> Prophet Yunus Water Slime
                     </a>
                     <div className="border-t border-stone-100 mt-1 pt-1">
