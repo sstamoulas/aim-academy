@@ -1,8 +1,18 @@
+export type PricingModel = 'per-child' | 'per-registration' | 'flat-rate' | 'per-family'
+
+export const PRICING_MODEL_LABELS: Record<PricingModel, string> = {
+  'per-child': 'Per child',
+  'per-registration': 'Per registration',
+  'flat-rate': 'Flat rate',
+  'per-family': 'Per family',
+}
+
 export interface PricingTier {
   id: string
-  label: string      // e.g. "1 Child", "2 Children", "Family Pack"
-  sublabel?: string  // e.g. "Per child rate"
-  amount: number     // in cents
+  label: string        // e.g. "1 Child", "2 Children", "Family Pack"
+  sublabel?: string    // e.g. "Per child rate"
+  model?: PricingModel // how the price is structured
+  amount: number       // in cents
 }
 
 export interface EventDetail {

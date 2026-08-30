@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 import type { AcademyEvent, EventSection } from '../types/event'
+import { PRICING_MODEL_LABELS } from '../types/event'
 import PaymentModal from '../components/PaymentModal'
 
 function renderSection(section: EventSection) {
@@ -183,8 +184,11 @@ export default function EventPage({ slug }: { slug: string }) {
                         <div className="font-kids text-2xl text-wood-dark">
                           ${(tier.amount / 100).toFixed(2)}
                         </div>
+                        {tier.model && (
+                          <div className="text-xs text-sage-600 font-quick font-semibold mt-1">{PRICING_MODEL_LABELS[tier.model]}</div>
+                        )}
                         {tier.sublabel && (
-                          <div className="text-xs text-stone-400 font-quick mt-1">{tier.sublabel}</div>
+                          <div className="text-xs text-stone-400 font-quick mt-0.5">{tier.sublabel}</div>
                         )}
                       </button>
                     )

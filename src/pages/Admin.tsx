@@ -7,7 +7,8 @@ import {
 } from 'firebase/firestore'
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { auth, db, storage } from '../firebase'
-import type { AcademyEvent, EventDetail, EventSection, SectionType, PricingTier } from '../types/event'
+import type { AcademyEvent, EventDetail, EventSection, SectionType, PricingTier, PricingModel } from '../types/event'
+import { PRICING_MODEL_LABELS } from '../types/event'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -17,11 +18,6 @@ function slugify(t: string) {
   return t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 }
 
-function dollars(cents: number) { return cents > 0 ? (cents / 100).toFixed(2) : '' }
-function toCents(v: string) {
-  const n = parseFloat(v.replace(/[^0-9.]/g, ''))
-  return isNaN(n) ? 0 : Math.round(n * 100)
-}
 
 const DEFAULT_DETAILS: EventDetail[] = [
   { id: uid(), icon: '📅', label: 'Date', value: '' },
@@ -267,45 +263,96 @@ function TextSectionEditor({ section, onChange }: { section: EventSection; onCha
 
 // ── Pricing List ──────────────────────────────────────────────────────────────
 
+function PricingTierRow({ tier, onUpdate, onRemove }: {
+  tier: PricingTier
+  onUpdate: (patch: Partial<PricingTier>) => void
+  onRemove: () => void
+}) {
+  const [priceStr, setPriceStr] = useState(tier.amount > 0 ? (tier.amount / 100).toFixed(2) : '')
+
+  function commitPrice(val: string) {
+    const n = parseFloat(val.replace(/[^0-9.]/g, ''))
+    onUpdate({ amount: isNaN(n) ? 0 : Math.round(n * 100) })
+  }
+
+  return (
+    <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="flex-1 grid grid-cols-2 gap-2">
+          <input
+            value={tier.label}
+            onChange={e => onUpdate({ label: e.target.value })}
+            placeholder="Label (e.g. 1 Child)"
+            className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400"
+          />
+          <input
+            value={tier.sublabel ?? ''}
+            onChange={e => onUpdate({ sublabel: e.target.value })}
+            placeholder="Sublabel (optional)"
+            className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-500 focus:outline-none focus:ring-2 focus:ring-sage-400"
+          />
+        </div>
+        <div className="relative flex-shrink-0">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={priceStr}
+            onChange={e => setPriceStr(e.target.value)}
+            onBlur={e => {
+              const formatted = parseFloat(e.target.value.replace(/[^0-9.]/g, ''))
+              const display = isNaN(formatted) ? '' : formatted.toFixed(2)
+              setPriceStr(display)
+              commitPrice(e.target.value)
+            }}
+            placeholder="0.00"
+            className="pl-7 pr-4 py-2.5 rounded-xl border border-stone-200 bg-white text-stone-800 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-sage-400"
+          />
+        </div>
+        <button type="button" onClick={onRemove}
+          className="text-stone-300 hover:text-rose-500 transition px-1.5 text-lg flex-shrink-0">✕</button>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-semibold text-stone-400 font-quick">Pricing model:</span>
+        {(Object.entries(PRICING_MODEL_LABELS) as [PricingModel, string][]).map(([key, label]) => {
+          const active = tier.model === key
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onUpdate({ model: active ? undefined : key })}
+              className={`text-xs font-quick font-semibold px-3 py-1 rounded-full border transition ${
+                active
+                  ? 'bg-sage-600 text-white border-sage-600'
+                  : 'bg-white text-stone-500 border-stone-200 hover:border-sage-400 hover:text-sage-700'
+              }`}
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function PricingList({ tiers, onChange }: {
   tiers: PricingTier[]
   onChange: (tiers: PricingTier[]) => void
 }) {
-  function update(id: string, field: keyof PricingTier, val: string | number) {
-    onChange(tiers.map(t => t.id === id ? { ...t, [field]: val } : t))
+  function update(id: string, patch: Partial<PricingTier>) {
+    onChange(tiers.map(t => t.id === id ? { ...t, ...patch } : t))
   }
 
   return (
     <div className="space-y-3">
       {tiers.map((tier, i) => (
-        <div key={tier.id} className="flex items-center gap-2">
-          <div className="flex-1 grid grid-cols-2 gap-2">
-            <input
-              value={tier.label}
-              onChange={e => update(tier.id, 'label', e.target.value)}
-              placeholder="Label (e.g. 1 Child)"
-              className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400"
-            />
-            <input
-              value={tier.sublabel ?? ''}
-              onChange={e => update(tier.id, 'sublabel', e.target.value)}
-              placeholder="Sublabel (e.g. Per child rate)"
-              className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-500 focus:outline-none focus:ring-2 focus:ring-sage-400"
-            />
-          </div>
-          <div className="relative flex-shrink-0">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
-            <input
-              type="number" min="0" step="0.01"
-              value={dollars(tier.amount)}
-              onChange={e => update(tier.id, 'amount', toCents(e.target.value))}
-              placeholder="0.00"
-              className="pl-7 pr-4 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-800 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-sage-400"
-            />
-          </div>
-          <button type="button" onClick={() => onChange(tiers.filter((_, j) => j !== i))}
-            className="text-stone-300 hover:text-rose-500 transition px-1.5 text-lg">✕</button>
-        </div>
+        <PricingTierRow
+          key={tier.id}
+          tier={tier}
+          onUpdate={patch => update(tier.id, patch)}
+          onRemove={() => onChange(tiers.filter((_, j) => j !== i))}
+        />
       ))}
       <button type="button"
         onClick={() => onChange([...tiers, { id: uid(), label: '', sublabel: '', amount: 0 }])}
