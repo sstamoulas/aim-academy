@@ -36,14 +36,17 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createPaymentIntent = void 0;
+exports.createPaymentIntent = exports.submitContactForm = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const app_1 = require("firebase-admin/app");
+const firestore_1 = require("firebase-admin/firestore");
 const cors_1 = __importDefault(require("cors"));
 const https = __importStar(require("https"));
+const nodemailer = __importStar(require("nodemailer"));
 (0, app_1.initializeApp)();
 const stripeSecret = (0, params_1.defineSecret)('STRIPE_SECRET_KEY');
+const gmailAppPassword = (0, params_1.defineSecret)('GMAIL_APP_PASSWORD');
 const corsMiddleware = (0, cors_1.default)({ origin: true });
 function createStripePaymentIntent(secretKey, amount, currency, description) {
     return new Promise((resolve, reject) => {
@@ -92,6 +95,63 @@ function createStripePaymentIntent(secretKey, amount, currency, description) {
         req.end();
     });
 }
+const GMAIL_USER = 'aimacademyva@gmail.com';
+exports.submitContactForm = (0, https_1.onRequest)({ secrets: [gmailAppPassword], timeoutSeconds: 30 }, (req, res) => {
+    corsMiddleware(req, res, async () => {
+        var _a;
+        if (req.method !== 'POST') {
+            res.status(405).json({ error: 'Method not allowed' });
+            return;
+        }
+        const { name, phone, email, interests, message } = req.body;
+        if (!(name === null || name === void 0 ? void 0 : name.trim()) || !(phone === null || phone === void 0 ? void 0 : phone.trim()) || !(email === null || email === void 0 ? void 0 : email.trim())) {
+            res.status(400).json({ error: 'name, phone, and email are required' });
+            return;
+        }
+        try {
+            const db = (0, firestore_1.getFirestore)();
+            await db.collection('contactSubmissions').add({
+                name: name.trim(),
+                phone: phone.trim(),
+                email: email.trim(),
+                interests: interests !== null && interests !== void 0 ? interests : [],
+                message: (_a = message === null || message === void 0 ? void 0 : message.trim()) !== null && _a !== void 0 ? _a : '',
+                submittedAt: new Date().toISOString(),
+            });
+            const transporter = nodemailer.createTransport({
+                service: 'gmail',
+                auth: { user: GMAIL_USER, pass: gmailAppPassword.value() },
+            });
+            const interestList = (interests !== null && interests !== void 0 ? interests : []).join(', ') || 'None selected';
+            await transporter.sendMail({
+                from: `"AIM Academy Website" <${GMAIL_USER}>`,
+                to: GMAIL_USER,
+                replyTo: email.trim(),
+                subject: `New contact form submission from ${name.trim()}`,
+                text: [
+                    `Name: ${name.trim()}`,
+                    `Phone: ${phone.trim()}`,
+                    `Email: ${email.trim()}`,
+                    `Interested in: ${interestList}`,
+                    `Message: ${(message === null || message === void 0 ? void 0 : message.trim()) || '(none)'}`,
+                ].join('\n'),
+                html: `
+            <p><strong>Name:</strong> ${name.trim()}</p>
+            <p><strong>Phone:</strong> ${phone.trim()}</p>
+            <p><strong>Email:</strong> ${email.trim()}</p>
+            <p><strong>Interested in:</strong> ${interestList}</p>
+            <p><strong>Message:</strong> ${(message === null || message === void 0 ? void 0 : message.trim()) || '(none)'}</p>
+          `,
+            });
+            res.json({ success: true });
+        }
+        catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error('Contact form error:', msg);
+            res.status(500).json({ error: 'Failed to save submission' });
+        }
+    });
+});
 exports.createPaymentIntent = (0, https_1.onRequest)({ secrets: [stripeSecret], timeoutSeconds: 30 }, (req, res) => {
     corsMiddleware(req, res, async () => {
         var _a, _b;
