@@ -41,18 +41,46 @@ export default function ForestCanopy() {
               {/* Mobile slide-down menu */}
               {mobileMenuOpen && (
                 <div className="mt-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 overflow-hidden">
-                  <a href="#dc-about" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-5 py-3.5 text-white font-kids text-sm hover:bg-white/10 transition border-b border-white/10">
+
+                  {/* Home group */}
+                  <div className="px-5 pt-3 pb-1 text-xs font-bold uppercase tracking-widest text-emerald-200/70">Home</div>
+                  <a href="#dc-about" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
                     🌿 About Us
                   </a>
-                  <a href="#dc-programs" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-5 py-3.5 text-white font-kids text-sm hover:bg-white/10 transition border-b border-white/10">
-                    📖 Programs
-                  </a>
-                  <a href="#dc-achievements" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-5 py-3.5 text-white font-kids text-sm hover:bg-white/10 transition border-b border-white/10">
+                  <a href="#dc-achievements" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
                     🏆 Achievements
                   </a>
-                  <a href="/contact" className="flex items-center gap-3 px-5 py-3.5 text-white font-kids text-sm hover:bg-white/10 transition border-b border-white/10">
+                  <a href="/contact" className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
                     ✉️ Contact Us
                   </a>
+
+                  <div className="border-t border-white/10 mx-5 my-2" />
+
+                  {/* Programs group */}
+                  <div className="px-5 pt-1 pb-1 text-xs font-bold uppercase tracking-widest text-emerald-200/70">Programs</div>
+                  <a href="#dc-programs" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
+                    📖 Saturday Weekend School
+                  </a>
+                  <div className="flex items-center gap-3 px-5 py-2.5 font-kids text-sm text-white/40">
+                    ☀️ Summer Camp <span className="ml-auto text-xs bg-white/10 text-white/50 px-2 py-0.5 rounded-full">Coming soon</span>
+                  </div>
+
+                  <div className="border-t border-white/10 mx-5 my-2" />
+
+                  {/* Events group */}
+                  <div className="px-5 pt-1 pb-1 text-xs font-bold uppercase tracking-widest text-emerald-200/70">Events</div>
+                  <a href="#" className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
+                    🐾 Animals in Quran
+                  </a>
+                  <a href="#" className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
+                    💧 Prophet Yunus Water Slime
+                  </a>
+                  <div className="flex items-center gap-3 px-5 py-2.5 font-kids text-sm text-white/40">
+                    🌟 Future Event <span className="ml-auto text-xs bg-white/10 text-white/50 px-2 py-0.5 rounded-full">TBA</span>
+                  </div>
+
+                  <div className="border-t border-white/10 mx-5 my-2" />
+
                   <button onClick={() => { setMobileMenuOpen(false); setPaymentOpen(true) }} className="w-full flex items-center gap-3 px-5 py-3.5 text-amber-200 font-kids text-sm hover:bg-white/10 transition">
                     ✨ Register Now
                   </button>
