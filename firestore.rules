@@ -25,17 +25,34 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // (Future) Families / children — parent can read their own; teacher/admin can read all
+    // Classes — admin manages; teachers can read their own
+    match /classes/{classId} {
+      allow read, write: if isAdmin();
+      allow read: if isTeacher();
+    }
+
+    // Students — admin manages; teachers can read/write for attendance purposes
+    match /students/{studentId} {
+      allow read, write: if isAdmin();
+      allow read, write: if isTeacher();
+    }
+
+    // Attendance sessions — staff can read/write
+    match /attendance/{sessionId} {
+      allow read, write: if isStaff();
+    }
+
+    // Announcements — staff can create; published ones readable by parents
+    match /announcements/{announcementId} {
+      allow read, write: if isStaff();
+      allow read: if isParent() && resource.data.published == true;
+    }
+
+    // (Future) Families / children
     match /families/{familyId} {
       allow read, write: if isAdmin();
       allow read: if isTeacher();
       allow read: if isParent() && request.auth.uid == resource.data.parentUid;
-    }
-
-    // (Future) Classes and enrollment
-    match /classes/{classId} {
-      allow read, write: if isAdmin();
-      allow read: if isTeacher() || isParent();
     }
   }
 }

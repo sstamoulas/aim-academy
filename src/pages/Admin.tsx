@@ -3,13 +3,14 @@ import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged, type User,
 } from 'firebase/auth'
 import {
-  collection, doc, getDocs, setDoc, deleteDoc, orderBy, query,
+  collection, doc, getDocs, setDoc, deleteDoc, orderBy, query, where,
 } from 'firebase/firestore'
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { httpsCallable } from 'firebase/functions'
 import { auth, db, storage, functions } from '../firebase'
 import type { AcademyEvent, EventDetail, EventSection, SectionType, PricingTier, PricingModel } from '../types/event'
 import { PRICING_MODEL_LABELS } from '../types/event'
+import type { AcademyClass, Student } from '../types/portal'
 
 // ── User management types ─────────────────────────────────────────────────────
 
@@ -966,13 +967,450 @@ function UsersTab() {
   )
 }
 
+// ── Classes Tab ───────────────────────────────────────────────────────────────
+
+const EMPTY_CLASS: Omit<AcademyClass, 'id' | 'createdAt'> = {
+  name: '', description: '', teacherUid: '', teacherName: '', schedule: '',
+}
+
+const EMPTY_STUDENT: Omit<Student, 'id' | 'classIds' | 'createdAt'> = {
+  firstName: '', lastName: '', parentName: '', parentEmail: '', parentPhone: '', notes: '',
+}
+
+function ClassesTab() {
+  const [classes, setClasses] = useState<AcademyClass[]>([])
+  const [teachers, setTeachers] = useState<UserRecord[]>([])
+  const [students, setStudents] = useState<Student[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedClass, setSelectedClass] = useState<AcademyClass | null>(null)
+  const [classTab, setClassTab] = useState<'students' | 'info'>('students')
+
+  // Class form
+  const [classFormOpen, setClassFormOpen] = useState(false)
+  const [classForm, setClassForm] = useState<Omit<AcademyClass, 'id' | 'createdAt'>>(EMPTY_CLASS)
+  const [editingClassId, setEditingClassId] = useState<string | null>(null)
+  const [savingClass, setSavingClass] = useState(false)
+
+  // Student form
+  const [studentFormOpen, setStudentFormOpen] = useState(false)
+  const [studentForm, setStudentForm] = useState<Omit<Student, 'id' | 'classIds' | 'createdAt'>>(EMPTY_STUDENT)
+  const [editingStudentId, setEditingStudentId] = useState<string | null>(null)
+  const [savingStudent, setSavingStudent] = useState(false)
+
+  // Delete confirm
+  const [deletingClass, setDeletingClass] = useState<AcademyClass | null>(null)
+  const [deletingStudent, setDeletingStudent] = useState<Student | null>(null)
+
+  async function load() {
+    setLoading(true)
+    const [classSnap, teacherSnap] = await Promise.all([
+      getDocs(query(collection(db, 'classes'), orderBy('createdAt', 'desc'))),
+      getDocs(collection(db, 'users')),
+    ])
+    setClasses(classSnap.docs.map(d => ({ id: d.id, ...d.data() } as AcademyClass)))
+    setTeachers(
+      teacherSnap.docs
+        .map(d => ({ uid: d.id, ...d.data() } as UserRecord))
+        .filter(u => u.role === 'teacher' || u.role === 'admin')
+    )
+    setLoading(false)
+  }
+
+  async function loadStudents(classId: string) {
+    const snap = await getDocs(
+      query(collection(db, 'students'), where('classIds', 'array-contains', classId))
+    )
+    setStudents(snap.docs.map(d => ({ id: d.id, ...d.data() } as Student)))
+  }
+
+  useEffect(() => { load() }, [])
+  useEffect(() => { if (selectedClass) loadStudents(selectedClass.id) }, [selectedClass])
+
+  async function saveClass() {
+    setSavingClass(true)
+    const id = editingClassId ?? uid()
+    await setDoc(doc(db, 'classes', id), {
+      ...classForm,
+      createdAt: new Date().toISOString(),
+    })
+    await load()
+    setClassFormOpen(false)
+    setEditingClassId(null)
+    setClassForm(EMPTY_CLASS)
+    setSavingClass(false)
+  }
+
+  async function deleteClass(cls: AcademyClass) {
+    await deleteDoc(doc(db, 'classes', cls.id))
+    await load()
+    setDeletingClass(null)
+    if (selectedClass?.id === cls.id) setSelectedClass(null)
+  }
+
+  async function saveStudent() {
+    if (!selectedClass) return
+    setSavingStudent(true)
+    const id = editingStudentId ?? uid()
+    const existingClassIds = editingStudentId
+      ? (students.find(s => s.id === editingStudentId)?.classIds ?? [])
+      : []
+    const classIds = existingClassIds.includes(selectedClass.id)
+      ? existingClassIds
+      : [...existingClassIds, selectedClass.id]
+    await setDoc(doc(db, 'students', id), {
+      ...studentForm,
+      classIds,
+      createdAt: editingStudentId ? (students.find(s => s.id === id)?.createdAt ?? new Date().toISOString()) : new Date().toISOString(),
+    })
+    await loadStudents(selectedClass.id)
+    setStudentFormOpen(false)
+    setEditingStudentId(null)
+    setStudentForm(EMPTY_STUDENT)
+    setSavingStudent(false)
+  }
+
+  async function removeStudentFromClass(student: Student) {
+    if (!selectedClass) return
+    const updatedIds = student.classIds.filter(id => id !== selectedClass.id)
+    await setDoc(doc(db, 'students', student.id), { ...student, classIds: updatedIds })
+    await loadStudents(selectedClass.id)
+    setDeletingStudent(null)
+  }
+
+  function openEditClass(cls: AcademyClass) {
+    setClassForm({ name: cls.name, description: cls.description ?? '', teacherUid: cls.teacherUid, teacherName: cls.teacherName, schedule: cls.schedule ?? '' })
+    setEditingClassId(cls.id)
+    setClassFormOpen(true)
+  }
+
+  function openAddStudent() {
+    setStudentForm(EMPTY_STUDENT)
+    setEditingStudentId(null)
+    setStudentFormOpen(true)
+  }
+
+  function openEditStudent(s: Student) {
+    setStudentForm({ firstName: s.firstName, lastName: s.lastName, parentName: s.parentName ?? '', parentEmail: s.parentEmail ?? '', parentPhone: s.parentPhone ?? '', notes: s.notes ?? '' })
+    setEditingStudentId(s.id)
+    setStudentFormOpen(true)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-16">
+        <div className="w-8 h-8 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  // Class detail view
+  if (selectedClass) {
+    return (
+      <div>
+        <button onClick={() => setSelectedClass(null)}
+          className="text-sm font-quick font-semibold text-stone-500 hover:text-sage-700 transition mb-6">
+          ← Back to classes
+        </button>
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h2 className="font-kids text-3xl text-wood-dark">{selectedClass.name}</h2>
+            {selectedClass.teacherName && (
+              <p className="text-stone-500 text-sm font-quick mt-1">Teacher: {selectedClass.teacherName}</p>
+            )}
+            {selectedClass.schedule && (
+              <p className="text-stone-400 text-sm font-quick">{selectedClass.schedule}</p>
+            )}
+          </div>
+          <button onClick={() => openEditClass(selectedClass)}
+            className="text-sm font-quick font-semibold text-stone-500 hover:text-sage-700 transition cursor-pointer">
+            Edit
+          </button>
+        </div>
+
+        {/* Sub-tabs */}
+        <div className="flex gap-1 border-b border-stone-200 mb-6">
+          {(['students', 'info'] as const).map(t => (
+            <button key={t} onClick={() => setClassTab(t)}
+              className={`px-4 py-2 text-sm font-semibold font-quick border-b-2 -mb-px transition capitalize ${
+                classTab === t ? 'border-sage-600 text-sage-700' : 'border-transparent text-stone-400 hover:text-stone-600'
+              }`}>
+              {t === 'students' ? `Students (${students.length})` : 'Info'}
+            </button>
+          ))}
+        </div>
+
+        {classTab === 'students' && (
+          <div>
+            <div className="flex justify-end mb-4">
+              <button onClick={openAddStudent}
+                className="bg-wood text-white font-bold font-quick px-5 py-2.5 rounded-full shadow-md hover:brightness-95 transition text-sm">
+                + Add Student
+              </button>
+            </div>
+            {students.length === 0 ? (
+              <div className="bg-white rounded-[28px] border border-stone-200/70 p-10 text-center text-stone-400 font-quick">
+                No students enrolled yet.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {students.map(s => (
+                  <div key={s.id} className="bg-white rounded-2xl border border-stone-200/70 px-5 py-4 flex items-center gap-4">
+                    <div className="w-9 h-9 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-sm flex-shrink-0">
+                      {s.firstName[0]}{s.lastName[0]}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-stone-800 font-quick text-sm">{s.firstName} {s.lastName}</div>
+                      {s.parentName && <div className="text-xs text-stone-400 font-quick">Parent: {s.parentName}{s.parentPhone ? ` · ${s.parentPhone}` : ''}</div>}
+                    </div>
+                    <div className="flex gap-3 text-xs font-quick font-semibold flex-shrink-0">
+                      <button onClick={() => openEditStudent(s)} className="text-stone-400 hover:text-sage-700 transition cursor-pointer">Edit</button>
+                      <button onClick={() => setDeletingStudent(s)} className="text-stone-400 hover:text-rose-600 transition cursor-pointer">Remove</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {classTab === 'info' && (
+          <div className="bg-white rounded-[28px] border border-stone-200/70 p-8 space-y-3">
+            {selectedClass.description && (
+              <p className="text-stone-600 text-sm leading-relaxed">{selectedClass.description}</p>
+            )}
+            <p className="text-stone-500 text-sm font-quick"><span className="font-semibold">Teacher:</span> {selectedClass.teacherName || '—'}</p>
+            <p className="text-stone-500 text-sm font-quick"><span className="font-semibold">Schedule:</span> {selectedClass.schedule || '—'}</p>
+          </div>
+        )}
+
+        {/* Student form modal */}
+        {studentFormOpen && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-6">
+            <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-sm w-full">
+              <h3 className="font-kids text-2xl text-wood-dark mb-6">{editingStudentId ? 'Edit Student' : 'Add Student'}</h3>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">First Name</label>
+                    <input value={studentForm.firstName} onChange={e => setStudentForm(f => ({ ...f, firstName: e.target.value }))} required
+                      className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Last Name</label>
+                    <input value={studentForm.lastName} onChange={e => setStudentForm(f => ({ ...f, lastName: e.target.value }))} required
+                      className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Parent / Guardian Name</label>
+                  <input value={studentForm.parentName} onChange={e => setStudentForm(f => ({ ...f, parentName: e.target.value }))}
+                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Parent Email</label>
+                    <input type="email" value={studentForm.parentEmail} onChange={e => setStudentForm(f => ({ ...f, parentEmail: e.target.value }))}
+                      className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Parent Phone</label>
+                    <input value={studentForm.parentPhone} onChange={e => setStudentForm(f => ({ ...f, parentPhone: e.target.value }))}
+                      className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Notes (optional)</label>
+                  <textarea value={studentForm.notes} onChange={e => setStudentForm(f => ({ ...f, notes: e.target.value }))} rows={2}
+                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm resize-none" />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button onClick={saveStudent} disabled={savingStudent || !studentForm.firstName.trim() || !studentForm.lastName.trim()}
+                  className="flex-1 bg-wood text-white font-bold font-quick py-3 rounded-full hover:brightness-95 transition disabled:opacity-60">
+                  {savingStudent ? 'Saving…' : 'Save'}
+                </button>
+                <button onClick={() => { setStudentFormOpen(false); setEditingStudentId(null) }}
+                  className="flex-1 border border-stone-200 text-stone-600 font-quick font-semibold py-3 rounded-full hover:bg-stone-50 transition">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Remove student confirm */}
+        {deletingStudent && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-6">
+            <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-sm w-full text-center">
+              <div className="text-4xl mb-4">⚠️</div>
+              <h3 className="font-kids text-2xl text-wood-dark mb-2">Remove student?</h3>
+              <p className="text-stone-500 text-sm mb-6">
+                <strong>{deletingStudent.firstName} {deletingStudent.lastName}</strong> will be removed from this class.
+              </p>
+              <div className="flex gap-3">
+                <button onClick={() => removeStudentFromClass(deletingStudent)}
+                  className="flex-1 bg-rose-600 text-white font-bold font-quick py-3 rounded-full hover:brightness-95 transition">Remove</button>
+                <button onClick={() => setDeletingStudent(null)}
+                  className="flex-1 border border-stone-200 text-stone-600 font-quick font-semibold py-3 rounded-full hover:bg-stone-50 transition">Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit class modal (re-used) */}
+        {classFormOpen && (
+          <ClassFormModal
+            form={classForm} teachers={teachers} saving={savingClass}
+            onChange={setClassForm} onSave={saveClass}
+            onCancel={() => { setClassFormOpen(false); setEditingClassId(null); setClassForm(EMPTY_CLASS) }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Classes list view
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h2 className="font-kids text-3xl text-wood-dark">Classes</h2>
+          <p className="text-stone-500 text-sm font-quick mt-1">Manage classes and student enrollment.</p>
+        </div>
+        <button
+          onClick={() => { setClassForm(EMPTY_CLASS); setEditingClassId(null); setClassFormOpen(true) }}
+          className="bg-wood text-white font-bold font-quick px-5 py-2.5 rounded-full shadow-md hover:brightness-95 transition text-sm">
+          + New Class
+        </button>
+      </div>
+
+      {classes.length === 0 ? (
+        <div className="bg-white rounded-[28px] border border-stone-200/70 p-10 text-center text-stone-400 font-quick">
+          No classes yet. Create your first class to get started.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {classes.map(cls => (
+            <div key={cls.id} className="bg-white rounded-2xl border border-stone-200/70 px-5 py-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-sage-100 flex items-center justify-center text-xl flex-shrink-0">📚</div>
+              <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedClass(cls)}>
+                <div className="font-semibold text-stone-800 font-quick">{cls.name}</div>
+                <div className="text-xs text-stone-400 font-quick">
+                  {cls.teacherName || 'No teacher assigned'}{cls.schedule ? ` · ${cls.schedule}` : ''}
+                </div>
+              </div>
+              <div className="flex gap-3 text-xs font-quick font-semibold flex-shrink-0">
+                <button onClick={() => setSelectedClass(cls)} className="text-stone-400 hover:text-sage-700 transition cursor-pointer">View</button>
+                <button onClick={() => openEditClass(cls)} className="text-stone-400 hover:text-sage-700 transition cursor-pointer">Edit</button>
+                <button onClick={() => setDeletingClass(cls)} className="text-stone-400 hover:text-rose-600 transition cursor-pointer">Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {classFormOpen && (
+        <ClassFormModal
+          form={classForm} teachers={teachers} saving={savingClass}
+          onChange={setClassForm} onSave={saveClass}
+          onCancel={() => { setClassFormOpen(false); setEditingClassId(null); setClassForm(EMPTY_CLASS) }}
+        />
+      )}
+
+      {deletingClass && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-6">
+          <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-sm w-full text-center">
+            <div className="text-4xl mb-4">⚠️</div>
+            <h3 className="font-kids text-2xl text-wood-dark mb-2">Delete class?</h3>
+            <p className="text-stone-500 text-sm mb-6">
+              "<strong>{deletingClass.name}</strong>" will be permanently deleted. Students won't be deleted but will be unenrolled.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => deleteClass(deletingClass)}
+                className="flex-1 bg-rose-600 text-white font-bold font-quick py-3 rounded-full hover:brightness-95 transition">Delete</button>
+              <button onClick={() => setDeletingClass(null)}
+                className="flex-1 border border-stone-200 text-stone-600 font-quick font-semibold py-3 rounded-full hover:bg-stone-50 transition">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ClassFormModal({
+  form, teachers, saving, onChange, onSave, onCancel,
+}: {
+  form: Omit<AcademyClass, 'id' | 'createdAt'>
+  teachers: UserRecord[]
+  saving: boolean
+  onChange: (f: Omit<AcademyClass, 'id' | 'createdAt'>) => void
+  onSave: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-6">
+      <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-sm w-full">
+        <h3 className="font-kids text-2xl text-wood-dark mb-6">
+          {form.name ? 'Edit Class' : 'New Class'}
+        </h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Class Name</label>
+            <input value={form.name} onChange={e => onChange({ ...form, name: e.target.value })} required
+              placeholder="e.g. Quran for Beginners"
+              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Teacher</label>
+            <select
+              value={form.teacherUid}
+              onChange={e => {
+                const selected = teachers.find(t => t.uid === e.target.value)
+                onChange({ ...form, teacherUid: e.target.value, teacherName: selected?.displayName || selected?.email || '' })
+              }}
+              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
+            >
+              <option value="">No teacher assigned</option>
+              {teachers.map(t => (
+                <option key={t.uid} value={t.uid}>{t.displayName || t.email}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Schedule</label>
+            <input value={form.schedule} onChange={e => onChange({ ...form, schedule: e.target.value })}
+              placeholder="e.g. Saturdays 10am–12pm"
+              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Description</label>
+            <textarea value={form.description} onChange={e => onChange({ ...form, description: e.target.value })} rows={2}
+              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm resize-none" />
+          </div>
+        </div>
+        <div className="flex gap-3 mt-6">
+          <button onClick={onSave} disabled={saving || !form.name.trim()}
+            className="flex-1 bg-wood text-white font-bold font-quick py-3 rounded-full hover:brightness-95 transition disabled:opacity-60">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button onClick={onCancel}
+            className="flex-1 border border-stone-200 text-stone-600 font-quick font-semibold py-3 rounded-full hover:bg-stone-50 transition">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Admin Root ────────────────────────────────────────────────────────────────
 
 export default function Admin() {
   const [user, setUser] = useState<User | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'events' | 'users'>('events')
+  const [activeTab, setActiveTab] = useState<'events' | 'classes' | 'users'>('events')
   const [events, setEvents] = useState<AcademyEvent[]>([])
   const [editing, setEditing] = useState<Partial<AcademyEvent> | null>(null)
   const [deleting, setDeleting] = useState<AcademyEvent | null>(null)
@@ -1059,7 +1497,7 @@ export default function Admin() {
         </div>
         {/* Tab bar */}
         <div className="max-w-4xl mx-auto px-6 flex gap-1 -mb-px">
-          {(['events', 'users'] as const).map(tab => (
+          {([['events', 'Events'], ['classes', 'Classes'], ['users', 'Users']] as const).map(([tab, label]) => (
             <button
               key={tab}
               onClick={() => { setActiveTab(tab); setEditing(null) }}
@@ -1069,7 +1507,7 @@ export default function Admin() {
                   : 'border-transparent text-stone-400 hover:text-stone-600'
               }`}
             >
-              {tab === 'events' ? 'Events' : 'Users'}
+              {label}
             </button>
           ))}
         </div>
@@ -1097,6 +1535,8 @@ export default function Admin() {
               onTogglePublish={handleTogglePublish}
             />
           )
+        ) : activeTab === 'classes' ? (
+          <ClassesTab />
         ) : (
           <UsersTab />
         )}
