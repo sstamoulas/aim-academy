@@ -163,14 +163,14 @@ export default function ForestCanopy() {
     async function loadContent() {
       try {
         const [progSnap, achSnap, revSnap, siteSnap] = await Promise.all([
-          getDocs(query(collection(db, 'programs'), where('published', '==', true), orderBy('order', 'asc'))),
+          getDocs(query(collection(db, 'programs'), where('published', '==', true))),
           getDocs(query(collection(db, 'achievements'), orderBy('order', 'asc'))),
-          getDocs(query(collection(db, 'reviews'), where('published', '==', true), orderBy('order', 'asc'))),
+          getDocs(query(collection(db, 'reviews'), where('published', '==', true))),
           getDocs(collection(db, 'site')),
         ])
-        setPrograms(progSnap.docs.map(d => ({ id: d.id, ...d.data() } as Program)))
+        setPrograms(progSnap.docs.map(d => ({ id: d.id, ...d.data() } as Program)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))
         setAchievements(achSnap.docs.map(d => ({ id: d.id, ...d.data() } as Achievement)))
-        setReviews(revSnap.docs.map(d => ({ id: d.id, ...d.data() } as Review)))
+        setReviews(revSnap.docs.map(d => ({ id: d.id, ...d.data() } as Review)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))
         const aboutDoc = siteSnap.docs.find(d => d.id === 'about')
         if (aboutDoc) setAboutContent(aboutDoc.data() as typeof aboutContent)
       } catch (e) {
