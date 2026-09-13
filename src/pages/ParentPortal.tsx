@@ -237,7 +237,7 @@ export default function ParentPortal() {
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
   const [reviewSuccess, setReviewSuccess] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
-  const [hasExistingReview, setHasExistingReview] = useState(false)
+  const [existingReviewStatus, setExistingReviewStatus] = useState<'none' | 'pending' | 'approved' | 'rejected'>('none')
 
   useEffect(() => {
     return onAuthStateChanged(auth, async u => {
@@ -266,7 +266,8 @@ export default function ParentPortal() {
     if (!user) return
     const uid = impersonation?.uid ?? user.uid
     const snap = await getDocs(query(collection(db, 'reviews'), where('submittedByUid', '==', uid)))
-    setHasExistingReview(!snap.empty)
+    if (snap.empty) { setExistingReviewStatus('none'); return }
+    setExistingReviewStatus(snap.docs[0].data().status ?? 'pending')
   }
 
   async function handleSubmitReview(e: React.FormEvent) {
@@ -291,7 +292,7 @@ export default function ParentPortal() {
         submittedAt: new Date().toISOString(),
       })
       setReviewSuccess(true)
-      setHasExistingReview(true)
+      setExistingReviewStatus('pending')
     } catch (err: unknown) {
       setReviewError(err instanceof Error ? err.message : 'Failed to submit review.')
     } finally {
@@ -681,24 +682,24 @@ export default function ParentPortal() {
 
 
             {/* Leave a Review banner */}
-            {!dataLoading && (
+            {!dataLoading && existingReviewStatus !== 'approved' && (
               <div className="mt-8 bg-sage-50 border border-sage-200 rounded-[24px] px-6 py-5 flex items-center justify-between gap-4">
                 <div>
                   <div className="font-semibold text-stone-800 font-quick text-sm">Enjoying AIMAVA?</div>
                   <div className="text-xs text-stone-500 font-quick mt-0.5">
-                    {hasExistingReview
+                    {existingReviewStatus === 'pending'
                       ? 'Your review has been submitted and is pending approval.'
                       : "Share your experience — we'd love to hear from you."}
                   </div>
                 </div>
-                {!hasExistingReview && (
+                {(existingReviewStatus === 'none' || existingReviewStatus === 'rejected') && (
                   <button
                     onClick={() => { setReviewOpen(true); setReviewSuccess(false); setReviewError(null); setReviewForm(f => ({ ...f, author: displayName })) }}
                     className="bg-sage-600 text-white font-bold font-quick px-5 py-2.5 rounded-full shadow-sm hover:brightness-95 transition text-sm flex-shrink-0">
                     Leave a Review
                   </button>
                 )}
-                {hasExistingReview && (
+                {existingReviewStatus === 'pending' && (
                   <span className="text-xs font-bold font-quick bg-amber-100 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-full flex-shrink-0">Pending</span>
                 )}
               </div>
