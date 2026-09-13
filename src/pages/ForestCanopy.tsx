@@ -65,7 +65,6 @@ function ReviewsCarousel({ reviews, variant = 'light' }: { reviews: Review[], va
         mode="fade"
         theme="amber"
         clampPx={200}
-        arrows
         dots="below"
         progressBar="below"
         renderSlide={(i) => {
