@@ -163,14 +163,14 @@ export default function ForestCanopy() {
     async function loadContent() {
       try {
         const [progSnap, achSnap, revSnap, siteSnap] = await Promise.all([
-          getDocs(query(collection(db, 'programs'), orderBy('order', 'asc'))),
+          getDocs(query(collection(db, 'programs'), where('published', '==', true), orderBy('order', 'asc'))),
           getDocs(query(collection(db, 'achievements'), orderBy('order', 'asc'))),
-          getDocs(query(collection(db, 'reviews'), orderBy('order', 'asc'))),
+          getDocs(query(collection(db, 'reviews'), where('published', '==', true), orderBy('order', 'asc'))),
           getDocs(collection(db, 'site')),
         ])
-        setPrograms(progSnap.docs.map(d => ({ id: d.id, ...d.data() } as Program)).filter(p => p.published || p.comingSoon))
+        setPrograms(progSnap.docs.map(d => ({ id: d.id, ...d.data() } as Program)))
         setAchievements(achSnap.docs.map(d => ({ id: d.id, ...d.data() } as Achievement)))
-        setReviews(revSnap.docs.map(d => ({ id: d.id, ...d.data() } as Review)).filter(r => r.published))
+        setReviews(revSnap.docs.map(d => ({ id: d.id, ...d.data() } as Review)))
         const aboutDoc = siteSnap.docs.find(d => d.id === 'about')
         if (aboutDoc) setAboutContent(aboutDoc.data() as typeof aboutContent)
       } catch (e) {
@@ -376,11 +376,11 @@ export default function ForestCanopy() {
 
               {activeTab === 'activities' && (
                 <section className="space-y-4">
-                  {programs.filter(p => p.published).length === 0 ? (
+                  {programs.length === 0 ? (
                     <div className="bg-white rounded-[24px] p-6 shadow-sm border border-stone-200/70 text-center text-stone-400 text-sm font-quick">
                       No programs yet — check back soon.
                     </div>
-                  ) : programs.filter(p => p.published).map(p => (
+                  ) : programs.map(p => (
                     <div key={p.id} className={`bg-white rounded-[24px] overflow-hidden shadow-sm border border-stone-200/70 ${p.comingSoon ? 'opacity-60' : ''}`}>
                       {!p.comingSoon && (
                         <ProgramCarousel imageUrl={p.imageUrl} imageStyle={p.imageStyle} media={p.media} />
@@ -651,7 +651,7 @@ export default function ForestCanopy() {
             </div>
           </section>
 
-          {programs.filter(p => p.published).length > 0 && (
+          {programs.length > 0 && (
             <section id="dc-programs" className="py-20 px-8 bg-stone-50/70 border-y border-stone-200/70 scroll-mt-24">
               <div className="max-w-7xl mx-auto grid grid-cols-12 gap-8 items-start">
                 <div className="col-span-4 space-y-4">
@@ -659,8 +659,8 @@ export default function ForestCanopy() {
                   <h2 className="text-4xl font-bold text-wood-dark">A clear path for every child</h2>
                   <p className="text-stone-600 leading-relaxed">Whether your child is just starting out or already memorizing, we have a program built for their journey.</p>
                 </div>
-                <div className={`col-span-8 grid gap-6 ${programs.filter(p => p.published).length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                  {programs.filter(p => p.published).map(p => (
+                <div className={`col-span-8 grid gap-6 ${programs.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                  {programs.map(p => (
                     <article key={p.id} className={`bg-white rounded-[28px] overflow-hidden shadow-sm border border-stone-200/70 ${p.comingSoon ? 'opacity-60' : ''}`}>
                       <ProgramCarousel imageUrl={p.imageUrl} imageStyle={p.imageStyle} media={p.media} />
                       <div className="p-6 space-y-3">
