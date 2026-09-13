@@ -178,17 +178,18 @@ export default function Carousel({
   }
 
   function Progress({ pos }: { pos: 'overlay' | 'below' }) {
-    if (progressBar !== pos || isSingle || dragging || skipAutoAdvance || !progMs) return null
+    if (progressBar !== pos || isSingle || skipAutoAdvance || !progMs) return null
+    const playState = dragging ? 'paused' : 'running'
     return pos === 'overlay' ? (
       <div className={`absolute bottom-0 inset-x-0 h-0.5 ${tk.progressTrack}`}>
         <div key={current} className={`h-full origin-left ${tk.progressCls}`}
-          style={{ animation: `progress-bar ${progMs}ms linear forwards` }} />
+          style={{ animation: `progress-bar ${progMs}ms linear forwards`, animationPlayState: playState }} />
       </div>
     ) : (
       <div className="flex justify-center mt-3">
         <div className={`w-16 h-0.5 rounded-full overflow-hidden ${tk.progressTrack}`}>
           <div key={current} className={`h-full origin-left rounded-full ${tk.progressCls}`}
-            style={{ animation: `progress-bar ${progMs}ms linear forwards` }} />
+            style={{ animation: `progress-bar ${progMs}ms linear forwards`, animationPlayState: playState }} />
         </div>
       </div>
     )
