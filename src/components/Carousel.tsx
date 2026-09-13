@@ -209,6 +209,8 @@ export default function Carousel({
               {renderSlide(i, i === current)}
             </div>
           ))}
+          {Arrows}
+          {Counter}
         </div>
         <Dots pos="below" />
         <Progress pos="below" />
