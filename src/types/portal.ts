@@ -57,6 +57,25 @@ export interface Registration {
   rejectReason?: string
 }
 
+export interface ChildRequest {
+  id: string
+  parentUid: string
+  parentEmail: string
+  parentName: string
+  child: {
+    firstName: string
+    lastName: string
+    dateOfBirth?: string
+    grade?: string
+  }
+  status: 'pending' | 'approved' | 'rejected'
+  rejectReason?: string
+  classIds?: string[]
+  submittedAt: string
+  reviewedAt?: string
+  reviewedBy?: string
+}
+
 export interface Announcement {
   id: string
   title: string

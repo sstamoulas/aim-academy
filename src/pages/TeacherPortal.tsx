@@ -1,57 +1,13 @@
 import { useState, useEffect } from 'react'
 import {
-  signInWithEmailAndPassword, signOut, onAuthStateChanged, type User,
+  signOut, onAuthStateChanged, type User,
 } from 'firebase/auth'
 import {
   collection, doc, getDocs, setDoc, query, where, orderBy,
 } from 'firebase/firestore'
 import { auth, db } from '../firebase'
 import type { AcademyClass, Student, AttendanceSession, Announcement } from '../types/portal'
-
-// ── Login ─────────────────────────────────────────────────────────────────────
-
-function LoginForm() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault(); setError(null); setLoading(true)
-    try { await signInWithEmailAndPassword(auth, email, password) }
-    catch { setError('Invalid email or password.') }
-    finally { setLoading(false) }
-  }
-
-  return (
-    <div className="bg-cream min-h-screen flex items-center justify-center px-6 font-body">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <img src="/logo.png" alt="AIM Academy" className="w-14 h-14 rounded-2xl shadow-md object-contain bg-white p-1 mx-auto mb-4" />
-          <h1 className="font-kids text-3xl text-wood-dark">Teacher Portal</h1>
-          <p className="text-stone-500 text-sm mt-1 font-quick">Anas Ibn Malik Academy</p>
-        </div>
-        <form onSubmit={handleSubmit} className="bg-white rounded-[28px] shadow-sm border border-stone-200/70 p-8 space-y-5">
-          <div>
-            <label className="block text-sm font-semibold text-stone-700 font-quick mb-2">Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 transition" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-stone-700 font-quick mb-2">Password</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
-              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 transition" />
-          </div>
-          {error && <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">{error}</p>}
-          <button type="submit" disabled={loading}
-            className="w-full bg-wood text-white font-bold font-quick py-3.5 rounded-full shadow-md hover:brightness-95 transition disabled:opacity-60">
-            {loading ? 'Signing in…' : 'Sign In'}
-          </button>
-        </form>
-      </div>
-    </div>
-  )
-}
+import ImpersonationBanner, { getImpersonation, type ImpersonationState } from '../components/ImpersonationBanner'
 
 // ── Attendance ────────────────────────────────────────────────────────────────
 
@@ -487,6 +443,7 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack }: {
 // ── Teacher Portal Root ───────────────────────────────────────────────────────
 
 export default function TeacherPortal() {
+  const [impersonation] = useState<ImpersonationState | null>(() => getImpersonation())
   const [user, setUser] = useState<User | null>(null)
   const [role, setRole] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState('')
@@ -502,7 +459,7 @@ export default function TeacherPortal() {
       if (u) {
         const token = await u.getIdTokenResult()
         setRole(token.claims['role'] as string ?? null)
-        setDisplayName(u.displayName || u.email || 'Teacher')
+        setDisplayName(impersonation?.displayName || u.displayName || u.email || 'Teacher')
       } else {
         setRole(null)
         setDisplayName('')
@@ -518,7 +475,10 @@ export default function TeacherPortal() {
   async function loadClasses() {
     setClassesLoading(true)
     let q
-    if (role === 'admin') {
+    if (impersonation) {
+      // When impersonating a teacher, we'd need their UID — for now show all classes (admin-level access)
+      q = query(collection(db, 'classes'), orderBy('createdAt', 'desc'))
+    } else if (role === 'admin') {
       q = query(collection(db, 'classes'), orderBy('createdAt', 'desc'))
     } else {
       q = query(collection(db, 'classes'), where('teacherUid', '==', user!.uid))
@@ -536,7 +496,7 @@ export default function TeacherPortal() {
     )
   }
 
-  if (!user) return <LoginForm />
+  if (!user) { window.location.href = '/login'; return null }
 
   if (role !== 'teacher' && role !== 'admin') {
     return (
@@ -556,6 +516,7 @@ export default function TeacherPortal() {
 
   return (
     <div className="bg-cream min-h-screen font-body">
+      {impersonation && <ImpersonationBanner state={impersonation} />}
       <header className="sticky top-0 z-50 bg-cream/95 backdrop-blur border-b border-stone-200/70">
         <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -566,7 +527,7 @@ export default function TeacherPortal() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {role === 'admin' && (
+            {role === 'admin' && !impersonation && (
               <a href="/admin" className="text-sm font-quick font-semibold text-stone-500 hover:text-sage-700 transition">
                 Admin
               </a>

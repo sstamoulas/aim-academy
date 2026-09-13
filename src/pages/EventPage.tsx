@@ -1,9 +1,122 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '../firebase'
-import type { AcademyEvent, EventSection } from '../types/event'
+import type { AcademyEvent, EventSection, EventMedia } from '../types/event'
 import { PRICING_MODEL_LABELS, categorizeEvent } from '../types/event'
 import PaymentModal from '../components/PaymentModal'
+import Carousel from '../components/Carousel'
+
+function MediaCarousel({ items }: { items: EventMedia[] }) {
+  const [current, setCurrent] = useState(0)
+  const [lightbox, setLightbox] = useState<number | null>(null)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+
+  useEffect(() => { if (videoRef.current) videoRef.current.pause() }, [current])
+
+  useEffect(() => {
+    if (lightbox === null) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'ArrowRight') setLightbox(l => l !== null ? (l + 1) % items.length : l)
+      if (e.key === 'ArrowLeft') setLightbox(l => l !== null ? (l - 1 + items.length) % items.length : l)
+      if (e.key === 'Escape') setLightbox(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [lightbox, items.length])
+
+  if (items.length === 0) return null
+
+  const isSingle = items.length <= 1
+
+  return (
+    <>
+      <div className="bg-white rounded-[28px] shadow-sm border border-stone-200/70 p-6 mb-6">
+        <h2 className="font-kids text-2xl text-wood-dark mb-5">Event Gallery</h2>
+
+        <Carousel
+          count={items.length}
+          interval={4000}
+          skipAutoAdvance={items[current]?.type === 'video'}
+          onCurrentChange={setCurrent}
+          fillHeight
+          className="rounded-2xl bg-stone-900 aspect-video mb-4"
+          theme="dark"
+          arrows
+          counter
+          progressBar="overlay"
+          renderSlide={(i) => {
+            const m = items[i]
+            return m.type === 'video' ? (
+              <video ref={i === current ? videoRef : undefined}
+                src={m.url} controls playsInline
+                className="w-full h-full object-contain pointer-events-none" />
+            ) : (
+              <img src={m.url} alt={m.caption || `Photo ${i + 1}`}
+                className="w-full h-full object-contain cursor-zoom-in"
+                onClick={() => setLightbox(i)} draggable={false} />
+            )
+          }}
+        />
+
+        {/* Caption */}
+        {items[current]?.caption && (
+          <p className="text-sm text-stone-500 font-quick text-center mb-4 italic">{items[current].caption}</p>
+        )}
+
+        {/* Thumbnail strip */}
+        {!isSingle && (
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {items.map((m, i) => (
+              <button key={m.id} onClick={() => setCurrent(i)}
+                className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition ${
+                  i === current ? 'border-sage-600' : 'border-transparent opacity-60 hover:opacity-90'
+                }`}>
+                {m.type === 'video'
+                  ? <div className="w-full h-full bg-stone-800 flex items-center justify-center text-white text-lg">▶</div>
+                  : <img src={m.url} alt="" className="w-full h-full object-cover" />}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Lightbox */}
+      {lightbox !== null && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightbox(null)}>
+          <button
+            onClick={e => { e.stopPropagation(); setLightbox(l => l !== null ? (l - 1 + items.length) % items.length : l) }}
+            className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white w-12 h-12 rounded-full flex items-center justify-center text-2xl transition">‹</button>
+          {items[lightbox].type === 'video' ? (
+            <video src={items[lightbox].url} controls autoPlay
+              className="max-w-full max-h-full rounded-2xl object-contain"
+              onClick={e => e.stopPropagation()} />
+          ) : (
+            <img src={items[lightbox].url} alt={items[lightbox].caption || ''}
+              className="max-w-full max-h-full rounded-2xl object-contain"
+              onClick={e => e.stopPropagation()} />
+          )}
+          <button
+            onClick={e => { e.stopPropagation(); setLightbox(l => l !== null ? (l + 1) % items.length : l) }}
+            className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white w-12 h-12 rounded-full flex items-center justify-center text-2xl transition">›</button>
+          <button onClick={() => setLightbox(null)}
+            className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white w-10 h-10 rounded-full flex items-center justify-center transition">✕</button>
+          {items[lightbox].caption && (
+            <p className="absolute bottom-6 inset-x-0 text-center text-white/70 text-sm font-quick px-8">
+              {items[lightbox].caption}
+            </p>
+          )}
+          <div className="absolute bottom-16 inset-x-0 flex justify-center gap-1.5">
+            {items.map((_, i) => (
+              <button key={i} onClick={e => { e.stopPropagation(); setLightbox(i) }}
+                className={`rounded-full transition-all ${i === lightbox ? 'bg-white w-3 h-1.5' : 'bg-white/40 w-1.5 h-1.5 hover:bg-white/70'}`} />
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
 
 function renderSection(section: EventSection) {
   switch (section.type) {
@@ -87,12 +200,10 @@ export default function EventPage({ slug }: { slug: string }) {
 
   const dateCat = categorizeEvent(event)
   const statusLabel =
-    event.status === 'sold-out' ? 'Sold Out' :
     dateCat === 'current' ? 'Happening Now' :
     dateCat === 'upcoming' ? 'Upcoming' : 'Past Event'
 
   const statusColor =
-    event.status === 'sold-out' ? 'bg-stone-100 text-stone-500 border-stone-200' :
     dateCat === 'current' ? 'bg-rose-100 text-rose-600 border-rose-200' :
     dateCat === 'upcoming' ? 'bg-sage-100 text-sage-700 border-sage-200' :
     'bg-stone-100 text-stone-500 border-stone-200'
@@ -136,13 +247,10 @@ export default function EventPage({ slug }: { slug: string }) {
           </div>
         )}
 
-        {/* Sold out notice */}
-        {event.status === 'sold-out' && (
-          <div className="bg-rose-50 border border-rose-200 rounded-2xl px-6 py-4 mb-8 text-center">
-            <p className="text-rose-600 font-semibold font-quick text-sm">
-              Sold out! Please stay tuned for our next event.
-            </p>
-          </div>
+
+        {/* Media carousel — shown for past events with media */}
+        {dateCat === 'past' && event.media && event.media.length > 0 && (
+          <MediaCarousel items={event.media} />
         )}
 
         {/* Event details */}
@@ -170,7 +278,7 @@ export default function EventPage({ slug }: { slug: string }) {
         )}
 
         {/* External registration link — shown when registrationUrl is set but no Stripe pricing */}
-        {!event.registrationClosed && event.status === 'upcoming' && event.registrationUrl && (!event.pricing || event.pricing.filter(t => t.amount > 0).length === 0) && (
+        {!event.registrationClosed && dateCat !== 'past' && event.registrationUrl && (!event.pricing || event.pricing.filter(t => t.amount > 0).length === 0) && (
           <div className="bg-white rounded-[28px] shadow-sm border border-stone-200/70 p-8 mb-6 text-center">
             <h2 className="font-kids text-2xl text-wood-dark mb-2">Registration</h2>
             <p className="text-stone-500 text-sm font-quick mb-6">Click the button below to complete your registration.</p>
@@ -185,8 +293,8 @@ export default function EventPage({ slug }: { slug: string }) {
           </div>
         )}
 
-        {/* Pricing selector + registration for upcoming events */}
-        {!event.registrationClosed && event.status === 'upcoming' && event.pricing && (
+        {/* Pricing selector + registration for current and upcoming events */}
+        {!event.registrationClosed && dateCat !== 'past' && event.pricing && (
           (() => {
             const tiers = event.pricing!.filter(t => t.amount > 0)
             if (tiers.length === 0) return null

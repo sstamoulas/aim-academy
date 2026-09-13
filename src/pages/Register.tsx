@@ -323,13 +323,24 @@ export default function Register() {
   }
 
   return (
-    <div className="bg-cream antialiased min-h-screen flex flex-col items-center justify-center px-6 py-16 font-body">
-      {step === 'auth' && <AuthStep onDone={() => setStep('family-info')} />}
-      {step === 'family-info' && user && (
-        <FamilyInfoStep user={user} onSubmitted={() => setStep('pending')} />
-      )}
-      {step === 'pending' && registration && <PendingScreen reg={registration} />}
-      {step === 'rejected' && registration && <RejectedScreen reg={registration} />}
+    <div className="bg-cream antialiased min-h-screen flex flex-col font-body">
+      <header className="sticky top-0 z-30 bg-cream/90 backdrop-blur border-b border-stone-200/60 px-6 py-3 flex items-center justify-between">
+        <a href="/" className="flex items-center gap-2">
+          <img src="/logo.png" alt="AIM Academy" className="w-8 h-8 rounded-xl object-contain bg-white p-0.5 shadow-sm" />
+          <span className="font-kids text-lg text-wood-dark leading-none">AIM Academy</span>
+        </a>
+        <a href="/" className="text-sm text-stone-500 hover:text-wood-dark transition font-quick flex items-center gap-1">
+          <span>←</span> Back to home
+        </a>
+      </header>
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-16">
+        {step === 'auth' && <AuthStep onDone={() => setStep('family-info')} />}
+        {step === 'family-info' && user && (
+          <FamilyInfoStep user={user} onSubmitted={() => setStep('pending')} />
+        )}
+        {step === 'pending' && registration && <PendingScreen reg={registration} />}
+        {step === 'rejected' && registration && <RejectedScreen reg={registration} />}
+      </div>
     </div>
   )
 }

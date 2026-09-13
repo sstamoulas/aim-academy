@@ -1,58 +1,14 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
-  signInWithEmailAndPassword, signOut, onAuthStateChanged, type User,
+  signOut, onAuthStateChanged, type User,
 } from 'firebase/auth'
 import {
-  collection, doc, getDoc, getDocs, query, where, orderBy,
+  collection, doc, getDoc, getDocs, addDoc, query, where, orderBy,
 } from 'firebase/firestore'
 import { auth, db } from '../firebase'
-import type { AcademyClass, Student, AttendanceSession, Announcement } from '../types/portal'
+import type { AcademyClass, Student, AttendanceSession, Announcement, ChildRequest } from '../types/portal'
 import PaymentModal from '../components/PaymentModal'
-
-// ── Login ─────────────────────────────────────────────────────────────────────
-
-function LoginForm() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault(); setError(null); setLoading(true)
-    try { await signInWithEmailAndPassword(auth, email, password) }
-    catch { setError('Invalid email or password.') }
-    finally { setLoading(false) }
-  }
-
-  return (
-    <div className="bg-cream min-h-screen flex items-center justify-center px-6 font-body">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <img src="/logo.png" alt="AIM Academy" className="w-14 h-14 rounded-2xl shadow-md object-contain bg-white p-1 mx-auto mb-4" />
-          <h1 className="font-kids text-3xl text-wood-dark">Parent Portal</h1>
-          <p className="text-stone-500 text-sm mt-1 font-quick">Anas Ibn Malik Academy</p>
-        </div>
-        <form onSubmit={handleSubmit} className="bg-white rounded-[28px] shadow-sm border border-stone-200/70 p-8 space-y-5">
-          <div>
-            <label className="block text-sm font-semibold text-stone-700 font-quick mb-2">Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 transition" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-stone-700 font-quick mb-2">Password</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
-              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 transition" />
-          </div>
-          {error && <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">{error}</p>}
-          <button type="submit" disabled={loading}
-            className="w-full bg-wood text-white font-bold font-quick py-3.5 rounded-full shadow-md hover:brightness-95 transition disabled:opacity-60">
-            {loading ? 'Signing in…' : 'Sign In'}
-          </button>
-        </form>
-      </div>
-    </div>
-  )
-}
+import ImpersonationBanner, { getImpersonation, type ImpersonationState } from '../components/ImpersonationBanner'
 
 // ── Child Detail ──────────────────────────────────────────────────────────────
 
@@ -259,6 +215,7 @@ function ChildDetail({ data, onBack }: {
 // ── Parent Portal Root ────────────────────────────────────────────────────────
 
 export default function ParentPortal() {
+  const [impersonation] = useState<ImpersonationState | null>(() => getImpersonation())
   const [user, setUser] = useState<User | null>(null)
   const [role, setRole] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState('')
@@ -268,13 +225,27 @@ export default function ParentPortal() {
   const [dataLoading, setDataLoading] = useState(false)
   const [selectedChild, setSelectedChild] = useState<ChildData | null>(null)
 
+  const [pendingRequests, setPendingRequests] = useState<ChildRequest[]>([])
+  const [registerOpen, setRegisterOpen] = useState(false)
+  const [registerForm, setRegisterForm] = useState({ firstName: '', lastName: '', dateOfBirth: '', grade: '' })
+  const [registerSubmitting, setRegisterSubmitting] = useState(false)
+  const [registerError, setRegisterError] = useState<string | null>(null)
+  const [registerSuccess, setRegisterSuccess] = useState(false)
+
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const [reviewForm, setReviewForm] = useState({ quote: '', author: '', role: '' })
+  const [reviewSubmitting, setReviewSubmitting] = useState(false)
+  const [reviewSuccess, setReviewSuccess] = useState(false)
+  const [reviewError, setReviewError] = useState<string | null>(null)
+  const [hasExistingReview, setHasExistingReview] = useState(false)
+
   useEffect(() => {
     return onAuthStateChanged(auth, async u => {
       setUser(u)
       if (u) {
         const token = await u.getIdTokenResult()
         setRole(token.claims['role'] as string ?? null)
-        setDisplayName(u.displayName || u.email || 'Parent')
+        setDisplayName(impersonation?.displayName || u.displayName || u.email || 'Parent')
       } else {
         setRole(null)
         setDisplayName('')
@@ -284,14 +255,103 @@ export default function ParentPortal() {
   }, [])
 
   useEffect(() => {
-    if (user && (role === 'parent' || role === 'admin')) loadChildren()
+    if (user && (role === 'parent' || role === 'admin')) {
+      loadChildren()
+      loadPendingRequests()
+      checkExistingReview()
+    }
   }, [user, role])
 
+  async function checkExistingReview() {
+    if (!user) return
+    const uid = impersonation?.uid ?? user.uid
+    const snap = await getDocs(query(collection(db, 'reviews'), where('submittedByUid', '==', uid)))
+    setHasExistingReview(!snap.empty)
+  }
+
+  async function handleSubmitReview(e: React.FormEvent) {
+    e.preventDefault()
+    setReviewError(null)
+    if (!reviewForm.quote.trim() || !reviewForm.author.trim()) {
+      setReviewError('Please fill in your review and name.')
+      return
+    }
+    if (!user) return
+    setReviewSubmitting(true)
+    try {
+      const uid = impersonation?.uid ?? user.uid
+      await addDoc(collection(db, 'reviews'), {
+        quote: reviewForm.quote.trim(),
+        author: reviewForm.author.trim(),
+        role: reviewForm.role.trim() || null,
+        published: false,
+        status: 'pending',
+        order: 999,
+        submittedByUid: uid,
+        submittedAt: new Date().toISOString(),
+      })
+      setReviewSuccess(true)
+      setHasExistingReview(true)
+    } catch (err: unknown) {
+      setReviewError(err instanceof Error ? err.message : 'Failed to submit review.')
+    } finally {
+      setReviewSubmitting(false)
+    }
+  }
+
+  async function loadPendingRequests() {
+    if (!user) return
+    const uid = impersonation?.uid ?? user.uid
+    const snap = await getDocs(query(
+      collection(db, 'childRequests'),
+      where('parentUid', '==', uid),
+      where('status', '==', 'pending'),
+    ))
+    setPendingRequests(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChildRequest)))
+  }
+
+  async function handleRegisterChild(e: React.FormEvent) {
+    e.preventDefault()
+    setRegisterError(null)
+    if (!registerForm.firstName.trim() || !registerForm.lastName.trim()) {
+      setRegisterError('First and last name are required.')
+      return
+    }
+    if (!user) return
+    setRegisterSubmitting(true)
+    try {
+      const parentUid = impersonation?.uid ?? user.uid
+      const parentEmail = impersonation?.email ?? user.email
+      const parentName = impersonation?.displayName ?? user.displayName ?? user.email
+      await addDoc(collection(db, 'childRequests'), {
+        parentUid,
+        parentEmail,
+        parentName,
+        child: {
+          firstName: registerForm.firstName.trim(),
+          lastName: registerForm.lastName.trim(),
+          dateOfBirth: registerForm.dateOfBirth.trim() || null,
+          grade: registerForm.grade.trim() || null,
+        },
+        status: 'pending',
+        submittedAt: new Date().toISOString(),
+      })
+      setRegisterSuccess(true)
+      setRegisterForm({ firstName: '', lastName: '', dateOfBirth: '', grade: '' })
+      await loadPendingRequests()
+    } catch (err: unknown) {
+      setRegisterError(err instanceof Error ? err.message : 'Failed to submit request.')
+    } finally {
+      setRegisterSubmitting(false)
+    }
+  }
+
   async function loadChildren() {
-    if (!user?.email) return
+    if (!user) return
     setDataLoading(true)
 
-    const email = role === 'admin' ? null : user.email
+    // When impersonating, query by the impersonated user's email
+    const email = impersonation ? impersonation.email : (role === 'admin' ? null : user.email)
 
     const snap = email
       ? await getDocs(query(collection(db, 'students'), where('parentEmail', '==', email)))
@@ -321,9 +381,15 @@ export default function ParentPortal() {
     )
   }
 
-  if (!user) return <LoginForm />
+  if (!user) { window.location.href = '/login'; return null }
 
-  if (role !== 'parent' && role !== 'admin') {
+  // Redirect non-impersonated admins/teachers to their own portals
+  if (!impersonation) {
+    if (role === 'admin') { window.location.href = '/admin'; return null }
+    if (role === 'teacher') { window.location.href = '/portal/teacher'; return null }
+  }
+
+  if (!impersonation && role !== 'parent' && role !== 'admin') {
     // No role — may be a pending registration
     return (
       <div className="bg-cream min-h-screen flex flex-col items-center justify-center gap-4 font-body text-center px-6">
@@ -346,6 +412,7 @@ export default function ParentPortal() {
 
   return (
     <div className="bg-cream min-h-screen font-body">
+      {impersonation && <ImpersonationBanner state={impersonation} />}
       <header className="sticky top-0 z-50 bg-cream/95 backdrop-blur border-b border-stone-200/70">
         <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -356,7 +423,7 @@ export default function ParentPortal() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {role === 'admin' && (
+            {role === 'admin' && !impersonation && (
               <a href="/admin" className="text-sm font-quick font-semibold text-stone-500 hover:text-sage-700 transition">Admin</a>
             )}
             <button onClick={() => signOut(auth)}
@@ -367,6 +434,157 @@ export default function ParentPortal() {
         </div>
       </header>
 
+      {/* Leave a Review Modal */}
+      {reviewOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-[28px] shadow-2xl w-full max-w-md p-8">
+            {reviewSuccess ? (
+              <div className="text-center">
+                <div className="text-5xl mb-4">🌿</div>
+                <h2 className="font-kids text-2xl text-wood-dark mb-2">Thank you!</h2>
+                <p className="text-stone-500 text-sm font-quick mb-6">
+                  Your review has been submitted and will appear on the site once approved, in sha Allah.
+                </p>
+                <button
+                  onClick={() => setReviewOpen(false)}
+                  className="bg-sage-600 text-white font-bold font-quick px-6 py-3 rounded-full hover:brightness-95 transition">
+                  Done
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="font-kids text-2xl text-wood-dark">Leave a Review</h2>
+                  <button onClick={() => setReviewOpen(false)} className="text-stone-400 hover:text-stone-600 text-xl leading-none">✕</button>
+                </div>
+                <form onSubmit={handleSubmitReview} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-600 font-quick mb-1.5">Your Review <span className="text-rose-500">*</span></label>
+                    <textarea
+                      rows={4}
+                      value={reviewForm.quote}
+                      onChange={e => setReviewForm(p => ({ ...p, quote: e.target.value }))}
+                      placeholder="Share your experience with AIMAVA…"
+                      className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:border-transparent resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-600 font-quick mb-1.5">Your Name <span className="text-rose-500">*</span></label>
+                    <input
+                      type="text"
+                      value={reviewForm.author}
+                      onChange={e => setReviewForm(p => ({ ...p, author: e.target.value }))}
+                      placeholder="e.g. Fatima"
+                      className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-600 font-quick mb-1.5">Your Role <span className="text-stone-400 font-normal">(optional)</span></label>
+                    <input
+                      type="text"
+                      value={reviewForm.role}
+                      onChange={e => setReviewForm(p => ({ ...p, role: e.target.value }))}
+                      placeholder="e.g. Parent of 2, AIMAVA parent since 2023"
+                      className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:border-transparent"
+                    />
+                  </div>
+                  {reviewError && (
+                    <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">{reviewError}</p>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={reviewSubmitting}
+                    className="w-full bg-sage-600 text-white font-bold font-quick py-3 rounded-full shadow-md hover:brightness-95 transition disabled:opacity-60 mt-2">
+                    {reviewSubmitting ? 'Submitting…' : 'Submit Review'}
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Register a Child Modal */}
+      {registerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-[28px] shadow-2xl w-full max-w-md p-8">
+            {registerSuccess ? (
+              <div className="text-center">
+                <div className="text-5xl mb-4">🌿</div>
+                <h2 className="font-kids text-2xl text-wood-dark mb-2">Request submitted!</h2>
+                <p className="text-stone-500 text-sm font-quick mb-6">
+                  Your child registration request has been sent to the admin for review. You'll be notified once it's approved, in sha Allah.
+                </p>
+                <button
+                  onClick={() => setRegisterOpen(false)}
+                  className="bg-sage-600 text-white font-bold font-quick px-6 py-3 rounded-full hover:brightness-95 transition">
+                  Done
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="font-kids text-2xl text-wood-dark">Register a Child</h2>
+                  <button onClick={() => setRegisterOpen(false)} className="text-stone-400 hover:text-stone-600 text-xl leading-none">✕</button>
+                </div>
+                <form onSubmit={handleRegisterChild} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-600 font-quick mb-1.5">First Name <span className="text-rose-500">*</span></label>
+                      <input
+                        type="text"
+                        value={registerForm.firstName}
+                        onChange={e => setRegisterForm(p => ({ ...p, firstName: e.target.value }))}
+                        placeholder="First"
+                        className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-600 font-quick mb-1.5">Last Name <span className="text-rose-500">*</span></label>
+                      <input
+                        type="text"
+                        value={registerForm.lastName}
+                        onChange={e => setRegisterForm(p => ({ ...p, lastName: e.target.value }))}
+                        placeholder="Last"
+                        className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-600 font-quick mb-1.5">Date of Birth <span className="text-stone-400 font-normal">(optional)</span></label>
+                    <input
+                      type="date"
+                      value={registerForm.dateOfBirth}
+                      onChange={e => setRegisterForm(p => ({ ...p, dateOfBirth: e.target.value }))}
+                      className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-600 font-quick mb-1.5">Grade <span className="text-stone-400 font-normal">(optional)</span></label>
+                    <input
+                      type="text"
+                      value={registerForm.grade}
+                      onChange={e => setRegisterForm(p => ({ ...p, grade: e.target.value }))}
+                      placeholder="e.g. 3rd grade"
+                      className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:border-transparent"
+                    />
+                  </div>
+                  {registerError && (
+                    <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">{registerError}</p>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={registerSubmitting}
+                    className="w-full bg-wood text-white font-bold font-quick py-3 rounded-full shadow-md hover:brightness-95 transition disabled:opacity-60 mt-2">
+                    {registerSubmitting ? 'Submitting…' : 'Submit Request'}
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <main className="max-w-3xl mx-auto px-6 py-10">
         {selectedChild ? (
           <ChildDetail
@@ -375,24 +593,53 @@ export default function ParentPortal() {
           />
         ) : (
           <div>
-            <h2 className="font-kids text-3xl text-wood-dark mb-2">My Children</h2>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="font-kids text-3xl text-wood-dark">My Children</h2>
+              <button
+                onClick={() => { setRegisterOpen(true); setRegisterSuccess(false); setRegisterError(null) }}
+                className="bg-wood text-white font-bold font-quick px-5 py-2.5 rounded-full shadow-sm hover:brightness-95 transition text-sm">
+                + Register a Child
+              </button>
+            </div>
             <p className="text-stone-500 text-sm font-quick mb-8">
               Select a child to view their attendance and class announcements.
             </p>
+
+            {/* Pending child requests */}
+            {pendingRequests.length > 0 && (
+              <div className="mb-6 space-y-3">
+                <p className="text-xs font-bold font-quick text-stone-400 uppercase tracking-wider">Pending Approval</p>
+                {pendingRequests.map(req => (
+                  <div key={req.id} className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-sm font-bold text-amber-700 font-quick flex-shrink-0">
+                      {req.child.firstName[0]}{req.child.lastName[0]}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-stone-800 font-quick text-sm">{req.child.firstName} {req.child.lastName}</div>
+                      <div className="text-xs text-stone-400 font-quick">Awaiting admin approval · submitted {new Date(req.submittedAt).toLocaleDateString()}</div>
+                    </div>
+                    <span className="text-xs font-bold font-quick bg-amber-100 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-full">Pending</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {dataLoading ? (
               <div className="flex justify-center py-16">
                 <div className="w-8 h-8 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" />
               </div>
-            ) : children.length === 0 ? (
+            ) : children.length === 0 && pendingRequests.length === 0 ? (
               <div className="bg-white rounded-[28px] border border-stone-200/70 p-10 text-center font-quick">
                 <div className="text-4xl mb-4">👧</div>
                 <p className="text-stone-500 text-sm">No children found linked to your account.</p>
                 <p className="text-stone-400 text-xs mt-1">
-                  Contact the academy to ensure your email ({user.email}) is registered.
+                  {impersonation
+                    ? `Contact the academy to ensure the email (${impersonation.email}) is registered.`
+                    : `Register a child above or contact the academy to ensure your email (${user.email}) is registered.`
+                  }
                 </p>
               </div>
-            ) : (
+            ) : children.length === 0 ? null : (
               <div className="space-y-4">
                 {children.map(({ student, classes }) => {
                   const hasPayable = classes.some(c => c.tuitionAmount)
@@ -429,6 +676,31 @@ export default function ParentPortal() {
                     </div>
                   )
                 })}
+              </div>
+            )}
+
+
+            {/* Leave a Review banner */}
+            {!dataLoading && (
+              <div className="mt-8 bg-sage-50 border border-sage-200 rounded-[24px] px-6 py-5 flex items-center justify-between gap-4">
+                <div>
+                  <div className="font-semibold text-stone-800 font-quick text-sm">Enjoying AIMAVA?</div>
+                  <div className="text-xs text-stone-500 font-quick mt-0.5">
+                    {hasExistingReview
+                      ? 'Your review has been submitted and is pending approval.'
+                      : "Share your experience — we'd love to hear from you."}
+                  </div>
+                </div>
+                {!hasExistingReview && (
+                  <button
+                    onClick={() => { setReviewOpen(true); setReviewSuccess(false); setReviewError(null); setReviewForm(f => ({ ...f, author: displayName })) }}
+                    className="bg-sage-600 text-white font-bold font-quick px-5 py-2.5 rounded-full shadow-sm hover:brightness-95 transition text-sm flex-shrink-0">
+                    Leave a Review
+                  </button>
+                )}
+                {hasExistingReview && (
+                  <span className="text-xs font-bold font-quick bg-amber-100 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-full flex-shrink-0">Pending</span>
+                )}
               </div>
             )}
           </div>

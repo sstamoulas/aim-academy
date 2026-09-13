@@ -1,16 +1,17 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  signInWithEmailAndPassword, signOut, onAuthStateChanged, type User,
+  signOut, onAuthStateChanged, type User,
 } from 'firebase/auth'
 import {
-  collection, doc, getDocs, setDoc, deleteDoc, orderBy, query, where,
+  collection, doc, getDocs, setDoc, updateDoc, deleteDoc, orderBy, query, where,
 } from 'firebase/firestore'
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { httpsCallable } from 'firebase/functions'
 import { auth, db, storage, functions } from '../firebase'
-import type { AcademyEvent, EventDetail, EventSection, SectionType, PricingTier, PricingModel } from '../types/event'
-import { PRICING_MODEL_LABELS } from '../types/event'
-import type { AcademyClass, Student, Registration } from '../types/portal'
+import type { AcademyEvent, EventDetail, EventSection, EventMedia, SectionType, PricingTier, PricingModel } from '../types/event'
+import { PRICING_MODEL_LABELS, categorizeEvent } from '../types/event'
+import type { AcademyClass, Student, Registration, ChildRequest } from '../types/portal'
+import type { Program, ProgramMedia, Achievement, Review } from '../types/site'
 
 // ── User management types ─────────────────────────────────────────────────────
 
@@ -67,51 +68,7 @@ const EMPTY: Omit<AcademyEvent, 'id' | 'createdAt'> = {
   details: DEFAULT_DETAILS,
   sections: [],
   published: false,
-}
-
-// ── Login ─────────────────────────────────────────────────────────────────────
-
-function LoginForm() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault(); setError(null); setLoading(true)
-    try { await signInWithEmailAndPassword(auth, email, password) }
-    catch { setError('Invalid email or password.') }
-    finally { setLoading(false) }
-  }
-
-  return (
-    <div className="bg-cream min-h-screen flex items-center justify-center px-6 font-body">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <img src="/logo.png" alt="AIM Academy" className="w-14 h-14 rounded-2xl shadow-md object-contain bg-white p-1 mx-auto mb-4" />
-          <h1 className="font-kids text-3xl text-wood-dark">Admin Login</h1>
-          <p className="text-stone-500 text-sm mt-1 font-quick">Anas Ibn Malik Academy</p>
-        </div>
-        <form onSubmit={handleSubmit} className="bg-white rounded-[28px] shadow-sm border border-stone-200/70 p-8 space-y-5">
-          <div>
-            <label className="block text-sm font-semibold text-stone-700 font-quick mb-2">Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 transition" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-stone-700 font-quick mb-2">Password</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
-              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 transition" />
-          </div>
-          {error && <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">{error}</p>}
-          <button type="submit" disabled={loading}
-            className="w-full bg-wood text-white font-bold font-quick py-3.5 rounded-full shadow-md hover:brightness-95 transition disabled:opacity-60">
-            {loading ? 'Signing in…' : 'Sign In'}
-          </button>
-        </form>
-      </div>
-    </div>
-  )
+  media: [],
 }
 
 // ── Image Uploader ────────────────────────────────────────────────────────────
@@ -192,6 +149,138 @@ function ImageUploader({ value, slug, onChange }: {
             ✕
           </button>
         </div>
+      )}
+    </div>
+  )
+}
+
+// ── Media Gallery Uploader ────────────────────────────────────────────────────
+
+type MediaItem = EventMedia | ProgramMedia
+
+function MediaGalleryUploader({ items, storagePath, onChange }: {
+  items: MediaItem[]
+  storagePath: string
+  onChange: (items: MediaItem[]) => void
+}) {
+  const [uploading, setUploading] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [dragOver, setDragOver] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  function handleFiles(files: FileList | null) {
+    if (!files || files.length === 0) return
+    if (!storagePath) { alert('Save the item first before uploading media.'); return }
+    const file = files[0]
+    const isImage = file.type.startsWith('image/')
+    const isVideo = file.type.startsWith('video/')
+    if (!isImage && !isVideo) return
+    setUploading(true)
+    const ext = file.name.split('.').pop()
+    const mediaId = uid()
+    const storageRef = ref(storage, `${storagePath}/media_${Date.now()}.${ext}`)
+    const task = uploadBytesResumable(storageRef, file)
+    task.on('state_changed',
+      snap => setProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
+      err => { console.error(err); setUploading(false) },
+      async () => {
+        const url = await getDownloadURL(task.snapshot.ref)
+        onChange([...items, { id: mediaId, type: isVideo ? 'video' : 'image', url }])
+        setUploading(false)
+        setProgress(0)
+      }
+    )
+  }
+
+  function updateCaption(id: string, caption: string) {
+    onChange(items.map(m => m.id === id ? { ...m, caption } : m))
+  }
+
+  function remove(id: string) {
+    onChange(items.filter(m => m.id !== id))
+  }
+
+  function move(i: number, dir: -1 | 1) {
+    const n = [...items]
+    const j = i + dir
+    if (j < 0 || j >= n.length) return
+    ;[n[i], n[j]] = [n[j], n[i]]
+    onChange(n)
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Dropzone */}
+      <div
+        onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files) }}
+        onClick={() => fileRef.current?.click()}
+        className={`relative border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors ${
+          dragOver ? 'border-sage-500 bg-sage-50' : 'border-stone-200 hover:border-sage-300 hover:bg-stone-50'
+        }`}
+      >
+        <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden"
+          onChange={e => handleFiles(e.target.files)} />
+        {uploading ? (
+          <div className="space-y-2">
+            <div className="w-8 h-8 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin mx-auto" />
+            <p className="text-sm text-stone-500 font-quick">Uploading… {progress}%</p>
+            <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+              <div className="h-full bg-sage-600 transition-all" style={{ width: `${progress}%` }} />
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="text-3xl mb-2">📸</div>
+            <p className="text-sm font-semibold text-stone-600 font-quick">Drop a photo or video, or click to upload</p>
+            <p className="text-xs text-stone-400 mt-1">PNG, JPG, WEBP, MP4, MOV — one file at a time</p>
+          </>
+        )}
+      </div>
+
+      {/* Gallery grid */}
+      {items.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {items.map((item, i) => (
+            <div key={item.id} className="group relative bg-stone-100 rounded-2xl overflow-hidden border border-stone-200">
+              {item.type === 'video' ? (
+                <video src={item.url} className="w-full aspect-square object-cover" muted playsInline />
+              ) : (
+                <img src={item.url} alt={item.caption || ''} className="w-full aspect-square object-cover" />
+              )}
+              {/* Type badge */}
+              <div className="absolute top-2 left-2 bg-black/50 text-white text-xs font-quick font-bold px-2 py-0.5 rounded-full">
+                {item.type === 'video' ? '▶ Video' : '🖼 Photo'}
+              </div>
+              {/* Controls overlay */}
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                <button type="button" onClick={() => move(i, -1)} disabled={i === 0}
+                  className="bg-white/90 text-stone-700 w-7 h-7 rounded-full flex items-center justify-center text-sm disabled:opacity-30 hover:bg-white transition">
+                  ←
+                </button>
+                <button type="button" onClick={() => remove(item.id)}
+                  className="bg-rose-500 text-white w-7 h-7 rounded-full flex items-center justify-center text-sm hover:bg-rose-600 transition">
+                  ✕
+                </button>
+                <button type="button" onClick={() => move(i, 1)} disabled={i === items.length - 1}
+                  className="bg-white/90 text-stone-700 w-7 h-7 rounded-full flex items-center justify-center text-sm disabled:opacity-30 hover:bg-white transition">
+                  →
+                </button>
+              </div>
+              {/* Caption input */}
+              <input
+                value={item.caption ?? ''}
+                onChange={e => updateCaption(item.id, e.target.value)}
+                placeholder="Caption (optional)"
+                className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-xs placeholder-white/50 px-2 py-1.5 font-quick outline-none opacity-0 group-hover:opacity-100 transition-opacity"
+              />
+            </div>
+          ))}
+        </div>
+      )}
+      {items.length === 0 && (
+        <p className="text-xs text-stone-400 font-quick text-center">No media added yet. Upload photos or videos above to build the gallery.</p>
       )}
     </div>
   )
@@ -477,6 +566,7 @@ function EventForm({ initial, onSave, onCancel }: {
     pricing: initial.pricing ?? DEFAULT_PRICING.map(t => ({ ...t, id: uid() })),
     details: initial.details ?? DEFAULT_DETAILS.map(d => ({ ...d, id: uid() })),
     sections: initial.sections ?? [],
+    media: initial.media ?? [],
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -500,11 +590,13 @@ function EventForm({ initial, onSave, onCancel }: {
       await onSave({
         ...form,
         details: form.details.filter(d => d.label || d.value),
-        sections: form.sections.map(s => ({
-          ...s,
-          items: s.items?.filter(Boolean),
-          faqs: s.faqs?.filter(f => f.q || f.a),
-        })),
+        sections: form.sections.map(s => {
+          const sec: typeof s = { id: s.id, type: s.type, title: s.title }
+          if (s.type === 'list') sec.items = (s.items ?? []).filter(Boolean)
+          if (s.type === 'faq') sec.faqs = (s.faqs ?? []).filter(f => f.q || f.a)
+          if (s.type === 'text') sec.body = s.body ?? ''
+          return sec
+        }),
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed.')
@@ -543,18 +635,7 @@ function EventForm({ initial, onSave, onCancel }: {
             className={inputCls + ' resize-none'} />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelCls}>
-              Event Status
-              <span className="text-stone-400 font-normal ml-1">— shown as a badge on the event page</span>
-            </label>
-            <select value={form.status} onChange={e => set('status', e.target.value as AcademyEvent['status'])} className={inputCls}>
-              <option value="upcoming">Upcoming — registration open</option>
-              <option value="sold-out">Sold Out — registration closed</option>
-              <option value="past">Past — event has occurred</option>
-            </select>
-          </div>
+        <div>
           <div>
             <label className={labelCls}>Visibility</label>
             <div
@@ -655,6 +736,17 @@ function EventForm({ initial, onSave, onCancel }: {
         <ImageUploader value={form.flyerImageUrl} slug={form.slug} onChange={url => set('flyerImageUrl', url)} />
       </section>
 
+      {/* ── Media Gallery ── */}
+      <section className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-6 space-y-4">
+        <div>
+          <h3 className="font-kids text-xl text-wood-dark">Event Media Gallery</h3>
+          <p className="text-sm text-stone-400 font-quick mt-1">
+            Photos and videos shown as a carousel on the event page once the event is past. Upload one file at a time; use arrows to reorder.
+          </p>
+        </div>
+        <MediaGalleryUploader items={form.media ?? []} storagePath={`events/${form.slug}`} onChange={v => set('media', v as EventMedia[])} />
+      </section>
+
       {/* ── Pricing ── */}
       <section className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-6 space-y-4">
         <div>
@@ -707,10 +799,11 @@ function EventList({ events, onNew, onEdit, onDelete, onTogglePublish }: {
   onDelete: (event: AcademyEvent) => void
   onTogglePublish: (event: AcademyEvent) => void
 }) {
-  const statusColors: Record<string, string> = {
-    upcoming: 'bg-sage-100 text-sage-700',
-    'sold-out': 'bg-orange-100 text-orange-700',
-    past: 'bg-stone-100 text-stone-500',
+  function eventCatLabel(event: AcademyEvent) {
+    const cat = categorizeEvent(event)
+    if (cat === 'current') return { label: 'Happening Now', cls: 'bg-rose-100 text-rose-600' }
+    if (cat === 'upcoming') return { label: 'Upcoming', cls: 'bg-sage-100 text-sage-700' }
+    return { label: 'Past', cls: 'bg-stone-100 text-stone-500' }
   }
 
   return (
@@ -736,52 +829,58 @@ function EventList({ events, onNew, onEdit, onDelete, onTogglePublish }: {
         </div>
       ) : (
         <div className="space-y-3">
-          {events.map(event => (
-            <div key={event.id} className="bg-white rounded-[20px] border border-stone-200/70 shadow-sm p-5 flex items-center gap-4">
-              {event.flyerImageUrl && (
-                <img src={event.flyerImageUrl} alt="" className="w-14 h-14 rounded-xl object-cover flex-shrink-0 border border-stone-100" />
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button onClick={() => onEdit(event)} className="font-kids text-lg text-wood-dark truncate hover:text-sage-700 transition text-left cursor-pointer">{event.title}</button>
-                  <span className={`text-xs font-semibold font-quick px-2.5 py-0.5 rounded-full ${statusColors[event.status]}`}>
-                    {event.status}
-                  </span>
+          {events.map(event => {
+            const { label, cls } = eventCatLabel(event)
+            return (
+              <div key={event.id} className="bg-white rounded-[20px] border border-stone-200/70 shadow-sm p-4">
+                {/* Top row: image + title + badge */}
+                <div className="flex items-start gap-3">
+                  {event.flyerImageUrl && (
+                    <img src={event.flyerImageUrl} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0 border border-stone-100" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <button onClick={() => onEdit(event)} className="font-kids text-base text-wood-dark hover:text-sage-700 transition text-left cursor-pointer w-full truncate block">
+                      {event.title}
+                    </button>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className={`text-xs font-semibold font-quick px-2.5 py-0.5 rounded-full ${cls}`}>{label}</span>
+                      <span className="text-xs text-stone-400 font-quick truncate">/events/{event.slug}</span>
+                    </div>
+                    {(event.eventDate || event.details.find(d => d.label === 'Date')?.value) && (
+                      <div className="text-xs text-stone-400 font-quick mt-0.5">
+                        {event.eventDate ?? event.details.find(d => d.label === 'Date')?.value}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="text-xs text-stone-400 font-quick mt-0.5">/events/{event.slug}</div>
-                {event.details.find(d => d.label === 'Date')?.value && (
-                  <div className="text-sm text-stone-500 mt-0.5">
-                    {event.details.find(d => d.label === 'Date')?.value}
-                  </div>
-                )}
+                {/* Bottom row: live toggle + actions */}
+                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-stone-100">
+                  <label className="flex items-center gap-1.5 cursor-pointer mr-auto">
+                    <div className="relative">
+                      <input type="checkbox" checked={event.published} onChange={() => onTogglePublish(event)} className="sr-only peer" />
+                      <div className="w-9 h-5 bg-stone-200 peer-checked:bg-sage-600 rounded-full transition" />
+                      <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-4 shadow-sm" />
+                    </div>
+                    <span className={`text-xs font-bold font-quick ${event.published ? 'text-sage-700' : 'text-stone-400'}`}>
+                      {event.published ? 'Live' : 'Draft'}
+                    </span>
+                  </label>
+                  <a href={`/events/${event.slug}`} target="_blank" rel="noopener noreferrer"
+                    className="text-xs font-quick font-semibold text-stone-500 hover:text-sage-700 transition px-3 py-1.5 rounded-lg hover:bg-stone-50">
+                    View
+                  </a>
+                  <button onClick={() => onEdit(event)}
+                    className="text-xs font-quick font-semibold text-stone-500 hover:text-sage-700 transition px-3 py-1.5 rounded-lg hover:bg-stone-50 cursor-pointer">
+                    Edit
+                  </button>
+                  <button onClick={() => onDelete(event)}
+                    className="text-xs font-quick font-semibold text-stone-400 hover:text-rose-600 transition px-3 py-1.5 rounded-lg hover:bg-rose-50 cursor-pointer">
+                    Delete
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <label className="flex items-center gap-2 cursor-pointer group">
-                  <div className="relative">
-                    <input type="checkbox" checked={event.published} onChange={() => onTogglePublish(event)} className="sr-only peer" />
-                    <div className="w-9 h-5 bg-stone-200 peer-checked:bg-sage-600 rounded-full transition" />
-                    <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-4 shadow-sm" />
-                  </div>
-                  <span className={`text-xs font-bold font-quick ${event.published ? 'text-sage-700' : 'text-stone-400'}`}>
-                    {event.published ? 'Live' : 'Draft'}
-                  </span>
-                </label>
-                <div className="w-px h-5 bg-stone-200" />
-                <a href={`/events/${event.slug}`} target="_blank" rel="noopener noreferrer"
-                  className="text-xs font-quick font-semibold text-stone-600 hover:text-sage-700 transition px-3 py-1.5 rounded-xl hover:bg-stone-50">
-                  View
-                </a>
-                <button onClick={() => onEdit(event)}
-                  className="text-xs font-quick font-semibold text-stone-600 hover:text-sage-700 transition px-3 py-1.5 rounded-xl hover:bg-stone-50 cursor-pointer">
-                  Edit
-                </button>
-                <button onClick={() => onDelete(event)}
-                  className="text-xs font-quick font-semibold text-stone-400 hover:text-rose-600 transition px-3 py-1.5 rounded-xl hover:bg-rose-50 cursor-pointer">
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
@@ -801,9 +900,12 @@ function UsersTab() {
   const [inviteError, setInviteError] = useState<string | null>(null)
   const [inviteSuccess, setInviteSuccess] = useState(false)
   const [changingRoleUid, setChangingRoleUid] = useState<string | null>(null)
+  const [deletingUser, setDeletingUser] = useState<UserRecord | null>(null)
+  const [deletingUserLoading, setDeletingUserLoading] = useState(false)
 
   const inviteUserFn = httpsCallable(functions, 'inviteUser')
   const setUserRoleFn = httpsCallable(functions, 'setUserRole')
+  const deleteUserFn = httpsCallable(functions, 'deleteUser')
 
   async function loadUsers() {
     setLoading(true)
@@ -826,6 +928,20 @@ function UsersTab() {
       setInviteError(err instanceof Error ? err.message : 'Failed to invite user.')
     } finally {
       setInviting(false)
+    }
+  }
+
+  async function handleDeleteUser() {
+    if (!deletingUser) return
+    setDeletingUserLoading(true)
+    try {
+      await deleteUserFn({ uid: deletingUser.uid })
+      setUsers(prev => prev.filter(u => u.uid !== deletingUser.uid))
+      setDeletingUser(null)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to delete user.')
+    } finally {
+      setDeletingUserLoading(false)
     }
   }
 
@@ -874,36 +990,81 @@ function UsersTab() {
       ) : (
         <div className="space-y-3">
           {users.map(u => (
-            <div key={u.uid} className="bg-white rounded-2xl border border-stone-200/70 px-5 py-4 flex items-center gap-4">
-              {/* Avatar */}
-              <div className="w-10 h-10 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-sm flex-shrink-0">
-                {initials(u)}
-              </div>
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-stone-800 font-quick text-sm truncate">
-                  {u.displayName || <span className="text-stone-400 italic">No name</span>}
+            <div key={u.uid} className="bg-white rounded-2xl border border-stone-200/70 p-4">
+              {/* Top row: avatar + name/email */}
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-sm flex-shrink-0">
+                  {initials(u)}
                 </div>
-                <div className="text-xs text-stone-400 font-quick truncate">{u.email}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-stone-800 font-quick text-sm truncate">
+                    {u.displayName || <span className="text-stone-400 italic">No name</span>}
+                  </div>
+                  <div className="text-xs text-stone-400 font-quick truncate">{u.email}</div>
+                </div>
               </div>
-              {/* Role badge / selector */}
-              <div className="flex-shrink-0">
+              {/* Bottom row: role selector + impersonate */}
+              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-stone-100">
                 {changingRoleUid === u.uid ? (
-                  <div className="w-5 h-5 border-2 border-sage-200 border-t-sage-600 rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-sage-200 border-t-sage-600 rounded-full animate-spin mr-auto" />
                 ) : (
                   <select
                     value={u.role}
                     onChange={e => handleRoleChange(u.uid, e.target.value as UserRole)}
-                    className={`text-xs font-bold font-quick border rounded-full px-3 py-1 cursor-pointer focus:outline-none ${ROLE_COLORS[u.role]}`}
+                    className={`text-xs font-bold font-quick border rounded-full px-3 py-1.5 cursor-pointer focus:outline-none mr-auto ${ROLE_COLORS[u.role]}`}
                   >
                     {(Object.keys(ROLE_LABELS) as UserRole[]).map(r => (
                       <option key={r} value={r}>{ROLE_LABELS[r]}</option>
                     ))}
                   </select>
                 )}
+                <button
+                  onClick={() => {
+                    sessionStorage.setItem('impersonating', JSON.stringify({ uid: u.uid, email: u.email, role: u.role, displayName: u.displayName || u.email }))
+                    window.location.href = u.role === 'teacher' ? '/portal/teacher' : '/portal/parent'
+                  }}
+                  className="text-xs font-semibold font-quick text-stone-400 hover:text-sage-700 border border-stone-200 hover:border-sage-400 px-3 py-1.5 rounded-lg transition flex-shrink-0"
+                >
+                  Impersonate
+                </button>
+                <button
+                  onClick={() => setDeletingUser(u)}
+                  className="text-xs font-semibold font-quick text-rose-400 hover:text-rose-600 border border-rose-200 hover:border-rose-400 px-3 py-1.5 rounded-lg transition flex-shrink-0"
+                >
+                  Remove
+                </button>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deletingUser && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-6">
+          <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-sm w-full text-center">
+            <div className="text-4xl mb-4">⚠️</div>
+            <h3 className="font-kids text-2xl text-wood-dark mb-2">Remove User?</h3>
+            <p className="text-stone-500 text-sm font-quick mb-6">
+              This will permanently delete <strong>{deletingUser.displayName || deletingUser.email}</strong> and revoke their access. This cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeletingUser(null)}
+                disabled={deletingUserLoading}
+                className="flex-1 border border-stone-200 text-stone-600 font-bold font-quick py-3 rounded-full hover:bg-stone-50 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteUser}
+                disabled={deletingUserLoading}
+                className="flex-1 bg-rose-500 text-white font-bold font-quick py-3 rounded-full hover:bg-rose-600 transition disabled:opacity-50"
+              >
+                {deletingUserLoading ? 'Removing…' : 'Remove'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1007,11 +1168,18 @@ function ClassesTab() {
   const [editingClassId, setEditingClassId] = useState<string | null>(null)
   const [savingClass, setSavingClass] = useState(false)
 
-  // Student form
+  // Student form (edit only)
   const [studentFormOpen, setStudentFormOpen] = useState(false)
   const [studentForm, setStudentForm] = useState<Omit<Student, 'id' | 'classIds' | 'createdAt'>>(EMPTY_STUDENT)
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null)
   const [savingStudent, setSavingStudent] = useState(false)
+
+  // Student picker (add to class)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerStudents, setPickerStudents] = useState<Student[]>([])
+  const [pickerSearch, setPickerSearch] = useState('')
+  const [pickerLoading, setPickerLoading] = useState(false)
+  const [addingStudent, setAddingStudent] = useState<string | null>(null)
 
   // Delete confirm
   const [deletingClass, setDeletingClass] = useState<AcademyClass | null>(null)
@@ -1099,10 +1267,26 @@ function ClassesTab() {
     setClassFormOpen(true)
   }
 
-  function openAddStudent() {
-    setStudentForm(EMPTY_STUDENT)
-    setEditingStudentId(null)
-    setStudentFormOpen(true)
+  async function openStudentPicker() {
+    if (!selectedClass) return
+    setPickerOpen(true)
+    setPickerSearch('')
+    setPickerLoading(true)
+    const snap = await getDocs(collection(db, 'students'))
+    const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as Student))
+    // Exclude students already in this class
+    setPickerStudents(all.filter(s => !s.classIds.includes(selectedClass.id)))
+    setPickerLoading(false)
+  }
+
+  async function addStudentToClass(student: Student) {
+    if (!selectedClass) return
+    setAddingStudent(student.id)
+    const updatedIds = [...student.classIds, selectedClass.id]
+    await setDoc(doc(db, 'students', student.id), { ...student, classIds: updatedIds })
+    await loadStudents(selectedClass.id)
+    setPickerStudents(prev => prev.filter(s => s.id !== student.id))
+    setAddingStudent(null)
   }
 
   function openEditStudent(s: Student) {
@@ -1158,7 +1342,7 @@ function ClassesTab() {
         {classTab === 'students' && (
           <div>
             <div className="flex justify-end mb-4">
-              <button onClick={openAddStudent}
+              <button onClick={openStudentPicker}
                 className="bg-wood text-white font-bold font-quick px-5 py-2.5 rounded-full shadow-md hover:brightness-95 transition text-sm">
                 + Add Student
               </button>
@@ -1199,11 +1383,65 @@ function ClassesTab() {
           </div>
         )}
 
-        {/* Student form modal */}
-        {studentFormOpen && (
+        {/* Student picker modal */}
+        {pickerOpen && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-6">
+            <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-md w-full">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="font-kids text-2xl text-wood-dark">Add Student</h3>
+                <button onClick={() => setPickerOpen(false)} className="text-stone-400 hover:text-stone-600 text-xl leading-none">✕</button>
+              </div>
+              <input
+                type="text"
+                placeholder="Search by name…"
+                value={pickerSearch}
+                onChange={e => setPickerSearch(e.target.value)}
+                className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-2.5 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-sage-400 mb-4"
+              />
+              {pickerLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" />
+                </div>
+              ) : pickerStudents.length === 0 ? (
+                <div className="text-center text-stone-400 font-quick text-sm py-8">
+                  No registered students available to add.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {pickerStudents
+                    .filter(s => {
+                      const q = pickerSearch.toLowerCase()
+                      return !q || `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) || (s.parentName ?? '').toLowerCase().includes(q)
+                    })
+                    .map(s => (
+                      <div key={s.id} className="flex items-center gap-3 bg-stone-50 rounded-2xl px-4 py-3 border border-stone-100">
+                        <div className="w-9 h-9 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-sm flex-shrink-0">
+                          {s.firstName[0]}{s.lastName[0]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-stone-800 font-quick text-sm">{s.firstName} {s.lastName}</div>
+                          {s.parentName && <div className="text-xs text-stone-400 font-quick">{s.parentName}</div>}
+                        </div>
+                        <button
+                          onClick={() => addStudentToClass(s)}
+                          disabled={addingStudent === s.id}
+                          className="bg-sage-600 text-white font-bold font-quick px-4 py-1.5 rounded-full text-xs hover:brightness-95 transition disabled:opacity-60 flex-shrink-0">
+                          {addingStudent === s.id ? '…' : 'Add'}
+                        </button>
+                      </div>
+                    ))
+                  }
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Edit student form modal */}
+        {studentFormOpen && editingStudentId && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-6">
             <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-sm w-full">
-              <h3 className="font-kids text-2xl text-wood-dark mb-6">{editingStudentId ? 'Edit Student' : 'Add Student'}</h3>
+              <h3 className="font-kids text-2xl text-wood-dark mb-6">Edit Student</h3>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -1437,12 +1675,15 @@ function ClassFormModal({
 
 function RegistrationsTab() {
   const [registrations, setRegistrations] = useState<Registration[]>([])
+  const [childRequests, setChildRequests] = useState<ChildRequest[]>([])
   const [classes, setClasses] = useState<AcademyClass[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
   // classAssignments[regId][childIndex] = classIds[]
   const [assignments, setAssignments] = useState<Record<string, Record<number, string[]>>>({})
+  const [crAssignments, setCrAssignments] = useState<Record<string, string[]>>({})
   const [rejectTarget, setRejectTarget] = useState<Registration | null>(null)
+  const [rejectCrTarget, setRejectCrTarget] = useState<ChildRequest | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [processing, setProcessing] = useState<string | null>(null)
 
@@ -1451,11 +1692,13 @@ function RegistrationsTab() {
 
   async function load() {
     setLoading(true)
-    const [regSnap, clsSnap] = await Promise.all([
+    const [regSnap, crSnap, clsSnap] = await Promise.all([
       getDocs(query(collection(db, 'registrations'), orderBy('submittedAt', 'desc'))),
+      getDocs(query(collection(db, 'childRequests'), orderBy('submittedAt', 'desc'))),
       getDocs(query(collection(db, 'classes'), orderBy('createdAt', 'asc'))),
     ])
     setRegistrations(regSnap.docs.map(d => ({ id: d.id, ...d.data() } as Registration)))
+    setChildRequests(crSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChildRequest)))
     setClasses(clsSnap.docs.map(d => ({ id: d.id, ...d.data() } as AcademyClass)))
     setLoading(false)
   }
@@ -1502,8 +1745,56 @@ function RegistrationsTab() {
     } finally { setProcessing(null) }
   }
 
+  async function handleApproveChildRequest(cr: ChildRequest) {
+    setProcessing(cr.id)
+    try {
+      const classIds = crAssignments[cr.id] ?? []
+      const studentId = Math.random().toString(36).slice(2)
+      await setDoc(doc(db, 'students', studentId), {
+        firstName: cr.child.firstName,
+        lastName: cr.child.lastName,
+        dateOfBirth: cr.child.dateOfBirth ?? null,
+        grade: cr.child.grade ?? null,
+        classIds,
+        parentName: cr.parentName,
+        parentEmail: cr.parentEmail,
+        parentPhone: '',
+        notes: '',
+        createdAt: new Date().toISOString(),
+      })
+      await updateDoc(doc(db, 'childRequests', cr.id), {
+        status: 'approved',
+        classIds,
+        reviewedAt: new Date().toISOString(),
+      })
+      await load()
+      setExpanded(null)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to approve.')
+    } finally { setProcessing(null) }
+  }
+
+  async function handleRejectChildRequest() {
+    if (!rejectCrTarget) return
+    setProcessing(rejectCrTarget.id)
+    try {
+      await updateDoc(doc(db, 'childRequests', rejectCrTarget.id), {
+        status: 'rejected',
+        rejectReason: rejectReason.trim(),
+        reviewedAt: new Date().toISOString(),
+      })
+      await load()
+      setRejectCrTarget(null)
+      setRejectReason('')
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to reject.')
+    } finally { setProcessing(null) }
+  }
+
   const pending = registrations.filter(r => r.status === 'pending')
   const reviewed = registrations.filter(r => r.status !== 'pending')
+  const pendingCr = childRequests.filter(r => r.status === 'pending')
+  const reviewedCr = childRequests.filter(r => r.status !== 'pending')
 
   const statusColor = (s: Registration['status']) =>
     s === 'approved' ? 'bg-sage-100 text-sage-700 border-sage-200' :
@@ -1624,15 +1915,101 @@ function RegistrationsTab() {
     <div>
       <div className="mb-8">
         <h2 className="font-kids text-3xl text-wood-dark">Registrations</h2>
-        <p className="text-stone-500 text-sm font-quick mt-1">Review and approve new family registrations.</p>
+        <p className="text-stone-500 text-sm font-quick mt-1">Review and approve new family registrations and child requests.</p>
       </div>
 
-      {pending.length === 0 && reviewed.length === 0 ? (
+      {/* Child registration requests */}
+      {(pendingCr.length > 0 || reviewedCr.length > 0) && (
+        <div className="mb-10">
+          <p className="text-xs font-bold font-quick text-stone-500 uppercase tracking-wider mb-3">Child Registration Requests</p>
+          <div className="space-y-3">
+            {[...pendingCr, ...reviewedCr].map(cr => {
+              const isExpanded = expanded === cr.id
+              const selectedClasses = crAssignments[cr.id] ?? []
+              const statusColor = cr.status === 'approved'
+                ? 'bg-sage-100 text-sage-700 border-sage-200'
+                : cr.status === 'rejected'
+                ? 'bg-rose-100 text-rose-600 border-rose-200'
+                : 'bg-amber-100 text-amber-700 border-amber-200'
+              return (
+                <div key={cr.id} className="bg-white rounded-2xl border border-stone-200/70 overflow-hidden">
+                  <div className="px-5 py-4 flex items-center gap-4 cursor-pointer"
+                    onClick={() => setExpanded(isExpanded ? null : cr.id)}>
+                    <div className="w-9 h-9 rounded-full bg-sage-100 flex items-center justify-center text-xs font-bold text-sage-700 font-quick flex-shrink-0">
+                      {cr.child.firstName[0]}{cr.child.lastName[0]}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-stone-800 font-quick">{cr.child.firstName} {cr.child.lastName}</div>
+                      <div className="text-xs text-stone-400 font-quick">
+                        Requested by {cr.parentName} ({cr.parentEmail}) · {new Date(cr.submittedAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <span className={`text-xs font-bold font-quick border px-2.5 py-1 rounded-full capitalize flex-shrink-0 ${statusColor}`}>{cr.status}</span>
+                    <span className="text-stone-300 flex-shrink-0">{isExpanded ? '▲' : '▼'}</span>
+                  </div>
+                  {isExpanded && (
+                    <div className="border-t border-stone-100 px-5 py-5 space-y-4">
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                        {cr.child.dateOfBirth && <><div className="text-stone-400 font-quick">Date of Birth</div><div className="text-stone-700 font-quick">{cr.child.dateOfBirth}</div></>}
+                        {cr.child.grade && <><div className="text-stone-400 font-quick">Grade</div><div className="text-stone-700 font-quick">{cr.child.grade}</div></>}
+                      </div>
+                      {cr.status === 'pending' && classes.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold font-quick text-stone-500 mb-2">Assign to class(es):</p>
+                          <div className="flex flex-wrap gap-2">
+                            {classes.map(cls => {
+                              const selected = selectedClasses.includes(cls.id)
+                              return (
+                                <button key={cls.id} type="button"
+                                  onClick={() => setCrAssignments(prev => {
+                                    const cur = prev[cr.id] ?? []
+                                    return { ...prev, [cr.id]: selected ? cur.filter(id => id !== cls.id) : [...cur, cls.id] }
+                                  })}
+                                  className={`text-xs font-quick font-semibold border px-3 py-1.5 rounded-full transition ${
+                                    selected ? 'bg-sage-600 text-white border-sage-600' : 'border-stone-200 text-stone-500 hover:border-sage-300'
+                                  }`}>
+                                  {cls.name}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {cr.status === 'rejected' && cr.rejectReason && (
+                        <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+                          <p className="text-xs font-bold font-quick text-rose-400 mb-1">Rejection reason</p>
+                          <p className="text-xs text-rose-700 font-quick">{cr.rejectReason}</p>
+                        </div>
+                      )}
+                      {cr.status === 'pending' && (
+                        <div className="flex gap-3">
+                          <button onClick={() => handleApproveChildRequest(cr)} disabled={processing === cr.id}
+                            className="flex-1 bg-sage-600 text-white font-bold font-quick py-2.5 rounded-full hover:brightness-95 transition disabled:opacity-60 text-sm">
+                            {processing === cr.id ? 'Approving…' : 'Approve'}
+                          </button>
+                          <button onClick={() => { setRejectCrTarget(cr); setRejectReason('') }} disabled={processing === cr.id}
+                            className="flex-1 border border-rose-200 text-rose-600 font-quick font-semibold py-2.5 rounded-full hover:bg-rose-50 transition disabled:opacity-60 text-sm">
+                            Reject
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Family registrations */}
+      {pending.length === 0 && reviewed.length === 0 && pendingCr.length === 0 && reviewedCr.length === 0 ? (
         <div className="bg-white rounded-[28px] border border-stone-200/70 p-10 text-center text-stone-400 font-quick">
           No registrations yet.
         </div>
-      ) : (
+      ) : (pending.length > 0 || reviewed.length > 0) && (
         <div className="space-y-8">
+          <p className="text-xs font-bold font-quick text-stone-500 uppercase tracking-wider">Family Registrations</p>
           {pending.length > 0 && (
             <div>
               <p className="text-xs font-bold font-quick text-amber-600 uppercase tracking-wider mb-3">
@@ -1656,7 +2033,7 @@ function RegistrationsTab() {
         </div>
       )}
 
-      {/* Reject modal */}
+      {/* Reject family registration modal */}
       {rejectTarget && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-6">
           <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-sm w-full">
@@ -1684,6 +2061,717 @@ function RegistrationsTab() {
           </div>
         </div>
       )}
+
+      {/* Reject child request modal */}
+      {rejectCrTarget && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-6">
+          <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-sm w-full">
+            <h3 className="font-kids text-2xl text-wood-dark mb-2">Reject Child Request</h3>
+            <p className="text-stone-500 text-sm font-quick mb-5">
+              Rejecting request for <strong>{rejectCrTarget.child.firstName} {rejectCrTarget.child.lastName}</strong>. Optionally provide a reason.
+            </p>
+            <textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              rows={3}
+              placeholder="e.g. Class is currently full. Please check back next semester."
+              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm resize-none mb-5"
+            />
+            <div className="flex gap-3">
+              <button onClick={handleRejectChildRequest} disabled={processing === rejectCrTarget.id}
+                className="flex-1 bg-rose-600 text-white font-bold font-quick py-3 rounded-full hover:brightness-95 transition disabled:opacity-60">
+                {processing === rejectCrTarget.id ? 'Rejecting…' : 'Reject'}
+              </button>
+              <button onClick={() => { setRejectCrTarget(null); setRejectReason('') }}
+                className="flex-1 border border-stone-200 text-stone-600 font-quick font-semibold py-3 rounded-full hover:bg-stone-50 transition">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Content Tab ────────────────────────────────────────────────────────────────
+
+const ABOUT_DOC_ID = 'about'
+
+interface AboutContent {
+  heading: string
+  subheading: string
+  pillars: Array<{ title: string; description: string }>
+}
+
+const DEFAULT_ABOUT: AboutContent = {
+  heading: 'What sets AIMAVA apart',
+  subheading: 'Three pillars make our weekend academy a place families trust and children love.',
+  pillars: [
+    { title: 'Individualized Learning', description: 'We meet each student where they are, honoring every child\'s unique pace in Qur\'an, Arabic, and Islamic studies.' },
+    { title: 'Qualified Teachers', description: 'Learn from experienced instructors with formal qualifications in Qur\'an and Tajweed, bringing authentic scholarship and compassion to every class.' },
+    { title: 'Holistic Education', description: 'Integrating Islamic Studies, Arabic, and Montessori-based creativity in a nurturing, faith-filled environment.' },
+  ],
+}
+
+// ── Contact Submissions Tab ───────────────────────────────────────────────────
+
+interface ContactSubmission {
+  id: string
+  name: string
+  email: string
+  phone: string
+  interests: string[]
+  message: string
+  submittedAt: { toDate: () => Date } | null
+}
+
+function ContactSubmissionsTab() {
+  const [submissions, setSubmissions] = useState<ContactSubmission[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    getDocs(query(collection(db, 'contactSubmissions'), orderBy('submittedAt', 'desc')))
+      .then(snap => {
+        setSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() } as ContactSubmission)))
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+
+  if (submissions.length === 0) return (
+    <div className="text-center py-20 text-stone-400 font-quick">No contact submissions yet.</div>
+  )
+
+  return (
+    <div className="space-y-4">
+      {submissions.map(s => (
+        <div key={s.id} className="bg-white rounded-[20px] border border-stone-200/70 shadow-sm p-6">
+          <div className="flex items-start justify-between gap-4 mb-3">
+            <div>
+              <div className="font-semibold text-stone-800">{s.name}</div>
+              <div className="text-sm text-stone-500 font-quick">{s.email} · {s.phone}</div>
+            </div>
+            {s.submittedAt && (
+              <div className="text-xs text-stone-400 font-quick whitespace-nowrap">
+                {(typeof s.submittedAt.toDate === 'function' ? s.submittedAt.toDate() : new Date(s.submittedAt as unknown as string))
+                  .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </div>
+            )}
+          </div>
+          {s.interests?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {s.interests.map(i => (
+                <span key={i} className="text-xs bg-sage-100 text-sage-700 px-2.5 py-1 rounded-full font-quick font-semibold">{i}</span>
+              ))}
+            </div>
+          )}
+          {s.message && (
+            <p className="text-sm text-stone-600 leading-relaxed border-t border-stone-100 pt-3 mt-3">{s.message}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ContentTab() {
+  const [section, setSection] = useState<'programs' | 'achievements' | 'reviews' | 'about'>('programs')
+
+  // ── Programs ──
+  const [programs, setPrograms] = useState<Program[]>([])
+  const [progLoading, setProgLoading] = useState(true)
+  const [editingProg, setEditingProg] = useState<Program | null>(null)
+  const [showProgForm, setShowProgForm] = useState(false)
+  const [progForm, setProgForm] = useState<Omit<Program, 'id'>>({
+    emoji: '📖', name: '', label: '', title: '', description: '',
+    imageUrl: '', imageStyle: '', href: '', comingSoon: false, order: 0, published: true, media: [],
+  })
+  const [savingProg, setSavingProg] = useState(false)
+  const [deletingProgId, setDeletingProgId] = useState<string | null>(null)
+
+  // ── Achievements ──
+  const [achievements, setAchievements] = useState<Achievement[]>([])
+  const [achLoading, setAchLoading] = useState(true)
+  const [newAchText, setNewAchText] = useState('')
+  const [addingAch, setAddingAch] = useState(false)
+  const [editingAchId, setEditingAchId] = useState<string | null>(null)
+  const [editingAchText, setEditingAchText] = useState('')
+  const [deletingAchId, setDeletingAchId] = useState<string | null>(null)
+
+  // ── Reviews ──
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [reviewsLoading, setReviewsLoading] = useState(true)
+  const [showReviewForm, setShowReviewForm] = useState(false)
+  const [editingReview, setEditingReview] = useState<Review | null>(null)
+  const [reviewForm, setReviewForm] = useState<Omit<Review, 'id'>>({ quote: '', author: '', role: '', order: 0, published: true })
+  const [savingReview, setSavingReview] = useState(false)
+  const [deletingReviewId, setDeletingReviewId] = useState<string | null>(null)
+  const [approvingReviewId, setApprovingReviewId] = useState<string | null>(null)
+  const [rejectingReviewId, setRejectingReviewId] = useState<string | null>(null)
+
+  // ── About ──
+  const [about, setAbout] = useState<AboutContent>(DEFAULT_ABOUT)
+  const [aboutLoading, setAboutLoading] = useState(true)
+  const [savingAbout, setSavingAbout] = useState(false)
+
+  useEffect(() => { loadPrograms() }, [])
+  useEffect(() => { loadAchievements() }, [])
+  useEffect(() => { loadReviews() }, [])
+  useEffect(() => { loadAbout() }, [])
+
+  async function loadPrograms() {
+    setProgLoading(true)
+    const snap = await getDocs(query(collection(db, 'programs'), orderBy('order', 'asc')))
+    setPrograms(snap.docs.map(d => ({ id: d.id, ...d.data() } as Program)))
+    setProgLoading(false)
+  }
+
+  async function loadAchievements() {
+    setAchLoading(true)
+    const snap = await getDocs(query(collection(db, 'achievements'), orderBy('order', 'asc')))
+    setAchievements(snap.docs.map(d => ({ id: d.id, ...d.data() } as Achievement)))
+    setAchLoading(false)
+  }
+
+  async function loadAbout() {
+    setAboutLoading(true)
+    const snap = await getDocs(collection(db, 'site'))
+    const aboutDoc = snap.docs.find(d => d.id === ABOUT_DOC_ID)
+    if (aboutDoc) setAbout(aboutDoc.data() as AboutContent)
+    setAboutLoading(false)
+  }
+
+  async function loadReviews() {
+    setReviewsLoading(true)
+    const snap = await getDocs(query(collection(db, 'reviews'), orderBy('order', 'asc')))
+    setReviews(snap.docs.map(d => ({ id: d.id, ...d.data() } as Review)))
+    setReviewsLoading(false)
+  }
+
+  function openNewReview() {
+    setEditingReview(null)
+    setReviewForm({ quote: '', author: '', role: '', order: reviews.length, published: true })
+    setShowReviewForm(true)
+  }
+
+  function openEditReview(r: Review) {
+    setEditingReview(r)
+    setReviewForm({ quote: r.quote, author: r.author, role: r.role ?? '', order: r.order, published: r.published })
+    setShowReviewForm(true)
+  }
+
+  async function saveReview() {
+    setSavingReview(true)
+    const id = editingReview?.id ?? uid()
+    const data: Omit<Review, 'id'> = { ...reviewForm }
+    if (!data.role) delete (data as Partial<Review>).role
+    await setDoc(doc(db, 'reviews', id), data)
+    await loadReviews()
+    setShowReviewForm(false)
+    setEditingReview(null)
+    setSavingReview(false)
+  }
+
+  async function toggleReview(r: Review) {
+    await setDoc(doc(db, 'reviews', r.id), { ...r, published: !r.published })
+    setReviews(prev => prev.map(x => x.id === r.id ? { ...x, published: !x.published } : x))
+  }
+
+  async function deleteReview(id: string) {
+    setDeletingReviewId(id)
+    await deleteDoc(doc(db, 'reviews', id))
+    setReviews(prev => prev.filter(r => r.id !== id))
+    setDeletingReviewId(null)
+  }
+
+  async function approveReview(r: Review) {
+    setApprovingReviewId(r.id)
+    await setDoc(doc(db, 'reviews', r.id), { ...r, published: true, status: 'approved' })
+    setReviews(prev => prev.map(x => x.id === r.id ? { ...x, published: true, status: 'approved' } : x))
+    setApprovingReviewId(null)
+  }
+
+  async function rejectReview(r: Review) {
+    setRejectingReviewId(r.id)
+    await setDoc(doc(db, 'reviews', r.id), { ...r, published: false, status: 'rejected' })
+    setReviews(prev => prev.map(x => x.id === r.id ? { ...x, published: false, status: 'rejected' } : x))
+    setRejectingReviewId(null)
+  }
+
+  function openNewProgram() {
+    setEditingProg(null)
+    setProgForm({ emoji: '📖', name: '', label: '', title: '', description: '', imageUrl: '', imageStyle: '', href: '', comingSoon: false, order: programs.length, published: true, media: [] })
+    setShowProgForm(true)
+  }
+
+  function openEditProgram(p: Program) {
+    setEditingProg(p)
+    setProgForm({ emoji: p.emoji, name: p.name, label: p.label, title: p.title, description: p.description, imageUrl: p.imageUrl ?? '', imageStyle: p.imageStyle ?? '', href: p.href ?? '', comingSoon: p.comingSoon ?? false, order: p.order, published: p.published, media: p.media ?? [] })
+    setShowProgForm(true)
+  }
+
+  async function saveProgram() {
+    setSavingProg(true)
+    const id = editingProg?.id ?? uid()
+    const data: Omit<Program, 'id'> = { ...progForm }
+    if (!data.imageUrl) delete (data as Partial<Program>).imageUrl
+    if (!data.imageStyle) delete (data as Partial<Program>).imageStyle
+    if (!data.href) delete (data as Partial<Program>).href
+    if (!data.media || data.media.length === 0) delete (data as Partial<Program>).media
+    await setDoc(doc(db, 'programs', id), data)
+    await loadPrograms()
+    setEditingProg(null)
+    setShowProgForm(false)
+    setSavingProg(false)
+  }
+
+  async function toggleProgram(p: Program) {
+    await setDoc(doc(db, 'programs', p.id), { ...p, published: !p.published })
+    setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, published: !x.published } : x))
+  }
+
+  async function deleteProgram(id: string) {
+    setDeletingProgId(id)
+    await deleteDoc(doc(db, 'programs', id))
+    setPrograms(prev => prev.filter(p => p.id !== id))
+    setDeletingProgId(null)
+  }
+
+  async function addAchievement() {
+    if (!newAchText.trim()) return
+    setAddingAch(true)
+    const id = uid()
+    await setDoc(doc(db, 'achievements', id), { text: newAchText.trim(), order: achievements.length })
+    await loadAchievements()
+    setNewAchText('')
+    setAddingAch(false)
+  }
+
+  async function saveAchievement(id: string) {
+    if (!editingAchText.trim()) return
+    const ach = achievements.find(a => a.id === id)
+    if (!ach) return
+    await setDoc(doc(db, 'achievements', id), { ...ach, text: editingAchText.trim() })
+    setAchievements(prev => prev.map(a => a.id === id ? { ...a, text: editingAchText.trim() } : a))
+    setEditingAchId(null)
+  }
+
+  async function deleteAchievement(id: string) {
+    setDeletingAchId(id)
+    await deleteDoc(doc(db, 'achievements', id))
+    setAchievements(prev => prev.filter(a => a.id !== id))
+    setDeletingAchId(null)
+  }
+
+  async function saveAbout() {
+    setSavingAbout(true)
+    await setDoc(doc(db, 'site', ABOUT_DOC_ID), about)
+    setSavingAbout(false)
+  }
+
+  const inputCls = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 transition'
+  const labelCls = 'block text-sm font-semibold text-stone-700 font-quick mb-1.5'
+
+  return (
+    <div>
+      <div className="mb-8">
+        <h2 className="font-kids text-3xl text-wood-dark">Site Content</h2>
+        <p className="text-stone-500 text-sm font-quick mt-1 mb-4">Manage programs, achievements, and about us content.</p>
+        <div className="flex gap-2 flex-wrap">
+          {(['programs', 'achievements', 'reviews', 'about'] as const).map(s => (
+            <button key={s} onClick={() => setSection(s)}
+              className={`font-quick text-sm font-semibold px-4 py-2 rounded-full transition whitespace-nowrap ${section === s ? 'bg-wood text-white shadow' : 'border border-stone-200 text-stone-600 hover:bg-stone-50'}`}>
+              {s === 'programs' ? 'Programs' : s === 'achievements' ? 'Achievements' : s === 'reviews' ? 'Reviews' : 'About Us'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Programs ── */}
+      {section === 'programs' && (
+        <div>
+          <div className="flex justify-end mb-4">
+            <button onClick={openNewProgram}
+              className="bg-wood text-white font-bold font-quick px-5 py-2.5 rounded-full shadow-md hover:brightness-95 transition text-sm">
+              + New Program
+            </button>
+          </div>
+          {progLoading ? (
+            <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+          ) : (
+            <div className="space-y-3">
+              {programs.map(p => (
+                <div key={p.id} className="bg-white rounded-2xl border border-stone-200/70 p-4">
+                  {/* Top row */}
+                  <div className="flex items-start gap-3">
+                    <div className="text-2xl flex-shrink-0 mt-0.5">{p.emoji}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-stone-800 font-quick text-sm truncate">{p.name}</div>
+                      <div className="text-xs text-stone-400 font-quick truncate">{p.title}</div>
+                    </div>
+                    {p.comingSoon && <span className="text-xs font-quick bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full flex-shrink-0">Coming soon</span>}
+                  </div>
+                  {/* Bottom row */}
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-stone-100">
+                    <label className="flex items-center gap-1.5 cursor-pointer mr-auto">
+                      <div className="relative">
+                        <input type="checkbox" checked={p.published} onChange={() => toggleProgram(p)} className="sr-only peer" />
+                        <div className="w-9 h-5 bg-stone-200 peer-checked:bg-sage-600 rounded-full transition" />
+                        <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-4 shadow-sm" />
+                      </div>
+                      <span className={`text-xs font-bold font-quick ${p.published ? 'text-sage-700' : 'text-stone-400'}`}>
+                        {p.published ? 'Live' : 'Draft'}
+                      </span>
+                    </label>
+                    <button onClick={() => openEditProgram(p)}
+                      className="text-xs font-quick text-stone-400 hover:text-sage-700 border border-stone-200 hover:border-sage-300 px-3 py-1.5 rounded-lg transition">
+                      Edit
+                    </button>
+                    <button onClick={() => deleteProgram(p.id)}
+                      className="text-xs font-quick text-stone-400 hover:text-rose-600 border border-stone-200 hover:border-rose-300 px-3 py-1.5 rounded-lg transition">
+                      {deletingProgId === p.id ? '…' : 'Delete'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {programs.length === 0 && (
+                <div className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-12 text-center">
+                  <p className="font-kids text-xl text-stone-400">No programs yet</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Program form modal */}
+          {showProgForm && (
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-start justify-center px-6 py-12 overflow-y-auto">
+              <div className="bg-cream rounded-[32px] shadow-2xl w-full max-w-lg p-8 space-y-5">
+                <h3 className="font-kids text-2xl text-wood-dark">{editingProg?.id ? 'Edit Program' : 'New Program'}</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelCls}>Emoji</label>
+                    <input value={progForm.emoji} onChange={e => setProgForm(f => ({...f, emoji: e.target.value}))} className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Order</label>
+                    <input type="number" value={progForm.order} onChange={e => setProgForm(f => ({...f, order: +e.target.value}))} className={inputCls} />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelCls}>Nav Name <span className="text-stone-400 font-normal">— shown in dropdown</span></label>
+                  <input value={progForm.name} onChange={e => setProgForm(f => ({...f, name: e.target.value}))} className={inputCls} placeholder="Saturday Weekend School" />
+                </div>
+                <div>
+                  <label className={labelCls}>Card Label <span className="text-stone-400 font-normal">— small uppercase label</span></label>
+                  <input value={progForm.label} onChange={e => setProgForm(f => ({...f, label: e.target.value}))} className={inputCls} placeholder="Weekend Academy" />
+                </div>
+                <div>
+                  <label className={labelCls}>Card Title</label>
+                  <input value={progForm.title} onChange={e => setProgForm(f => ({...f, title: e.target.value}))} className={inputCls} placeholder="Consistent, structured learning" />
+                </div>
+                <div>
+                  <label className={labelCls}>Description</label>
+                  <textarea rows={3} value={progForm.description} onChange={e => setProgForm(f => ({...f, description: e.target.value}))} className={inputCls + ' resize-none'} />
+                </div>
+                <div>
+                  <label className={labelCls}>Image URL <span className="text-stone-400 font-normal">— optional</span></label>
+                  <input value={progForm.imageUrl} onChange={e => setProgForm(f => ({...f, imageUrl: e.target.value}))} className={inputCls} placeholder="/class-photo.jpg" />
+                </div>
+                <div>
+                  <label className={labelCls}>Classroom Gallery <span className="text-stone-400 font-normal">— photos & videos shown on the public site</span></label>
+                  <p className="text-xs text-stone-400 font-quick mb-3">
+                    {editingProg ? 'Upload classroom photos and videos. They appear as a scrollable strip on the Programs section.' : 'Save the program first, then re-open to upload media.'}
+                  </p>
+                  {editingProg && (
+                    <MediaGalleryUploader
+                      items={progForm.media ?? []}
+                      storagePath={`programs/${editingProg.id}`}
+                      onChange={v => setProgForm(f => ({...f, media: v as ProgramMedia[]}))}
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className={labelCls}>Link / Anchor <span className="text-stone-400 font-normal">— optional, defaults to #dc-programs</span></label>
+                  <input value={progForm.href} onChange={e => setProgForm(f => ({...f, href: e.target.value}))} className={inputCls} placeholder="#dc-programs" />
+                </div>
+                <div className="flex gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={progForm.comingSoon} onChange={e => setProgForm(f => ({...f, comingSoon: e.target.checked}))} className="w-4 h-4 accent-sage-600" />
+                    <span className="text-sm font-quick font-semibold text-stone-700">Coming Soon</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={progForm.published} onChange={e => setProgForm(f => ({...f, published: e.target.checked}))} className="w-4 h-4 accent-sage-600" />
+                    <span className="text-sm font-quick font-semibold text-stone-700">Published</span>
+                  </label>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button onClick={saveProgram} disabled={savingProg}
+                    className="flex-1 bg-wood text-white font-bold font-quick py-3 rounded-full shadow-md hover:brightness-95 transition disabled:opacity-60">
+                    {savingProg ? 'Saving…' : 'Save Program'}
+                  </button>
+                  <button onClick={() => { setShowProgForm(false); setEditingProg(null) }}
+                    className="px-6 py-3 border border-stone-200 rounded-full font-quick text-sm font-semibold text-stone-600 hover:bg-stone-50 transition">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Reviews ── */}
+      {section === 'reviews' && (
+        <div>
+          <div className="flex justify-end mb-4">
+            <button onClick={openNewReview}
+              className="bg-wood text-white font-bold font-quick px-5 py-2.5 rounded-full shadow-md hover:brightness-95 transition text-sm">
+              + New Review
+            </button>
+          </div>
+          {reviewsLoading ? (
+            <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+          ) : (
+            <div className="space-y-3">
+              {/* Pending parent-submitted reviews */}
+              {reviews.filter(r => r.status === 'pending').length > 0 && (
+                <div className="mb-2">
+                  <p className="text-xs font-bold font-quick text-amber-600 uppercase tracking-wider mb-2">
+                    Pending Approval ({reviews.filter(r => r.status === 'pending').length})
+                  </p>
+                  {reviews.filter(r => r.status === 'pending').map(r => (
+                    <div key={r.id} className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-3">
+                      <div className="flex items-start gap-3">
+                        <div className="text-2xl flex-shrink-0 mt-0.5">💬</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-stone-700 font-quick leading-relaxed">"{r.quote}"</p>
+                          <p className="text-xs text-stone-400 font-quick mt-1">— {r.author}{r.role ? `, ${r.role}` : ''}</p>
+                          {r.submittedAt && (
+                            <p className="text-xs text-amber-600 font-quick mt-1">
+                              Submitted {new Date(r.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-amber-200">
+                        <button
+                          onClick={() => approveReview(r)}
+                          disabled={approvingReviewId === r.id}
+                          className="flex-1 bg-sage-600 text-white font-bold font-quick py-2 rounded-full text-xs hover:brightness-95 transition disabled:opacity-60">
+                          {approvingReviewId === r.id ? 'Approving…' : '✓ Approve'}
+                        </button>
+                        <button
+                          onClick={() => rejectReview(r)}
+                          disabled={rejectingReviewId === r.id}
+                          className="flex-1 border border-rose-300 text-rose-600 font-bold font-quick py-2 rounded-full text-xs hover:bg-rose-50 transition disabled:opacity-60">
+                          {rejectingReviewId === r.id ? 'Rejecting…' : '✕ Reject'}
+                        </button>
+                        <button onClick={() => deleteReview(r.id)}
+                          className="text-xs font-quick text-stone-400 hover:text-rose-600 border border-stone-200 hover:border-rose-300 px-3 py-2 rounded-lg transition">
+                          {deletingReviewId === r.id ? '…' : 'Delete'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="border-t border-stone-200 pt-4 mb-2">
+                    <p className="text-xs font-bold font-quick text-stone-400 uppercase tracking-wider">All Reviews</p>
+                  </div>
+                </div>
+              )}
+              {reviews.filter(r => r.status !== 'pending').map(r => (
+                <div key={r.id} className="bg-white rounded-2xl border border-stone-200/70 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="text-2xl flex-shrink-0 mt-0.5">💬</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-stone-700 font-quick leading-relaxed line-clamp-2">"{r.quote}"</p>
+                      <p className="text-xs text-stone-400 font-quick mt-1">— {r.author}{r.role ? `, ${r.role}` : ''}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-stone-100">
+                    <label className="flex items-center gap-1.5 cursor-pointer mr-auto">
+                      <div className="relative">
+                        <input type="checkbox" checked={r.published} onChange={() => toggleReview(r)} className="sr-only peer" />
+                        <div className="w-9 h-5 bg-stone-200 peer-checked:bg-sage-600 rounded-full transition" />
+                        <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-4 shadow-sm" />
+                      </div>
+                      <span className={`text-xs font-bold font-quick ${r.published ? 'text-sage-700' : 'text-stone-400'}`}>
+                        {r.published ? 'Live' : 'Draft'}
+                      </span>
+                    </label>
+                    <button onClick={() => openEditReview(r)}
+                      className="text-xs font-quick text-stone-400 hover:text-sage-700 border border-stone-200 hover:border-sage-300 px-3 py-1.5 rounded-lg transition">
+                      Edit
+                    </button>
+                    <button onClick={() => deleteReview(r.id)}
+                      className="text-xs font-quick text-stone-400 hover:text-rose-600 border border-stone-200 hover:border-rose-300 px-3 py-1.5 rounded-lg transition">
+                      {deletingReviewId === r.id ? '…' : 'Delete'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {reviews.filter(r => r.status !== 'pending').length === 0 && reviews.filter(r => r.status === 'pending').length === 0 && (
+                <div className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-12 text-center">
+                  <p className="font-kids text-xl text-stone-400">No reviews yet</p>
+                  <p className="text-stone-400 text-sm mt-1 font-quick">Click "New Review" to add a parent testimonial.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Review form modal */}
+          {showReviewForm && (
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-start justify-center px-6 py-12 overflow-y-auto">
+              <div className="bg-cream rounded-[32px] shadow-2xl w-full max-w-lg p-8 space-y-5">
+                <h3 className="font-kids text-2xl text-wood-dark">{editingReview ? 'Edit Review' : 'New Review'}</h3>
+                <div>
+                  <label className="block text-sm font-semibold text-stone-700 font-quick mb-1.5">Quote</label>
+                  <textarea rows={4} value={reviewForm.quote}
+                    onChange={e => setReviewForm(f => ({...f, quote: e.target.value}))}
+                    placeholder="What did this parent say about AIMAVA?"
+                    className="w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 transition resize-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-stone-700 font-quick mb-1.5">Author Name</label>
+                  <input value={reviewForm.author}
+                    onChange={e => setReviewForm(f => ({...f, author: e.target.value}))}
+                    placeholder="e.g. Fatima"
+                    className="w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 transition" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-stone-700 font-quick mb-1.5">Role <span className="text-stone-400 font-normal">— optional</span></label>
+                  <input value={reviewForm.role ?? ''}
+                    onChange={e => setReviewForm(f => ({...f, role: e.target.value}))}
+                    placeholder="e.g. Parent of 2, AIMAVA parent since 2023"
+                    className="w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 transition" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-stone-700 font-quick mb-1.5">Order</label>
+                    <input type="number" value={reviewForm.order}
+                      onChange={e => setReviewForm(f => ({...f, order: +e.target.value}))}
+                      className="w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 transition" />
+                  </div>
+                  <div className="flex items-end pb-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={reviewForm.published}
+                        onChange={e => setReviewForm(f => ({...f, published: e.target.checked}))}
+                        className="w-4 h-4 accent-sage-600" />
+                      <span className="text-sm font-quick font-semibold text-stone-700">Published</span>
+                    </label>
+                  </div>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button onClick={saveReview} disabled={savingReview || !reviewForm.quote.trim() || !reviewForm.author.trim()}
+                    className="flex-1 bg-wood text-white font-bold font-quick py-3 rounded-full shadow-md hover:brightness-95 transition disabled:opacity-60">
+                    {savingReview ? 'Saving…' : 'Save Review'}
+                  </button>
+                  <button onClick={() => { setShowReviewForm(false); setEditingReview(null) }}
+                    className="px-6 py-3 border border-stone-200 rounded-full font-quick text-sm font-semibold text-stone-600 hover:bg-stone-50 transition">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Achievements ── */}
+      {section === 'achievements' && (
+        <div className="space-y-4">
+          {achLoading ? (
+            <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                {achievements.map(a => (
+                  <div key={a.id} className="bg-white rounded-2xl border border-stone-200/70 px-5 py-3 flex items-center gap-3">
+                    <span className="text-sage-600 flex-shrink-0">✔</span>
+                    {editingAchId === a.id ? (
+                      <input autoFocus value={editingAchText}
+                        onChange={e => setEditingAchText(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') saveAchievement(a.id); if (e.key === 'Escape') setEditingAchId(null) }}
+                        className="flex-1 rounded-xl border border-sage-300 bg-sage-50 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400" />
+                    ) : (
+                      <span className="flex-1 text-sm text-stone-700 font-quick">{a.text}</span>
+                    )}
+                    <div className="flex gap-2 flex-shrink-0">
+                      {editingAchId === a.id ? (
+                        <>
+                          <button onClick={() => saveAchievement(a.id)} className="text-xs font-quick text-sage-700 border border-sage-300 hover:bg-sage-50 px-3 py-1 rounded-full transition">Save</button>
+                          <button onClick={() => setEditingAchId(null)} className="text-xs font-quick text-stone-400 border border-stone-200 px-3 py-1 rounded-full transition">Cancel</button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => { setEditingAchId(a.id); setEditingAchText(a.text) }}
+                            className="text-xs font-quick text-stone-400 hover:text-sage-700 border border-stone-200 hover:border-sage-300 px-3 py-1 rounded-full transition">Edit</button>
+                          <button onClick={() => deleteAchievement(a.id)}
+                            className="text-xs font-quick text-stone-400 hover:text-rose-600 border border-stone-200 hover:border-rose-300 px-3 py-1 rounded-full transition">
+                            {deletingAchId === a.id ? '…' : 'Delete'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input value={newAchText} onChange={e => setNewAchText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') addAchievement() }}
+                  placeholder="Add an achievement…"
+                  className="flex-1 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 transition" />
+                <button onClick={addAchievement} disabled={addingAch || !newAchText.trim()}
+                  className="bg-wood text-white font-bold font-quick px-5 py-2.5 rounded-full shadow-md hover:brightness-95 transition disabled:opacity-50 text-sm">
+                  {addingAch ? '…' : '+ Add'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── About Us ── */}
+      {section === 'about' && (
+        <div className="space-y-6">
+          {aboutLoading ? (
+            <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+          ) : (
+            <>
+              <div className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-6 space-y-4">
+                <h3 className="font-kids text-xl text-wood-dark">Section Header</h3>
+                <div>
+                  <label className={labelCls}>Heading</label>
+                  <input value={about.heading} onChange={e => setAbout(a => ({...a, heading: e.target.value}))} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Subheading</label>
+                  <input value={about.subheading} onChange={e => setAbout(a => ({...a, subheading: e.target.value}))} className={inputCls} />
+                </div>
+              </div>
+              {about.pillars.map((pillar, i) => (
+                <div key={i} className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-6 space-y-4">
+                  <h3 className="font-kids text-xl text-wood-dark">Pillar {i + 1}</h3>
+                  <div>
+                    <label className={labelCls}>Title</label>
+                    <input value={pillar.title} onChange={e => setAbout(a => ({...a, pillars: a.pillars.map((p, j) => j === i ? {...p, title: e.target.value} : p)}))} className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Description</label>
+                    <textarea rows={3} value={pillar.description} onChange={e => setAbout(a => ({...a, pillars: a.pillars.map((p, j) => j === i ? {...p, description: e.target.value} : p)}))} className={inputCls + ' resize-none'} />
+                  </div>
+                </div>
+              ))}
+              <button onClick={saveAbout} disabled={savingAbout}
+                className="w-full bg-wood text-white font-bold font-quick py-4 rounded-full shadow-md hover:brightness-95 transition disabled:opacity-60">
+                {savingAbout ? 'Saving…' : 'Save About Us'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -1694,7 +2782,7 @@ export default function Admin() {
   const [user, setUser] = useState<User | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'events' | 'classes' | 'users' | 'registrations'>('events')
+  const [activeTab, setActiveTab] = useState<'events' | 'classes' | 'users' | 'registrations' | 'content' | 'contact'>('events')
   const [pendingCount, setPendingCount] = useState(0)
   const [events, setEvents] = useState<AcademyEvent[]>([])
   const [editing, setEditing] = useState<Partial<AcademyEvent> | null>(null)
@@ -1716,9 +2804,11 @@ export default function Admin() {
   useEffect(() => {
     if (user && isAdmin) {
       loadEvents()
-      // Load pending registration count for badge
-      getDocs(query(collection(db, 'registrations'), where('status', '==', 'pending')))
-        .then(snap => setPendingCount(snap.size))
+      // Load pending registration count for badge (family + child requests)
+      Promise.all([
+        getDocs(query(collection(db, 'registrations'), where('status', '==', 'pending'))),
+        getDocs(query(collection(db, 'childRequests'), where('status', '==', 'pending'))),
+      ]).then(([regSnap, crSnap]) => setPendingCount(regSnap.size + crSnap.size))
         .catch(() => {})
     }
   }, [user, isAdmin])
@@ -1730,7 +2820,13 @@ export default function Admin() {
   }
 
   async function handleSave(data: Omit<AcademyEvent, 'id'>) {
-    await setDoc(doc(db, 'events', data.slug), data)
+    const clean: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(data)) {
+      if (v !== undefined && v !== '') clean[k] = v
+    }
+    if (!clean.eventDate) delete clean.eventDate
+    if (!clean.eventEndDate) delete clean.eventEndDate
+    await setDoc(doc(db, 'events', data.slug), clean)
     await loadEvents()
     setEditing(null)
   }
@@ -1754,7 +2850,7 @@ export default function Admin() {
     )
   }
 
-  if (!user) return <LoginForm />
+  if (!user) { window.location.href = '/login'; return null }
 
   if (!isAdmin) {
     return (
@@ -1789,18 +2885,18 @@ export default function Admin() {
           </div>
         </div>
         {/* Tab bar */}
-        <div className="max-w-4xl mx-auto px-6 flex gap-1 -mb-px">
-          {(['events', 'classes', 'registrations', 'users'] as const).map(tab => (
+        <div className="max-w-4xl mx-auto px-6 flex gap-1 -mb-px overflow-x-auto scrollbar-none">
+          {(['events', 'classes', 'registrations', 'users', 'content', 'contact'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => { setActiveTab(tab); setEditing(null) }}
-              className={`px-5 py-2.5 text-sm font-semibold font-quick border-b-2 transition flex items-center gap-1.5 ${
+              className={`px-5 py-2.5 text-sm font-semibold font-quick border-b-2 transition flex items-center gap-1.5 flex-shrink-0 ${
                 activeTab === tab
                   ? 'border-sage-600 text-sage-700'
                   : 'border-transparent text-stone-400 hover:text-stone-600'
               }`}
             >
-              {tab === 'events' ? 'Events' : tab === 'classes' ? 'Classes' : tab === 'users' ? 'Users' : 'Registrations'}
+              {tab === 'events' ? 'Events' : tab === 'classes' ? 'Classes' : tab === 'users' ? 'Users' : tab === 'registrations' ? 'Registrations' : tab === 'content' ? 'Content' : 'Contact'}
               {tab === 'registrations' && pendingCount > 0 && (
                 <span className="bg-amber-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
                   {pendingCount}
@@ -1837,8 +2933,12 @@ export default function Admin() {
           <ClassesTab />
         ) : activeTab === 'registrations' ? (
           <RegistrationsTab />
-        ) : (
+        ) : activeTab === 'users' ? (
           <UsersTab />
+        ) : activeTab === 'contact' ? (
+          <ContactSubmissionsTab />
+        ) : (
+          <ContentTab />
         )}
       </main>
 

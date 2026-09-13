@@ -33,6 +33,13 @@ export interface EventSection {
   body?: string                           // for 'text'
 }
 
+export interface EventMedia {
+  id: string
+  type: 'image' | 'video'
+  url: string
+  caption?: string
+}
+
 export interface AcademyEvent {
   id: string
   slug: string
@@ -52,6 +59,8 @@ export interface AcademyEvent {
   eventDate?: string
   /** YYYY-MM-DD end date — event is "current" while today is in [eventDate, eventEndDate] */
   eventEndDate?: string
+  /** Photos and videos shown in the past-event carousel */
+  media?: EventMedia[]
 }
 
 /** Returns 'upcoming' | 'current' | 'past' based on eventDate/eventEndDate,

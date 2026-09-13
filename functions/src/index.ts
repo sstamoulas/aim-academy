@@ -5,12 +5,12 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { getAuth as getAdminAuth } from 'firebase-admin/auth'
 import cors from 'cors'
 import * as https from 'https'
-import * as nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 
 initializeApp()
 
 const stripeSecret = defineSecret('STRIPE_SECRET_KEY')
-const gmailAppPassword = defineSecret('GMAIL_APP_PASSWORD')
+const resendApiKey = defineSecret('RESEND_API_KEY')
 const corsMiddleware = cors({ origin: true })
 
 function createStripePaymentIntent(
@@ -68,10 +68,11 @@ function createStripePaymentIntent(
   })
 }
 
-const GMAIL_USER = 'aimacademyva@gmail.com'
+const FROM_EMAIL = 'AIM Academy <noreply@aimava.org>'
+const TO_EMAIL = 'aimacademyva@gmail.com'
 
 export const submitContactForm = onRequest(
-  { secrets: [gmailAppPassword], timeoutSeconds: 30 },
+  { secrets: [resendApiKey], timeoutSeconds: 30 },
   (req, res) => {
     corsMiddleware(req, res, async () => {
       if (req.method !== 'POST') {
@@ -103,25 +104,14 @@ export const submitContactForm = onRequest(
           submittedAt: new Date().toISOString(),
         })
 
-        const transporter = nodemailer.createTransport({
-          service: 'gmail',
-          auth: { user: GMAIL_USER, pass: gmailAppPassword.value() },
-        })
-
+        const resend = new Resend(resendApiKey.value())
         const interestList = (interests ?? []).join(', ') || 'None selected'
 
-        await transporter.sendMail({
-          from: `"AIM Academy Website" <${GMAIL_USER}>`,
-          to: GMAIL_USER,
+        await resend.emails.send({
+          from: FROM_EMAIL,
+          to: TO_EMAIL,
           replyTo: email.trim(),
           subject: `New contact form submission from ${name.trim()}`,
-          text: [
-            `Name: ${name.trim()}`,
-            `Phone: ${phone.trim()}`,
-            `Email: ${email.trim()}`,
-            `Interested in: ${interestList}`,
-            `Message: ${message?.trim() || '(none)'}`,
-          ].join('\n'),
           html: `
             <p><strong>Name:</strong> ${name.trim()}</p>
             <p><strong>Phone:</strong> ${phone.trim()}</p>
@@ -201,7 +191,7 @@ export const setUserRole = onCall(async (request) => {
 /** Invite a new user by email with a role. Creates the account if needed and
  *  emails them a password-setup link. Caller must have role === 'admin'. */
 export const inviteUser = onCall(
-  { secrets: [gmailAppPassword] },
+  { secrets: [resendApiKey] },
   async (request) => {
     if (request.auth?.token?.role !== 'admin') {
       throw new HttpsError('permission-denied', 'Only admins can invite users.')
@@ -244,31 +234,23 @@ export const inviteUser = onCall(
     const resetLink = await getAdminAuth().generatePasswordResetLink(email)
     const roleLabel = role.charAt(0).toUpperCase() + role.slice(1)
 
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: GMAIL_USER, pass: gmailAppPassword.value() },
-    })
+    try {
+      const resend = new Resend(resendApiKey.value())
+      await resend.emails.send({
+        from: FROM_EMAIL,
+        to: email,
+        subject: `You've been invited to AIM Academy as ${roleLabel}`,
+        html: `
+          <p>You have been invited to the <strong>Anas Ibn Malik Academy</strong> portal as a <strong>${roleLabel}</strong>.</p>
+          <p><a href="${resetLink}">Click here to set your password and get started →</a></p>
+          <p style="color:#888;font-size:12px;">This link expires in 1 hour.</p>
+        `,
+      })
+    } catch (emailErr) {
+      console.error('Invite email failed (user was still created):', emailErr)
+    }
 
-    await transporter.sendMail({
-      from: `"Anas Ibn Malik Academy" <${GMAIL_USER}>`,
-      to: email,
-      subject: `You've been invited to AIM Academy as ${roleLabel}`,
-      text: [
-        `You have been invited to the Anas Ibn Malik Academy portal as a ${roleLabel}.`,
-        '',
-        'Click the link below to set your password and get started:',
-        resetLink,
-        '',
-        'This link expires in 1 hour.',
-      ].join('\n'),
-      html: `
-        <p>You have been invited to the <strong>Anas Ibn Malik Academy</strong> portal as a <strong>${roleLabel}</strong>.</p>
-        <p><a href="${resetLink}">Click here to set your password and get started →</a></p>
-        <p style="color:#888;font-size:12px;">This link expires in 1 hour.</p>
-      `,
-    })
-
-    return { success: true }
+    return { success: true, resetLink }
   }
 )
 
@@ -286,9 +268,25 @@ interface ClassAssignment {
   classIds: string[]
 }
 
+/** Delete a user from Auth and Firestore. Caller must have role === 'admin'. */
+export const deleteUser = onCall(async (request) => {
+  if (request.auth?.token?.role !== 'admin') {
+    throw new HttpsError('permission-denied', 'Only admins can delete users.')
+  }
+  const { uid } = request.data as { uid: string }
+  if (!uid) throw new HttpsError('invalid-argument', 'uid is required.')
+
+  const db = getFirestore()
+  await Promise.all([
+    getAdminAuth().deleteUser(uid),
+    db.collection('users').doc(uid).delete(),
+  ])
+  return { success: true }
+})
+
 /** Approve a pending family registration. Sets parent role, creates students, sends welcome email. */
 export const approveRegistration = onCall(
-  { secrets: [gmailAppPassword] },
+  { secrets: [resendApiKey] },
   async (request) => {
     if (request.auth?.token?.role !== 'admin') {
       throw new HttpsError('permission-denied', 'Only admins can approve registrations.')
@@ -347,23 +345,22 @@ export const approveRegistration = onCall(
     })
 
     // Send welcome email
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: GMAIL_USER, pass: gmailAppPassword.value() },
-    })
-
-    await transporter.sendMail({
-      from: `"Anas Ibn Malik Academy" <${GMAIL_USER}>`,
-      to: reg.email,
-      subject: 'Your AIM Academy registration has been approved!',
-      text: `As-salamu alaykum ${reg.parentName},\n\nYour family registration with Anas Ibn Malik Academy has been approved!\n\nYou can now access the Parent Portal at https://aimava.org/portal/parent\n\nJazak Allah khayran,\nAnas Ibn Malik Academy`,
-      html: `
-        <p>As-salamu alaykum <strong>${reg.parentName}</strong>,</p>
-        <p>Your family registration with <strong>Anas Ibn Malik Academy</strong> has been approved!</p>
-        <p><a href="https://aimava.org/portal/parent">Click here to access the Parent Portal →</a></p>
-        <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br>Anas Ibn Malik Academy</p>
-      `,
-    })
+    try {
+      const resend = new Resend(resendApiKey.value())
+      await resend.emails.send({
+        from: FROM_EMAIL,
+        to: reg.email,
+        subject: 'Your AIM Academy registration has been approved!',
+        html: `
+          <p>As-salamu alaykum <strong>${reg.parentName}</strong>,</p>
+          <p>Your family registration with <strong>Anas Ibn Malik Academy</strong> has been approved!</p>
+          <p><a href="https://aimava.org/portal/parent">Click here to access the Parent Portal →</a></p>
+          <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br>Anas Ibn Malik Academy</p>
+        `,
+      })
+    } catch (emailErr) {
+      console.error('Approval email failed (registration was still approved):', emailErr)
+    }
 
     return { success: true }
   }
@@ -371,7 +368,7 @@ export const approveRegistration = onCall(
 
 /** Reject a pending family registration with an optional reason. */
 export const rejectRegistration = onCall(
-  { secrets: [gmailAppPassword] },
+  { secrets: [resendApiKey] },
   async (request) => {
     if (request.auth?.token?.role !== 'admin') {
       throw new HttpsError('permission-denied', 'Only admins can reject registrations.')
@@ -397,26 +394,23 @@ export const rejectRegistration = onCall(
     })
 
     // Notify parent
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: GMAIL_USER, pass: gmailAppPassword.value() },
-    })
-
-    await transporter.sendMail({
-      from: `"Anas Ibn Malik Academy" <${GMAIL_USER}>`,
-      to: reg.email,
-      subject: 'AIM Academy — Registration Update',
-      text: [
-        `As-salamu alaykum ${reg.parentName},`,
-        '',
-        'We have reviewed your family registration with Anas Ibn Malik Academy.',
-        reason ? `Unfortunately, we are unable to approve your registration at this time.\n\nReason: ${reason}` : 'Unfortunately, we are unable to approve your registration at this time.',
-        '',
-        'Please contact us if you have any questions.',
-        '',
-        'Jazak Allah khayran,\nAnas Ibn Malik Academy',
-      ].join('\n'),
-    })
+    try {
+      const resend = new Resend(resendApiKey.value())
+      await resend.emails.send({
+        from: FROM_EMAIL,
+        to: reg.email,
+        subject: 'AIM Academy — Registration Update',
+        html: `
+          <p>As-salamu alaykum <strong>${reg.parentName}</strong>,</p>
+          <p>We have reviewed your family registration with Anas Ibn Malik Academy.</p>
+          ${reason ? `<p>Unfortunately, we are unable to approve your registration at this time.</p><p><strong>Reason:</strong> ${reason}</p>` : '<p>Unfortunately, we are unable to approve your registration at this time.</p>'}
+          <p>Please contact us if you have any questions.</p>
+          <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br>Anas Ibn Malik Academy</p>
+        `,
+      })
+    } catch (emailErr) {
+      console.error('Rejection email failed (registration was still rejected):', emailErr)
+    }
 
     return { success: true }
   }

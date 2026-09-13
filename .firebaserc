@@ -7,14 +7,21 @@
   "targets": {
     "aim-academy-7fdae": {
       "hosting": {
-        "test": ["aim-academy-7fdae"],
-        "staging": ["aim-academy-7fdae-staging"]
+        "test": [
+          "aim-academy-7fdae"
+        ],
+        "staging": [
+          "aim-academy-7fdae-staging"
+        ]
       }
     },
     "aim-academy-prod": {
       "hosting": {
-        "production": ["aim-academy-prod"]
+        "production": [
+          "aim-academy-prod"
+        ]
       }
     }
-  }
+  },
+  "etags": {}
 }

@@ -13,6 +13,32 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Programs — public read for published; admin-only write
+    match /programs/{docId} {
+      allow read: if resource.data.published == true;
+      allow read, write: if isAdmin();
+    }
+
+    // Achievements — public read; admin-only write
+    match /achievements/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Reviews — public read for published; parents can submit; admin approves
+    match /reviews/{docId} {
+      allow read: if resource.data.published == true;
+      allow read, write: if isAdmin();
+      allow create: if isParent() && request.resource.data.submittedByUid == request.auth.uid;
+      allow read: if isParent() && resource.data.submittedByUid == request.auth.uid;
+    }
+
+    // Site content (about, etc.) — public read; admin-only write
+    match /site/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Contact submissions — anyone can submit; admin-only read
     match /contactSubmissions/{docId} {
       allow create: if true;
@@ -48,6 +74,13 @@ service cloud.firestore {
     match /announcements/{announcementId} {
       allow read, write: if isStaff();
       allow read: if isParent() && resource.data.published == true;
+    }
+
+    // Child registration requests — existing parents can submit; admin can create/approve/reject
+    match /childRequests/{docId} {
+      allow create: if isAdmin() || (isParent() && request.resource.data.parentUid == request.auth.uid);
+      allow read: if isAdmin() || (isParent() && resource.data.parentUid == request.auth.uid);
+      allow update, delete: if isAdmin();
     }
 
     // Family registrations — any authenticated user can create/read their own;

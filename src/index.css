@@ -23,3 +23,8 @@
   background-image: linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px);
   background-size: 100% 4px;
 }
+
+@keyframes progress-bar {
+  from { width: 0% }
+  to   { width: 100% }
+}

@@ -36,17 +36,18 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createPaymentIntent = exports.submitContactForm = void 0;
+exports.rejectRegistration = exports.approveRegistration = exports.deleteUser = exports.inviteUser = exports.setUserRole = exports.createPaymentIntent = exports.submitContactForm = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
+const auth_1 = require("firebase-admin/auth");
 const cors_1 = __importDefault(require("cors"));
 const https = __importStar(require("https"));
-const nodemailer = __importStar(require("nodemailer"));
+const resend_1 = require("resend");
 (0, app_1.initializeApp)();
 const stripeSecret = (0, params_1.defineSecret)('STRIPE_SECRET_KEY');
-const gmailAppPassword = (0, params_1.defineSecret)('GMAIL_APP_PASSWORD');
+const resendApiKey = (0, params_1.defineSecret)('RESEND_API_KEY');
 const corsMiddleware = (0, cors_1.default)({ origin: true });
 function createStripePaymentIntent(secretKey, amount, currency, description) {
     return new Promise((resolve, reject) => {
@@ -95,8 +96,9 @@ function createStripePaymentIntent(secretKey, amount, currency, description) {
         req.end();
     });
 }
-const GMAIL_USER = 'aimacademyva@gmail.com';
-exports.submitContactForm = (0, https_1.onRequest)({ secrets: [gmailAppPassword], timeoutSeconds: 30 }, (req, res) => {
+const FROM_EMAIL = 'AIM Academy <noreply@aimava.org>';
+const TO_EMAIL = 'aimacademyva@gmail.com';
+exports.submitContactForm = (0, https_1.onRequest)({ secrets: [resendApiKey], timeoutSeconds: 30 }, (req, res) => {
     corsMiddleware(req, res, async () => {
         var _a;
         if (req.method !== 'POST') {
@@ -118,23 +120,13 @@ exports.submitContactForm = (0, https_1.onRequest)({ secrets: [gmailAppPassword]
                 message: (_a = message === null || message === void 0 ? void 0 : message.trim()) !== null && _a !== void 0 ? _a : '',
                 submittedAt: new Date().toISOString(),
             });
-            const transporter = nodemailer.createTransport({
-                service: 'gmail',
-                auth: { user: GMAIL_USER, pass: gmailAppPassword.value() },
-            });
+            const resend = new resend_1.Resend(resendApiKey.value());
             const interestList = (interests !== null && interests !== void 0 ? interests : []).join(', ') || 'None selected';
-            await transporter.sendMail({
-                from: `"AIM Academy Website" <${GMAIL_USER}>`,
-                to: GMAIL_USER,
+            await resend.emails.send({
+                from: FROM_EMAIL,
+                to: TO_EMAIL,
                 replyTo: email.trim(),
                 subject: `New contact form submission from ${name.trim()}`,
-                text: [
-                    `Name: ${name.trim()}`,
-                    `Phone: ${phone.trim()}`,
-                    `Email: ${email.trim()}`,
-                    `Interested in: ${interestList}`,
-                    `Message: ${(message === null || message === void 0 ? void 0 : message.trim()) || '(none)'}`,
-                ].join('\n'),
                 html: `
             <p><strong>Name:</strong> ${name.trim()}</p>
             <p><strong>Phone:</strong> ${phone.trim()}</p>
@@ -175,5 +167,205 @@ exports.createPaymentIntent = (0, https_1.onRequest)({ secrets: [stripeSecret], 
             res.status(500).json({ error: message });
         }
     });
+});
+// ── Role management (admin-only) ──────────────────────────────────────────────
+const VALID_ROLES = ['admin', 'teacher', 'parent'];
+/** Change an existing user's role. Caller must have role === 'admin'. */
+exports.setUserRole = (0, https_1.onCall)(async (request) => {
+    var _a, _b;
+    if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admins can set user roles.');
+    }
+    const { uid, role } = request.data;
+    if (!uid || !VALID_ROLES.includes(role)) {
+        throw new https_1.HttpsError('invalid-argument', 'uid and a valid role are required.');
+    }
+    await (0, auth_1.getAuth)().setCustomUserClaims(uid, { role });
+    await (0, firestore_1.getFirestore)().collection('users').doc(uid).set({ role }, { merge: true });
+    return { success: true };
+});
+/** Invite a new user by email with a role. Creates the account if needed and
+ *  emails them a password-setup link. Caller must have role === 'admin'. */
+exports.inviteUser = (0, https_1.onCall)({ secrets: [resendApiKey] }, async (request) => {
+    var _a, _b;
+    if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admins can invite users.');
+    }
+    const { email, role, displayName } = request.data;
+    if (!email || !VALID_ROLES.includes(role)) {
+        throw new https_1.HttpsError('invalid-argument', 'email and a valid role are required.');
+    }
+    // Create or fetch user
+    let uid;
+    try {
+        const existing = await (0, auth_1.getAuth)().getUserByEmail(email);
+        uid = existing.uid;
+    }
+    catch (_c) {
+        const created = await (0, auth_1.getAuth)().createUser({
+            email,
+            displayName: displayName || undefined,
+        });
+        uid = created.uid;
+    }
+    // Set custom claim
+    await (0, auth_1.getAuth)().setCustomUserClaims(uid, { role });
+    // Persist to users collection
+    await (0, firestore_1.getFirestore)().collection('users').doc(uid).set({
+        email,
+        displayName: displayName || '',
+        role,
+        createdAt: new Date().toISOString(),
+        invitedBy: request.auth.uid,
+    }, { merge: true });
+    // Generate password-reset link and email it
+    const resetLink = await (0, auth_1.getAuth)().generatePasswordResetLink(email);
+    const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+    try {
+        const resend = new resend_1.Resend(resendApiKey.value());
+        await resend.emails.send({
+            from: FROM_EMAIL,
+            to: email,
+            subject: `You've been invited to AIM Academy as ${roleLabel}`,
+            html: `
+          <p>You have been invited to the <strong>Anas Ibn Malik Academy</strong> portal as a <strong>${roleLabel}</strong>.</p>
+          <p><a href="${resetLink}">Click here to set your password and get started →</a></p>
+          <p style="color:#888;font-size:12px;">This link expires in 1 hour.</p>
+        `,
+        });
+    }
+    catch (emailErr) {
+        console.error('Invite email failed (user was still created):', emailErr);
+    }
+    return { success: true, resetLink };
+});
+/** Delete a user from Auth and Firestore. Caller must have role === 'admin'. */
+exports.deleteUser = (0, https_1.onCall)(async (request) => {
+    var _a, _b;
+    if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admins can delete users.');
+    }
+    const { uid } = request.data;
+    if (!uid)
+        throw new https_1.HttpsError('invalid-argument', 'uid is required.');
+    const db = (0, firestore_1.getFirestore)();
+    await Promise.all([
+        (0, auth_1.getAuth)().deleteUser(uid),
+        db.collection('users').doc(uid).delete(),
+    ]);
+    return { success: true };
+});
+/** Approve a pending family registration. Sets parent role, creates students, sends welcome email. */
+exports.approveRegistration = (0, https_1.onCall)({ secrets: [resendApiKey] }, async (request) => {
+    var _a, _b, _c, _d, _e, _f;
+    if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admins can approve registrations.');
+    }
+    const { registrationId, classAssignments = [] } = request.data;
+    if (!registrationId)
+        throw new https_1.HttpsError('invalid-argument', 'registrationId is required.');
+    const db = (0, firestore_1.getFirestore)();
+    const regRef = db.collection('registrations').doc(registrationId);
+    const regDoc = await regRef.get();
+    if (!regDoc.exists)
+        throw new https_1.HttpsError('not-found', 'Registration not found.');
+    const reg = regDoc.data();
+    const children = (_c = reg.children) !== null && _c !== void 0 ? _c : [];
+    // Set parent role claim
+    await (0, auth_1.getAuth)().setCustomUserClaims(registrationId, { role: 'parent' });
+    // Upsert user record
+    await db.collection('users').doc(registrationId).set({
+        email: reg.email,
+        displayName: reg.parentName,
+        role: 'parent',
+        createdAt: new Date().toISOString(),
+        invitedBy: request.auth.uid,
+    }, { merge: true });
+    // Create student records
+    for (let i = 0; i < children.length; i++) {
+        const child = children[i];
+        const assignment = classAssignments.find(a => a.childIndex === i);
+        const classIds = (_d = assignment === null || assignment === void 0 ? void 0 : assignment.classIds) !== null && _d !== void 0 ? _d : [];
+        const studentId = Math.random().toString(36).slice(2);
+        await db.collection('students').doc(studentId).set({
+            firstName: child.firstName,
+            lastName: child.lastName,
+            dateOfBirth: (_e = child.dateOfBirth) !== null && _e !== void 0 ? _e : null,
+            grade: (_f = child.grade) !== null && _f !== void 0 ? _f : null,
+            classIds,
+            parentName: reg.parentName,
+            parentEmail: reg.email,
+            parentPhone: reg.phone,
+            notes: '',
+            createdAt: new Date().toISOString(),
+        });
+    }
+    // Mark registration approved
+    await regRef.update({
+        status: 'approved',
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: request.auth.uid,
+    });
+    // Send welcome email
+    try {
+        const resend = new resend_1.Resend(resendApiKey.value());
+        await resend.emails.send({
+            from: FROM_EMAIL,
+            to: reg.email,
+            subject: 'Your AIM Academy registration has been approved!',
+            html: `
+          <p>As-salamu alaykum <strong>${reg.parentName}</strong>,</p>
+          <p>Your family registration with <strong>Anas Ibn Malik Academy</strong> has been approved!</p>
+          <p><a href="https://aimava.org/portal/parent">Click here to access the Parent Portal →</a></p>
+          <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br>Anas Ibn Malik Academy</p>
+        `,
+        });
+    }
+    catch (emailErr) {
+        console.error('Approval email failed (registration was still approved):', emailErr);
+    }
+    return { success: true };
+});
+/** Reject a pending family registration with an optional reason. */
+exports.rejectRegistration = (0, https_1.onCall)({ secrets: [resendApiKey] }, async (request) => {
+    var _a, _b;
+    if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admins can reject registrations.');
+    }
+    const { registrationId, reason = '' } = request.data;
+    if (!registrationId)
+        throw new https_1.HttpsError('invalid-argument', 'registrationId is required.');
+    const db = (0, firestore_1.getFirestore)();
+    const regRef = db.collection('registrations').doc(registrationId);
+    const regDoc = await regRef.get();
+    if (!regDoc.exists)
+        throw new https_1.HttpsError('not-found', 'Registration not found.');
+    const reg = regDoc.data();
+    await regRef.update({
+        status: 'rejected',
+        rejectReason: reason,
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: request.auth.uid,
+    });
+    // Notify parent
+    try {
+        const resend = new resend_1.Resend(resendApiKey.value());
+        await resend.emails.send({
+            from: FROM_EMAIL,
+            to: reg.email,
+            subject: 'AIM Academy — Registration Update',
+            html: `
+          <p>As-salamu alaykum <strong>${reg.parentName}</strong>,</p>
+          <p>We have reviewed your family registration with Anas Ibn Malik Academy.</p>
+          ${reason ? `<p>Unfortunately, we are unable to approve your registration at this time.</p><p><strong>Reason:</strong> ${reason}</p>` : '<p>Unfortunately, we are unable to approve your registration at this time.</p>'}
+          <p>Please contact us if you have any questions.</p>
+          <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br>Anas Ibn Malik Academy</p>
+        `,
+        });
+    }
+    catch (emailErr) {
+        console.error('Rejection email failed (registration was still rejected):', emailErr);
+    }
+    return { success: true };
 });
 //# sourceMappingURL=index.js.map

@@ -5,10 +5,12 @@ import EventPage from './pages/EventPage'
 import TeacherPortal from './pages/TeacherPortal'
 import ParentPortal from './pages/ParentPortal'
 import Register from './pages/Register'
+import Login from './pages/Login'
 
 export default function App() {
   const path = window.location.pathname
   if (path === '/contact') return <ContactUs />
+  if (path === '/login') return <Login />
   if (path === '/admin') return <Admin />
   if (path === '/portal/teacher') return <TeacherPortal />
   if (path === '/portal/parent') return <ParentPortal />
