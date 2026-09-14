@@ -3,7 +3,7 @@ import {
   signOut, onAuthStateChanged, type User,
 } from 'firebase/auth'
 import {
-  collection, doc, getDoc, getDocs, addDoc, query, where, orderBy,
+  collection, doc, getDoc, getDocs, addDoc, query, where,
 } from 'firebase/firestore'
 import { auth, db } from '../firebase'
 import type { AcademyClass, Student, AttendanceSession, Announcement, ChildRequest } from '../types/portal'
@@ -41,8 +41,7 @@ function ChildDetail({ data, onBack }: {
     await Promise.all(classIds.map(async classId => {
       const snap = await getDocs(query(
         collection(db, 'attendance'),
-        where('classId', '==', classId),
-        orderBy('date', 'desc')
+        where('classId', '==', classId)
       ))
       snap.docs.forEach(d => allSessions.push({ id: d.id, ...d.data() } as AttendanceSession))
     }))
@@ -55,10 +54,9 @@ function ChildDetail({ data, onBack }: {
       const annoSnap = await getDocs(query(
         collection(db, 'announcements'),
         where('classId', 'in', classIds),
-        where('published', '==', true),
-        orderBy('createdAt', 'desc')
+        where('published', '==', true)
       ))
-      setAnnouncements(annoSnap.docs.map(d => ({ id: d.id, ...d.data() } as Announcement)))
+      setAnnouncements(annoSnap.docs.map(d => ({ id: d.id, ...d.data() } as Announcement)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
     }
 
     setLoading(false)
