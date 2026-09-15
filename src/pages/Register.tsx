@@ -95,7 +95,7 @@ function AuthStep({ onDone }: { onDone: () => void }) {
 
 // ── Family Info Step ──────────────────────────────────────────────────────────
 
-function FamilyInfoStep({ user, onSubmitted }: { user: User; onSubmitted: () => void }) {
+function FamilyInfoStep({ user, onSubmitted }: { user: User; onSubmitted: (reg: Registration) => void }) {
   const [parentName, setParentName] = useState('')
   const [phone, setPhone] = useState('')
   const [children, setChildren] = useState<RegistrationChild[]>([{ ...EMPTY_CHILD }])
@@ -114,15 +114,17 @@ function FamilyInfoStep({ user, onSubmitted }: { user: User; onSubmitted: () => 
     const validChildren = children.filter(c => c.firstName.trim() && c.lastName.trim())
     if (validChildren.length === 0) { setError('Please add at least one child.'); setSaving(false); return }
     try {
-      await setDoc(doc(db, 'registrations', user.uid), {
+      const reg: Registration = {
+        id: user.uid,
         parentName: parentName.trim(),
-        email: user.email,
+        email: user.email ?? '',
         phone: phone.trim(),
         children: validChildren,
         status: 'pending',
         submittedAt: new Date().toISOString(),
-      })
-      onSubmitted()
+      }
+      await setDoc(doc(db, 'registrations', user.uid), reg)
+      onSubmitted(reg)
     } catch {
       setError('Failed to submit. Please try again.')
     } finally { setSaving(false) }
@@ -336,7 +338,7 @@ export default function Register() {
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-16">
         {step === 'auth' && <AuthStep onDone={() => setStep('family-info')} />}
         {step === 'family-info' && user && (
-          <FamilyInfoStep user={user} onSubmitted={() => setStep('pending')} />
+          <FamilyInfoStep user={user} onSubmitted={(reg) => { setRegistration(reg); setStep('pending') }} />
         )}
         {step === 'pending' && registration && <PendingScreen reg={registration} />}
         {step === 'rejected' && registration && <RejectedScreen reg={registration} />}

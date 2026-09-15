@@ -8,7 +8,7 @@ import {
 import { auth, db } from '../firebase'
 import type { AcademyClass, Student, AttendanceSession, Announcement, ChildRequest } from '../types/portal'
 import PaymentModal from '../components/PaymentModal'
-import ImpersonationBanner, { getImpersonation, type ImpersonationState } from '../components/ImpersonationBanner'
+import ImpersonationBanner, { getImpersonation, clearImpersonation, type ImpersonationState } from '../components/ImpersonationBanner'
 
 // ── Child Detail ──────────────────────────────────────────────────────────────
 
@@ -213,7 +213,7 @@ function ChildDetail({ data, onBack }: {
 // ── Parent Portal Root ────────────────────────────────────────────────────────
 
 export default function ParentPortal() {
-  const [impersonation] = useState<ImpersonationState | null>(() => getImpersonation())
+  const [impersonation, setImpersonation] = useState<ImpersonationState | null>(() => getImpersonation())
   const [user, setUser] = useState<User | null>(null)
   const [role, setRole] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState('')
@@ -242,7 +242,13 @@ export default function ParentPortal() {
       setUser(u)
       if (u) {
         const token = await u.getIdTokenResult()
-        setRole(token.claims['role'] as string ?? null)
+        const userRole = token.claims['role'] as string ?? null
+        setRole(userRole)
+        // Clear stale impersonation if the real user is not an admin
+        if (userRole !== 'admin' && getImpersonation()) {
+          clearImpersonation()
+          setImpersonation(null)
+        }
         setDisplayName(impersonation?.displayName || u.displayName || u.email || 'Parent')
       } else {
         setRole(null)
