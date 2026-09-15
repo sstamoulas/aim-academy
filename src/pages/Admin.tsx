@@ -1846,7 +1846,7 @@ function RegistrationsTab() {
                       </div>
                     </div>
                   </div>
-                  {reg.status === 'pending' && classes.length > 0 && (
+                  {(reg.status === 'pending' || reg.status === 'rejected') && classes.length > 0 && (
                     <div>
                       <p className="text-xs font-semibold font-quick text-stone-500 mb-2">Assign to class(es):</p>
                       <div className="flex flex-wrap gap-2">
@@ -1865,7 +1865,7 @@ function RegistrationsTab() {
                       </div>
                     </div>
                   )}
-                  {reg.status !== 'pending' && (
+                  {reg.status === 'approved' && (
                     <p className="text-xs text-stone-400 font-quick italic">Review completed — edit assignments in Classes tab.</p>
                   )}
                 </div>
@@ -1881,7 +1881,7 @@ function RegistrationsTab() {
             )}
 
             {/* Actions */}
-            {reg.status === 'pending' && (
+            {(reg.status === 'pending' || reg.status === 'rejected') && (
               <div className="flex gap-3">
                 <button
                   onClick={() => handleApprove(reg)}
@@ -1889,12 +1889,14 @@ function RegistrationsTab() {
                   className="flex-1 bg-sage-600 text-white font-bold font-quick py-2.5 rounded-full hover:brightness-95 transition disabled:opacity-60 text-sm">
                   {processing === reg.id ? 'Approving…' : 'Approve'}
                 </button>
-                <button
-                  onClick={() => { setRejectTarget(reg); setRejectReason('') }}
-                  disabled={processing === reg.id}
-                  className="flex-1 border border-rose-200 text-rose-600 font-quick font-semibold py-2.5 rounded-full hover:bg-rose-50 transition disabled:opacity-60 text-sm">
-                  Reject
-                </button>
+                {reg.status === 'pending' && (
+                  <button
+                    onClick={() => { setRejectTarget(reg); setRejectReason('') }}
+                    disabled={processing === reg.id}
+                    className="flex-1 border border-rose-200 text-rose-600 font-quick font-semibold py-2.5 rounded-full hover:bg-rose-50 transition disabled:opacity-60 text-sm">
+                    Reject
+                  </button>
+                )}
               </div>
             )}
           </div>
