@@ -1,27 +1,12 @@
 import { useState, useEffect } from 'react'
-import { collection, query, where, getDocs } from 'firebase/firestore'
 import { onAuthStateChanged, type User } from 'firebase/auth'
-import { db, auth } from '../firebase'
-import type { AcademyEvent } from '../types/event'
-import { categorizeEvent } from '../types/event'
+import { auth } from '../firebase'
 
 export default function SiteFooter() {
-  const [upcomingEvent, setUpcomingEvent] = useState<AcademyEvent | null>(null)
-  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser)
   const [userRole, setUserRole] = useState<string | null>(null)
 
   useEffect(() => {
-    async function load() {
-      try {
-        const snap = await getDocs(query(collection(db, 'events'), where('published', '==', true)))
-        const upcoming = snap.docs
-          .map(d => ({ id: d.id, ...d.data() } as AcademyEvent))
-          .filter(e => categorizeEvent(e) === 'upcoming')
-          .sort((a, b) => (a.eventDate ?? a.createdAt).localeCompare(b.eventDate ?? b.createdAt))
-        setUpcomingEvent(upcoming[0] ?? null)
-      } catch { /* silent */ }
-    }
-    load()
     return onAuthStateChanged(auth, async u => {
       setCurrentUser(u)
       if (u) {
@@ -49,10 +34,7 @@ export default function SiteFooter() {
           <nav className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-stone-500">
             <a href="/#dc-about" className="hover:text-wood-dark transition">About</a>
             <a href="/#dc-programs" className="hover:text-wood-dark transition">Programs</a>
-            {upcomingEvent
-              ? <a href={`/events/${upcomingEvent.slug}`} className="hover:text-wood-dark transition">Events</a>
-              : <a href="/contact" className="hover:text-wood-dark transition">Events</a>
-            }
+            <a href="/contact" className="hover:text-wood-dark transition">Events</a>
             <a href="/#dc-achievements" className="hover:text-wood-dark transition">Achievements</a>
             <a href="/contact" className="hover:text-wood-dark transition">Contact</a>
             {currentUser

@@ -6,33 +6,49 @@ import type { Program } from '../types/site'
 import type { AcademyEvent } from '../types/event'
 import { categorizeEvent } from '../types/event'
 
+// Module-level cache — survives page-to-page navigation within the same JS session
+let cachedPrograms: Program[] | null = null
+let cachedCurrentEvents: AcademyEvent[] | null = null
+let cachedUpcomingEvents: AcademyEvent[] | null = null
+let cachedPastEvents: AcademyEvent[] | null = null
+
 interface SiteHeaderProps {
   /** Hide Sign Up / Log In buttons (e.g. on login/register pages) */
   hideAuth?: boolean
 }
 
 export default function SiteHeader({ hideAuth = false }: SiteHeaderProps) {
-  const [programs, setPrograms] = useState<Program[]>([])
-  const [upcomingEvents, setUpcomingEvents] = useState<AcademyEvent[]>([])
-  const [currentEvents, setCurrentEvents] = useState<AcademyEvent[]>([])
-  const [pastEvents, setPastEvents] = useState<AcademyEvent[]>([])
-  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [programs, setPrograms] = useState<Program[]>(cachedPrograms ?? [])
+  const [upcomingEvents, setUpcomingEvents] = useState<AcademyEvent[]>(cachedUpcomingEvents ?? [])
+  const [currentEvents, setCurrentEvents] = useState<AcademyEvent[]>(cachedCurrentEvents ?? [])
+  const [pastEvents, setPastEvents] = useState<AcademyEvent[]>(cachedPastEvents ?? [])
+  // Initialize synchronously from Firebase's in-memory state — prevents auth flicker
+  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => {
+    if (cachedPrograms) return // already cached, skip fetch
     async function load() {
       try {
         const [progSnap, evSnap] = await Promise.all([
           getDocs(query(collection(db, 'programs'), where('published', '==', true))),
           getDocs(query(collection(db, 'events'), where('published', '==', true))),
         ])
-        setPrograms(progSnap.docs.map(d => ({ id: d.id, ...d.data() } as Program)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))
+        const progs = progSnap.docs.map(d => ({ id: d.id, ...d.data() } as Program)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
         const all = evSnap.docs.map(d => ({ id: d.id, ...d.data() } as AcademyEvent))
           .sort((a, b) => (b.eventDate ?? b.createdAt).localeCompare(a.eventDate ?? a.createdAt))
-        setCurrentEvents(all.filter(e => categorizeEvent(e) === 'current'))
-        setUpcomingEvents(all.filter(e => categorizeEvent(e) === 'upcoming'))
-        setPastEvents(all.filter(e => categorizeEvent(e) === 'past'))
+        const current = all.filter(e => categorizeEvent(e) === 'current')
+        const upcoming = all.filter(e => categorizeEvent(e) === 'upcoming')
+        const past = all.filter(e => categorizeEvent(e) === 'past')
+        cachedPrograms = progs
+        cachedCurrentEvents = current
+        cachedUpcomingEvents = upcoming
+        cachedPastEvents = past
+        setPrograms(progs)
+        setCurrentEvents(current)
+        setUpcomingEvents(upcoming)
+        setPastEvents(past)
       } catch { /* silent */ }
     }
     load()
