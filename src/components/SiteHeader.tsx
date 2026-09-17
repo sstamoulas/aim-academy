@@ -184,8 +184,8 @@ export default function SiteHeader({ hideAuth = false }: SiteHeaderProps) {
             Contact Us
           </a>
 
-          {!hideAuth && authReady && (
-            <div className="ml-3 flex items-center gap-2">
+          {!hideAuth && (
+            <div className={`ml-3 flex items-center gap-2 transition-opacity duration-150 ${authReady ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
               {currentUser ? (
                 <a href={portalHref} className="bg-wood text-white px-5 py-2.5 rounded-full shadow-md hover:brightness-95 transition text-sm font-semibold">My Portal</a>
               ) : (
@@ -200,11 +200,13 @@ export default function SiteHeader({ hideAuth = false }: SiteHeaderProps) {
 
         {/* Mobile right side */}
         <div className="flex lg:hidden items-center gap-3">
-          {!hideAuth && authReady && !currentUser && (
-            <a href="/portal/register" className="bg-wood text-white text-xs font-bold px-4 py-2 rounded-full shadow-sm hover:brightness-95 transition">Sign Up</a>
-          )}
-          {!hideAuth && authReady && currentUser && (
-            <a href={portalHref} className="bg-wood text-white text-xs font-bold px-4 py-2 rounded-full shadow-sm hover:brightness-95 transition">Portal</a>
+          {!hideAuth && (
+            <div className={`transition-opacity duration-150 ${authReady ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+              {currentUser
+                ? <a href={portalHref} className="bg-wood text-white text-xs font-bold px-4 py-2 rounded-full shadow-sm hover:brightness-95 transition">Portal</a>
+                : <a href="/portal/register" className="bg-wood text-white text-xs font-bold px-4 py-2 rounded-full shadow-sm hover:brightness-95 transition">Sign Up</a>
+              }
+            </div>
           )}
           <button
             onClick={() => setMobileOpen(o => !o)}
