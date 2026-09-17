@@ -5,12 +5,13 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { getAuth as getAdminAuth } from 'firebase-admin/auth'
 import cors from 'cors'
 import * as https from 'https'
-import { Resend } from 'resend'
+import * as nodemailer from 'nodemailer'
 
 initializeApp()
 
 const stripeSecret = defineSecret('STRIPE_SECRET_KEY')
-const resendApiKey = defineSecret('RESEND_API_KEY')
+const gmailUser = defineSecret('GMAIL_USER')
+const gmailPass = defineSecret('GMAIL_PASS')
 const corsMiddleware = cors({ origin: true })
 
 function createStripePaymentIntent(
@@ -68,11 +69,24 @@ function createStripePaymentIntent(
   })
 }
 
-const FROM_EMAIL = 'AIM Academy <noreply@aimava.org>'
 const TO_EMAIL = 'aimacademyva@gmail.com'
 
+function sendEmail(opts: { user: string; pass: string; to: string; subject: string; html: string; replyTo?: string }) {
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user: opts.user, pass: opts.pass },
+  })
+  return transporter.sendMail({
+    from: `AIM Academy <${opts.user}>`,
+    to: opts.to,
+    replyTo: opts.replyTo,
+    subject: opts.subject,
+    html: opts.html,
+  })
+}
+
 export const submitContactForm = onRequest(
-  { secrets: [resendApiKey], timeoutSeconds: 30 },
+  { secrets: [gmailUser, gmailPass], timeoutSeconds: 30 },
   (req, res) => {
     corsMiddleware(req, res, async () => {
       if (req.method !== 'POST') {
@@ -104,11 +118,11 @@ export const submitContactForm = onRequest(
           submittedAt: new Date().toISOString(),
         })
 
-        const resend = new Resend(resendApiKey.value())
         const interestList = (interests ?? []).join(', ') || 'None selected'
 
-        await resend.emails.send({
-          from: FROM_EMAIL,
+        await sendEmail({
+          user: gmailUser.value(),
+          pass: gmailPass.value(),
           to: TO_EMAIL,
           replyTo: email.trim(),
           subject: `New contact form submission from ${name.trim()}`,
@@ -191,7 +205,7 @@ export const setUserRole = onCall(async (request) => {
 /** Invite a new user by email with a role. Creates the account if needed and
  *  emails them a password-setup link. Caller must have role === 'admin'. */
 export const inviteUser = onCall(
-  { secrets: [resendApiKey] },
+  { secrets: [gmailUser, gmailPass] },
   async (request) => {
     if (request.auth?.token?.role !== 'admin') {
       throw new HttpsError('permission-denied', 'Only admins can invite users.')
@@ -235,9 +249,9 @@ export const inviteUser = onCall(
     const roleLabel = role.charAt(0).toUpperCase() + role.slice(1)
 
     try {
-      const resend = new Resend(resendApiKey.value())
-      await resend.emails.send({
-        from: FROM_EMAIL,
+      await sendEmail({
+        user: gmailUser.value(),
+        pass: gmailPass.value(),
         to: email,
         subject: `You've been invited to AIM Academy as ${roleLabel}`,
         html: `
@@ -286,7 +300,7 @@ export const deleteUser = onCall(async (request) => {
 
 /** Approve a pending family registration. Sets parent role, creates students, sends welcome email. */
 export const approveRegistration = onCall(
-  { secrets: [resendApiKey] },
+  { secrets: [gmailUser, gmailPass] },
   async (request) => {
     if (request.auth?.token?.role !== 'admin') {
       throw new HttpsError('permission-denied', 'Only admins can approve registrations.')
@@ -346,9 +360,9 @@ export const approveRegistration = onCall(
 
     // Send welcome email
     try {
-      const resend = new Resend(resendApiKey.value())
-      await resend.emails.send({
-        from: FROM_EMAIL,
+      await sendEmail({
+        user: gmailUser.value(),
+        pass: gmailPass.value(),
         to: reg.email,
         subject: 'Your AIM Academy registration has been approved!',
         html: `
@@ -368,7 +382,7 @@ export const approveRegistration = onCall(
 
 /** Reject a pending family registration with an optional reason. */
 export const rejectRegistration = onCall(
-  { secrets: [resendApiKey] },
+  { secrets: [gmailUser, gmailPass] },
   async (request) => {
     if (request.auth?.token?.role !== 'admin') {
       throw new HttpsError('permission-denied', 'Only admins can reject registrations.')
@@ -395,9 +409,9 @@ export const rejectRegistration = onCall(
 
     // Notify parent
     try {
-      const resend = new Resend(resendApiKey.value())
-      await resend.emails.send({
-        from: FROM_EMAIL,
+      await sendEmail({
+        user: gmailUser.value(),
+        pass: gmailPass.value(),
         to: reg.email,
         subject: 'AIM Academy — Registration Update',
         html: `

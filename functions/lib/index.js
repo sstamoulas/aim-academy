@@ -44,10 +44,11 @@ const firestore_1 = require("firebase-admin/firestore");
 const auth_1 = require("firebase-admin/auth");
 const cors_1 = __importDefault(require("cors"));
 const https = __importStar(require("https"));
-const resend_1 = require("resend");
+const nodemailer = __importStar(require("nodemailer"));
 (0, app_1.initializeApp)();
 const stripeSecret = (0, params_1.defineSecret)('STRIPE_SECRET_KEY');
-const resendApiKey = (0, params_1.defineSecret)('RESEND_API_KEY');
+const gmailUser = (0, params_1.defineSecret)('GMAIL_USER');
+const gmailPass = (0, params_1.defineSecret)('GMAIL_PASS');
 const corsMiddleware = (0, cors_1.default)({ origin: true });
 function createStripePaymentIntent(secretKey, amount, currency, description) {
     return new Promise((resolve, reject) => {
@@ -96,9 +97,21 @@ function createStripePaymentIntent(secretKey, amount, currency, description) {
         req.end();
     });
 }
-const FROM_EMAIL = 'AIM Academy <noreply@aimava.org>';
 const TO_EMAIL = 'aimacademyva@gmail.com';
-exports.submitContactForm = (0, https_1.onRequest)({ secrets: [resendApiKey], timeoutSeconds: 30 }, (req, res) => {
+function sendEmail(opts) {
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: opts.user, pass: opts.pass },
+    });
+    return transporter.sendMail({
+        from: `AIM Academy <${opts.user}>`,
+        to: opts.to,
+        replyTo: opts.replyTo,
+        subject: opts.subject,
+        html: opts.html,
+    });
+}
+exports.submitContactForm = (0, https_1.onRequest)({ secrets: [gmailUser, gmailPass], timeoutSeconds: 30 }, (req, res) => {
     corsMiddleware(req, res, async () => {
         var _a;
         if (req.method !== 'POST') {
@@ -120,10 +133,10 @@ exports.submitContactForm = (0, https_1.onRequest)({ secrets: [resendApiKey], ti
                 message: (_a = message === null || message === void 0 ? void 0 : message.trim()) !== null && _a !== void 0 ? _a : '',
                 submittedAt: new Date().toISOString(),
             });
-            const resend = new resend_1.Resend(resendApiKey.value());
             const interestList = (interests !== null && interests !== void 0 ? interests : []).join(', ') || 'None selected';
-            await resend.emails.send({
-                from: FROM_EMAIL,
+            await sendEmail({
+                user: gmailUser.value(),
+                pass: gmailPass.value(),
                 to: TO_EMAIL,
                 replyTo: email.trim(),
                 subject: `New contact form submission from ${name.trim()}`,
@@ -186,7 +199,7 @@ exports.setUserRole = (0, https_1.onCall)(async (request) => {
 });
 /** Invite a new user by email with a role. Creates the account if needed and
  *  emails them a password-setup link. Caller must have role === 'admin'. */
-exports.inviteUser = (0, https_1.onCall)({ secrets: [resendApiKey] }, async (request) => {
+exports.inviteUser = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
     var _a, _b;
     if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
         throw new https_1.HttpsError('permission-denied', 'Only admins can invite users.');
@@ -222,9 +235,9 @@ exports.inviteUser = (0, https_1.onCall)({ secrets: [resendApiKey] }, async (req
     const resetLink = await (0, auth_1.getAuth)().generatePasswordResetLink(email);
     const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
     try {
-        const resend = new resend_1.Resend(resendApiKey.value());
-        await resend.emails.send({
-            from: FROM_EMAIL,
+        await sendEmail({
+            user: gmailUser.value(),
+            pass: gmailPass.value(),
             to: email,
             subject: `You've been invited to AIM Academy as ${roleLabel}`,
             html: `
@@ -256,7 +269,7 @@ exports.deleteUser = (0, https_1.onCall)(async (request) => {
     return { success: true };
 });
 /** Approve a pending family registration. Sets parent role, creates students, sends welcome email. */
-exports.approveRegistration = (0, https_1.onCall)({ secrets: [resendApiKey] }, async (request) => {
+exports.approveRegistration = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
     var _a, _b, _c, _d, _e, _f;
     if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
         throw new https_1.HttpsError('permission-denied', 'Only admins can approve registrations.');
@@ -308,9 +321,9 @@ exports.approveRegistration = (0, https_1.onCall)({ secrets: [resendApiKey] }, a
     });
     // Send welcome email
     try {
-        const resend = new resend_1.Resend(resendApiKey.value());
-        await resend.emails.send({
-            from: FROM_EMAIL,
+        await sendEmail({
+            user: gmailUser.value(),
+            pass: gmailPass.value(),
             to: reg.email,
             subject: 'Your AIM Academy registration has been approved!',
             html: `
@@ -327,7 +340,7 @@ exports.approveRegistration = (0, https_1.onCall)({ secrets: [resendApiKey] }, a
     return { success: true };
 });
 /** Reject a pending family registration with an optional reason. */
-exports.rejectRegistration = (0, https_1.onCall)({ secrets: [resendApiKey] }, async (request) => {
+exports.rejectRegistration = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
     var _a, _b;
     if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
         throw new https_1.HttpsError('permission-denied', 'Only admins can reject registrations.');
@@ -349,9 +362,9 @@ exports.rejectRegistration = (0, https_1.onCall)({ secrets: [resendApiKey] }, as
     });
     // Notify parent
     try {
-        const resend = new resend_1.Resend(resendApiKey.value());
-        await resend.emails.send({
-            from: FROM_EMAIL,
+        await sendEmail({
+            user: gmailUser.value(),
+            pass: gmailPass.value(),
             to: reg.email,
             subject: 'AIM Academy — Registration Update',
             html: `
