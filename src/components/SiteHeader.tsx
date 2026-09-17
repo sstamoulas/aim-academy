@@ -22,9 +22,9 @@ export default function SiteHeader({ hideAuth = false }: SiteHeaderProps) {
   const [upcomingEvents, setUpcomingEvents] = useState<AcademyEvent[]>(cachedUpcomingEvents ?? [])
   const [currentEvents, setCurrentEvents] = useState<AcademyEvent[]>(cachedCurrentEvents ?? [])
   const [pastEvents, setPastEvents] = useState<AcademyEvent[]>(cachedPastEvents ?? [])
-  // Initialize synchronously from Firebase's in-memory state — prevents auth flicker
-  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser)
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
+  const [authReady, setAuthReady] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => {
@@ -63,6 +63,7 @@ export default function SiteHeader({ hideAuth = false }: SiteHeaderProps) {
       } else {
         setUserRole(null)
       }
+      setAuthReady(true)
     })
   }, [])
 
@@ -183,7 +184,7 @@ export default function SiteHeader({ hideAuth = false }: SiteHeaderProps) {
             Contact Us
           </a>
 
-          {!hideAuth && (
+          {!hideAuth && authReady && (
             <div className="ml-3 flex items-center gap-2">
               {currentUser ? (
                 <a href={portalHref} className="bg-wood text-white px-5 py-2.5 rounded-full shadow-md hover:brightness-95 transition text-sm font-semibold">My Portal</a>
@@ -199,10 +200,10 @@ export default function SiteHeader({ hideAuth = false }: SiteHeaderProps) {
 
         {/* Mobile right side */}
         <div className="flex lg:hidden items-center gap-3">
-          {!hideAuth && !currentUser && (
+          {!hideAuth && authReady && !currentUser && (
             <a href="/portal/register" className="bg-wood text-white text-xs font-bold px-4 py-2 rounded-full shadow-sm hover:brightness-95 transition">Sign Up</a>
           )}
-          {!hideAuth && currentUser && (
+          {!hideAuth && authReady && currentUser && (
             <a href={portalHref} className="bg-wood text-white text-xs font-bold px-4 py-2 rounded-full shadow-sm hover:brightness-95 transition">Portal</a>
           )}
           <button
@@ -258,7 +259,7 @@ export default function SiteHeader({ hideAuth = false }: SiteHeaderProps) {
 
           <div className="text-xs font-bold uppercase tracking-widest text-stone-400 px-3 pt-2 pb-1">More</div>
           <a href="/contact" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-stone-600 hover:bg-stone-100 transition text-sm font-semibold">✉️ Contact Us</a>
-          {!hideAuth && (
+          {!hideAuth && authReady && (
             currentUser
               ? <a href={portalHref} onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-amber-700 hover:bg-amber-50 transition text-sm font-semibold">🏠 My Portal</a>
               : <>

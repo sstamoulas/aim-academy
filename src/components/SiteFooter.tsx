@@ -3,8 +3,9 @@ import { onAuthStateChanged, type User } from 'firebase/auth'
 import { auth } from '../firebase'
 
 export default function SiteFooter() {
-  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser)
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
+  const [authReady, setAuthReady] = useState(false)
 
   useEffect(() => {
     return onAuthStateChanged(auth, async u => {
@@ -15,6 +16,7 @@ export default function SiteFooter() {
       } else {
         setUserRole(null)
       }
+      setAuthReady(true)
     })
   }, [])
 
@@ -37,10 +39,10 @@ export default function SiteFooter() {
             <a href="/contact" className="hover:text-wood-dark transition">Events</a>
             <a href="/#dc-achievements" className="hover:text-wood-dark transition">Achievements</a>
             <a href="/contact" className="hover:text-wood-dark transition">Contact</a>
-            {currentUser
+            {authReady && (currentUser
               ? <a href={portalHref} className="hover:text-wood-dark transition">My Portal</a>
               : <a href="/portal/register" className="hover:text-wood-dark transition">Register</a>
-            }
+            )}
           </nav>
         </div>
         <div className="mt-6 text-xs text-stone-400">
