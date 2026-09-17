@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth'
 import { auth } from '../firebase'
+import SiteHeader from '../components/SiteHeader'
+import SiteFooter from '../components/SiteFooter'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -51,17 +53,9 @@ export default function Login() {
 
   return (
     <div className="bg-cream min-h-screen flex flex-col font-body">
-      <header className="sticky top-0 z-30 bg-cream/90 backdrop-blur border-b border-stone-200/60 px-6 py-3 flex items-center justify-between">
-        <a href="/" className="flex items-center gap-2">
-          <img src="/logo.png" alt="AIM Academy" className="w-8 h-8 rounded-xl object-contain bg-white p-0.5 shadow-sm" />
-          <span className="font-kids text-lg text-wood-dark leading-none">AIM Academy</span>
-        </a>
-        <a href="/" className="text-sm text-stone-500 hover:text-wood-dark transition font-quick flex items-center gap-1">
-          <span>←</span> Back to home
-        </a>
-      </header>
+      <SiteHeader hideAuth />
 
-      <div className="flex-1 flex items-center justify-center px-6">
+      <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             <img src="/logo.png" alt="AIM Academy" className="w-14 h-14 rounded-2xl shadow-md object-contain bg-white p-1 mx-auto mb-4" />
@@ -85,9 +79,13 @@ export default function Login() {
               className="w-full bg-wood text-white font-bold font-quick py-3.5 rounded-full shadow-md hover:brightness-95 transition disabled:opacity-60">
               {loading ? 'Signing in…' : 'Sign In'}
             </button>
+            <p className="text-center text-sm font-quick text-stone-500">
+              No account? <a href="/portal/register" className="font-semibold text-sage-700 hover:underline">Register here</a>
+            </p>
           </form>
         </div>
       </div>
+      <SiteFooter />
     </div>
   )
 }

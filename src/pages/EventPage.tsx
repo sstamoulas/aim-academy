@@ -5,6 +5,8 @@ import type { AcademyEvent, EventSection, EventMedia } from '../types/event'
 import { PRICING_MODEL_LABELS, categorizeEvent } from '../types/event'
 import PaymentModal from '../components/PaymentModal'
 import Carousel from '../components/Carousel'
+import SiteHeader from '../components/SiteHeader'
+import SiteFooter from '../components/SiteFooter'
 
 function MediaCarousel({ items }: { items: EventMedia[] }) {
   const [current, setCurrent] = useState(0)
@@ -209,25 +211,10 @@ export default function EventPage({ slug }: { slug: string }) {
     'bg-stone-100 text-stone-500 border-stone-200'
 
   return (
-    <div className="bg-cream antialiased overflow-x-hidden min-h-screen">
+    <div className="bg-cream antialiased overflow-x-hidden min-h-screen flex flex-col">
+      <SiteHeader />
 
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-cream/95 backdrop-blur border-b border-stone-200/70">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 h-20 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-3">
-            <img src="/logo.png" alt="Anas Ibn Malik Academy" className="w-10 h-10 rounded-xl shadow-md object-contain bg-white p-0.5" />
-            <div className="leading-none">
-              <div className="font-kids text-lg text-wood-dark">Anas Ibn Malik</div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-sage-700 font-quick">Academy</div>
-            </div>
-          </a>
-          <a href="/" className="font-quick text-sm font-semibold text-stone-500 hover:text-sage-700 transition-colors">
-            ← Back to home
-          </a>
-        </div>
-      </header>
-
-      <main className="max-w-2xl mx-auto px-6 lg:px-8 py-16 font-body">
+      <main className="max-w-2xl mx-auto w-full px-6 lg:px-8 py-16 font-body flex-1">
 
         {/* Badge + title */}
         <div className="mb-10 text-center">
@@ -377,10 +364,8 @@ export default function EventPage({ slug }: { slug: string }) {
           </a>
         </div>
 
-        <p className="text-center text-xs text-stone-400 font-quick mt-8">
-          Anas Ibn Malik Academy · Chantilly, VA
-        </p>
       </main>
+      <SiteFooter />
     </div>
   )
 }
