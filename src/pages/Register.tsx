@@ -100,6 +100,21 @@ function AuthStep({ onDone }: { onDone: () => void }) {
 function FamilyInfoStep({ user, onSubmitted }: { user: User; onSubmitted: (reg: Registration) => void }) {
   const [parentName, setParentName] = useState('')
   const [phone, setPhone] = useState('')
+  const [phoneError, setPhoneError] = useState<string | null>(null)
+
+  function formatPhone(raw: string) {
+    const digits = raw.replace(/\D/g, '').slice(0, 10)
+    if (digits.length <= 3) return digits
+    if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+  }
+
+  function handlePhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const formatted = formatPhone(e.target.value)
+    setPhone(formatted)
+    const digits = formatted.replace(/\D/g, '')
+    setPhoneError(digits.length > 0 && digits.length < 10 ? 'Please enter a valid 10-digit phone number.' : null)
+  }
   const [children, setChildren] = useState<RegistrationChild[]>([{ ...EMPTY_CHILD }])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -113,6 +128,8 @@ function FamilyInfoStep({ user, onSubmitted }: { user: User; onSubmitted: (reg: 
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError(null); setSaving(true)
+    const digits = phone.replace(/\D/g, '')
+    if (digits.length !== 10) { setError('Please enter a valid 10-digit phone number.'); setSaving(false); return }
     const validChildren = children.filter(c => c.firstName.trim() && c.lastName.trim())
     if (validChildren.length === 0) { setError('Please add at least one child.'); setSaving(false); return }
     try {
@@ -152,9 +169,10 @@ function FamilyInfoStep({ user, onSubmitted }: { user: User; onSubmitted: (reg: 
           </div>
           <div>
             <label className="block text-sm font-semibold text-stone-700 font-quick mb-2">Phone Number</label>
-            <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} required
+            <input type="tel" value={phone} onChange={handlePhoneChange} required
               placeholder="e.g. (703) 555-1234"
-              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+              className={`w-full rounded-2xl border bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 text-sm ${phoneError ? 'border-rose-400 focus:ring-rose-300' : 'border-stone-200 focus:ring-sage-400'}`} />
+            {phoneError && <p className="text-xs text-rose-500 mt-1 font-quick">{phoneError}</p>}
           </div>
           <div>
             <label className="block text-sm font-semibold text-stone-700 font-quick mb-2">Email</label>
