@@ -25,13 +25,12 @@ export default function ImpersonationBanner({ state }: { state: ImpersonationSta
   }
 
   return (
-    <div className="fixed bottom-0 inset-x-0 z-50 bg-amber-500 text-white px-5 py-3 flex items-center justify-between gap-4 shadow-xl">
-      <div className="flex items-center gap-3 min-w-0">
+    <div className="fixed bottom-0 inset-x-0 z-50 bg-amber-500 text-white px-5 py-4 flex items-center justify-between gap-4 shadow-xl">
+      <div className="flex items-center gap-3 min-w-0 overflow-hidden">
         <span className="text-lg flex-shrink-0">👁</span>
-        <div className="min-w-0">
-          <span className="font-semibold text-sm">Impersonating</span>
-          <span className="ml-2 text-sm opacity-90 truncate">{state.displayName}</span>
-          <span className="ml-1 text-xs opacity-70">({state.email})</span>
+        <div className="min-w-0 overflow-hidden">
+          <p className="text-xs opacity-70">Impersonating</p>
+          <p className="font-semibold text-sm truncate">{state.displayName}</p>
         </div>
       </div>
       <button

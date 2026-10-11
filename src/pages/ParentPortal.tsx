@@ -590,7 +590,7 @@ export default function ParentPortal() {
         </div>
       )}
 
-      <main className="max-w-3xl mx-auto px-6 py-10">
+      <main className={`max-w-3xl mx-auto px-6 py-10${impersonation ? ' pb-32' : ''}`}>
         {selectedChild ? (
           <ChildDetail
             data={selectedChild}
