@@ -3069,7 +3069,7 @@ function PaymentsTab() {
     setLoading(true)
     try {
       const [studentsSnap, paymentsSnap] = await Promise.all([
-        getDocs(query(collection(db, 'students'), where('tuitionAmount', '>', 0))),
+        getDocs(collection(db, 'students')),
         getDocs(query(collection(db, 'payments'), where('month', '==', month))),
       ])
       setStudents(studentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Student)))
@@ -3115,9 +3115,10 @@ function PaymentsTab() {
   }
 
   const paidMap = new Map(payments.map(p => [p.studentId, p]))
-  const paidCount = students.filter(s => paidMap.has(s.id)).length
-  const unpaidCount = students.length - paidCount
-  const totalOutstanding = students
+  const studentsWithFee = students.filter(s => (s.tuitionAmount ?? 0) > 0)
+  const paidCount = studentsWithFee.filter(s => paidMap.has(s.id)).length
+  const unpaidCount = studentsWithFee.filter(s => !paidMap.has(s.id)).length
+  const totalOutstanding = studentsWithFee
     .filter(s => !paidMap.has(s.id))
     .reduce((sum, s) => sum + (s.tuitionAmount ?? 0), 0)
 
@@ -3180,27 +3181,33 @@ function PaymentsTab() {
           <div className="w-8 h-8 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" />
         </div>
       ) : students.length === 0 ? (
-        <div className="text-center py-20 text-stone-400 font-quick">No students with tuition fees found.</div>
+        <div className="text-center py-20 text-stone-400 font-quick">No students found.</div>
       ) : (
         <div className="space-y-3">
           {students.map(student => {
+            const hasFee = (student.tuitionAmount ?? 0) > 0
             const payment = paidMap.get(student.id)
             const isPaid = !!payment
             const isActioning = actionLoading === student.id
-            const feeDisplay = `$${((student.tuitionAmount ?? 0) / 100).toFixed(2)}/mo`
 
             return (
-              <div key={student.id} className="bg-white rounded-[20px] border border-stone-200/70 shadow-sm p-5 flex items-center justify-between gap-4 flex-wrap">
+              <div key={student.id} className={`bg-white rounded-[20px] border shadow-sm p-5 flex items-center justify-between gap-4 flex-wrap ${hasFee ? 'border-stone-200/70' : 'border-stone-100 opacity-60'}`}>
                 <div className="min-w-0">
                   <div className="font-semibold text-stone-800 font-quick">
                     {student.firstName} {student.lastName}
                   </div>
                   <div className="text-sm text-stone-500 font-quick mt-0.5">
-                    {student.parentEmail ?? '—'} · {feeDisplay}
+                    {student.parentEmail ?? '—'}
+                  </div>
+                  <div className="text-xs font-quick mt-0.5">
+                    {hasFee
+                      ? <span className="text-sage-700 font-semibold">${((student.tuitionAmount ?? 0) / 100).toFixed(2)}/mo</span>
+                      : <span className="text-stone-400 italic">No fee set — go to Users tab to set a fee</span>
+                    }
                   </div>
                 </div>
                 <div className="flex-shrink-0">
-                  {isPaid ? (
+                  {!hasFee ? null : isPaid ? (
                     <button
                       onClick={() => handleMarkPayment(student, false)}
                       disabled={isActioning}
