@@ -302,17 +302,11 @@ export const deleteUser = onCall(async (request) => {
     db.collection('registrations').doc(uid).delete(),
   ]
 
-  // Delete students linked by parentEmail
+  // Clean up pending child requests (students are kept to preserve history)
   if (email) {
-    const studentsSnap = await db.collection('students').where('parentEmail', '==', email).get()
-    studentsSnap.docs.forEach(d => cleanupOps.push(d.ref.delete()))
-
-    // Delete child requests linked by parentEmail
     const crSnap = await db.collection('childRequests').where('parentEmail', '==', email).get()
     crSnap.docs.forEach(d => cleanupOps.push(d.ref.delete()))
   }
-
-  // Delete child requests linked by parentUid (in case email differs)
   const crUidSnap = await db.collection('childRequests').where('parentUid', '==', uid).get()
   crUidSnap.docs.forEach(d => cleanupOps.push(d.ref.delete()))
 
@@ -358,19 +352,37 @@ export const approveRegistration = onCall(
       const child = children[i]
       const assignment = classAssignments.find(a => a.childIndex === i)
       const classIds: string[] = assignment?.classIds ?? []
-      const studentId = Math.random().toString(36).slice(2)
-      await db.collection('students').doc(studentId).set({
-        firstName: child.firstName,
-        lastName: child.lastName,
-        dateOfBirth: child.dateOfBirth ?? null,
-        grade: child.grade ?? null,
-        classIds,
-        parentName: reg.parentName,
-        parentEmail: reg.email,
-        parentPhone: reg.phone,
-        notes: '',
-        createdAt: new Date().toISOString(),
-      })
+
+      // Reuse existing student record if name matches (preserves attendance history)
+      const existingSnap = await db.collection('students')
+        .where('parentEmail', '==', reg.email)
+        .where('firstName', '==', child.firstName)
+        .where('lastName', '==', child.lastName)
+        .get()
+
+      if (!existingSnap.empty) {
+        await existingSnap.docs[0].ref.update({
+          dateOfBirth: child.dateOfBirth ?? null,
+          grade: child.grade ?? null,
+          classIds,
+          parentName: reg.parentName,
+          parentPhone: reg.phone,
+        })
+      } else {
+        const studentId = Math.random().toString(36).slice(2)
+        await db.collection('students').doc(studentId).set({
+          firstName: child.firstName,
+          lastName: child.lastName,
+          dateOfBirth: child.dateOfBirth ?? null,
+          grade: child.grade ?? null,
+          classIds,
+          parentName: reg.parentName,
+          parentEmail: reg.email,
+          parentPhone: reg.phone,
+          notes: '',
+          createdAt: new Date().toISOString(),
+        })
+      }
     }
 
     // Mark registration approved
