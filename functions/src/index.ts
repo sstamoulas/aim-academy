@@ -291,10 +291,32 @@ export const deleteUser = onCall(async (request) => {
   if (!uid) throw new HttpsError('invalid-argument', 'uid is required.')
 
   const db = getFirestore()
-  await Promise.all([
+
+  // Look up the user's email so we can clean up email-linked records
+  const authUser = await getAdminAuth().getUser(uid)
+  const email = authUser.email
+
+  const cleanupOps: Promise<unknown>[] = [
     getAdminAuth().deleteUser(uid),
     db.collection('users').doc(uid).delete(),
-  ])
+    db.collection('registrations').doc(uid).delete(),
+  ]
+
+  // Delete students linked by parentEmail
+  if (email) {
+    const studentsSnap = await db.collection('students').where('parentEmail', '==', email).get()
+    studentsSnap.docs.forEach(d => cleanupOps.push(d.ref.delete()))
+
+    // Delete child requests linked by parentEmail
+    const crSnap = await db.collection('childRequests').where('parentEmail', '==', email).get()
+    crSnap.docs.forEach(d => cleanupOps.push(d.ref.delete()))
+  }
+
+  // Delete child requests linked by parentUid (in case email differs)
+  const crUidSnap = await db.collection('childRequests').where('parentUid', '==', uid).get()
+  crUidSnap.docs.forEach(d => cleanupOps.push(d.ref.delete()))
+
+  await Promise.all(cleanupOps)
   return { success: true }
 })
 
