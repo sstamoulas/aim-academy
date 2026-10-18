@@ -1523,7 +1523,7 @@ function ClassesTab() {
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm font-quick">$</span>
                     <input
                       type="number" min="0" step="0.01"
-                      value={studentForm.tuitionAmount ? (studentForm.tuitionAmount / 100).toFixed(2) : ''}
+                      value={studentForm.tuitionAmount ? studentForm.tuitionAmount / 100 : ''}
                       onChange={e => setStudentForm(f => ({ ...f, tuitionAmount: e.target.value ? Math.round(parseFloat(e.target.value) * 100) : 0 }))}
                       placeholder="0.00"
                       className="w-full rounded-2xl border border-stone-200 bg-stone-50 pl-7 pr-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
@@ -1706,7 +1706,7 @@ function ClassFormModal({
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 text-sm font-quick">$</span>
               <input
                 type="number" min="0" step="0.01"
-                value={form.tuitionAmount ? (form.tuitionAmount / 100).toFixed(2) : ''}
+                value={form.tuitionAmount ? form.tuitionAmount / 100 : ''}
                 onChange={e => onChange({ ...form, tuitionAmount: e.target.value ? Math.round(parseFloat(e.target.value) * 100) : 0 })}
                 placeholder="0.00"
                 className="w-full rounded-2xl border border-stone-200 bg-stone-50 pl-8 pr-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
