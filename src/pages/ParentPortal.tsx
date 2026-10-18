@@ -7,7 +7,6 @@ import {
 } from 'firebase/firestore'
 import { auth, db } from '../firebase'
 import type { AcademyClass, Student, AttendanceSession, Announcement, ChildRequest } from '../types/portal'
-import PaymentModal from '../components/PaymentModal'
 import ImpersonationBanner, { getImpersonation, clearImpersonation, type ImpersonationState } from '../components/ImpersonationBanner'
 
 // ── Child Detail ──────────────────────────────────────────────────────────────
@@ -26,10 +25,6 @@ function ChildDetail({ data, onBack }: {
   const [sessions, setSessions] = useState<AttendanceSession[]>([])
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [loading, setLoading] = useState(true)
-  const [payOpen, setPayOpen] = useState(false)
-  const [payClassId, setPayClassId] = useState<string | null>(null)
-
-  const payClass = payClassId ? classes.find(c => c.id === payClassId) ?? null : null
 
   async function load() {
     setLoading(true)
@@ -105,22 +100,13 @@ function ChildDetail({ data, onBack }: {
         )}
       </div>
 
-      {/* Pay tuition buttons */}
-      {classes.filter(c => c.tuitionAmount).map(cls => (
-        <div key={cls.id} className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 mb-4 flex items-center justify-between">
-          <div>
-            <div className="font-semibold text-stone-800 font-quick text-sm">{cls.name} Tuition</div>
-            <div className="text-xs text-stone-500 font-quick mt-0.5">
-              ${((cls.tuitionAmount ?? 0) / 100).toFixed(2)} / month
-            </div>
-          </div>
-          <button
-            onClick={() => { setPayClassId(cls.id); setPayOpen(true) }}
-            className="bg-wood text-white font-bold font-quick px-5 py-2 rounded-full shadow-sm hover:brightness-95 transition text-sm flex-shrink-0">
-            Pay Now
-          </button>
+      {/* Monthly fee display */}
+      {student.tuitionAmount ? (
+        <div className="bg-stone-50 border border-stone-200 rounded-2xl px-5 py-4 mb-4 flex items-center justify-between">
+          <div className="font-semibold text-stone-700 font-quick text-sm">Monthly Fee</div>
+          <div className="text-stone-800 font-quick font-bold">${(student.tuitionAmount / 100).toFixed(2)}<span className="text-stone-400 font-normal text-xs">/mo</span></div>
         </div>
-      ))}
+      ) : null}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-stone-200 mb-6">
@@ -198,14 +184,6 @@ function ChildDetail({ data, onBack }: {
         )
       )}
 
-      {payOpen && payClass?.tuitionAmount && (
-        <PaymentModal
-          isOpen={payOpen}
-          onClose={() => { setPayOpen(false); setPayClassId(null) }}
-          amount={payClass.tuitionAmount}
-          description={`${payClass.name} Tuition — ${student.firstName} ${student.lastName}`}
-        />
-      )}
     </div>
   )
 }
@@ -647,7 +625,6 @@ export default function ParentPortal() {
             ) : children.length === 0 ? null : (
               <div className="space-y-4">
                 {children.map(({ student, classes }) => {
-                  const hasPayable = classes.some(c => c.tuitionAmount)
                   return (
                     <div key={student.id} className="bg-white rounded-[28px] border border-stone-200/70 p-6">
                       <div className="flex items-center gap-4 mb-4 cursor-pointer" onClick={() => setSelectedChild({ student, classes })}>
@@ -664,6 +641,9 @@ export default function ParentPortal() {
                               : <span className="text-xs text-stone-400 font-quick">No classes enrolled</span>
                             }
                           </div>
+                          {student.tuitionAmount ? (
+                            <div className="text-xs font-quick text-stone-400 mt-1">Monthly fee: <span className="font-semibold text-stone-600">${(student.tuitionAmount / 100).toFixed(2)}</span></div>
+                          ) : null}
                         </div>
                         <span className="text-stone-300 text-xl flex-shrink-0">›</span>
                       </div>
@@ -674,9 +654,6 @@ export default function ParentPortal() {
                           className="flex-1 border border-stone-200 text-stone-600 font-quick font-semibold py-2.5 rounded-full hover:bg-stone-50 transition text-sm">
                           View Details
                         </button>
-                        {hasPayable && classes.filter(c => c.tuitionAmount).map(cls => (
-                          <PayButton key={cls.id} cls={cls} student={student} />
-                        ))}
                       </div>
                     </div>
                   )
@@ -715,22 +692,3 @@ export default function ParentPortal() {
   )
 }
 
-// Extracted to avoid hooks-in-loop issue
-function PayButton({ cls, student }: { cls: AcademyClass; student: Student }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        className="bg-wood text-white font-bold font-quick px-5 py-2.5 rounded-full shadow-sm hover:brightness-95 transition text-sm flex-shrink-0">
-        Pay Tuition
-      </button>
-      <PaymentModal
-        isOpen={open}
-        onClose={() => setOpen(false)}
-        amount={cls.tuitionAmount!}
-        description={`${cls.name} Tuition — ${student.firstName} ${student.lastName}`}
-      />
-    </>
-  )
-}

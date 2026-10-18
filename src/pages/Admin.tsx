@@ -1190,7 +1190,7 @@ const EMPTY_CLASS: Omit<AcademyClass, 'id' | 'createdAt'> = {
 }
 
 const EMPTY_STUDENT: Omit<Student, 'id' | 'classIds' | 'createdAt'> = {
-  firstName: '', lastName: '', parentName: '', parentEmail: '', parentPhone: '', notes: '',
+  firstName: '', lastName: '', parentName: '', parentEmail: '', parentPhone: '', notes: '', tuitionAmount: 0,
 }
 
 function ClassesTab() {
@@ -1329,7 +1329,7 @@ function ClassesTab() {
   }
 
   function openEditStudent(s: Student) {
-    setStudentForm({ firstName: s.firstName, lastName: s.lastName, parentName: s.parentName ?? '', parentEmail: s.parentEmail ?? '', parentPhone: s.parentPhone ?? '', notes: s.notes ?? '' })
+    setStudentForm({ firstName: s.firstName, lastName: s.lastName, parentName: s.parentName ?? '', parentEmail: s.parentEmail ?? '', parentPhone: s.parentPhone ?? '', notes: s.notes ?? '', tuitionAmount: s.tuitionAmount ?? 0 })
     setEditingStudentId(s.id)
     setStudentFormOpen(true)
   }
@@ -1400,6 +1400,12 @@ function ClassesTab() {
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-stone-800 font-quick text-sm">{s.firstName} {s.lastName}</div>
                       {s.parentName && <div className="text-xs text-stone-400 font-quick">Parent: {s.parentName}{s.parentPhone ? ` · ${s.parentPhone}` : ''}</div>}
+                      <div className="text-xs font-quick mt-0.5">
+                        {s.tuitionAmount
+                          ? <span className="text-sage-700 font-semibold">${(s.tuitionAmount / 100).toFixed(2)}/mo</span>
+                          : <span className="text-stone-300">No fee set</span>
+                        }
+                      </div>
                     </div>
                     <div className="flex gap-3 text-xs font-quick font-semibold flex-shrink-0">
                       <button onClick={() => openEditStudent(s)} className="text-stone-400 hover:text-sage-700 transition cursor-pointer">Edit</button>
@@ -1509,6 +1515,19 @@ function ClassesTab() {
                     <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Parent Phone</label>
                     <input value={studentForm.parentPhone} onChange={e => setStudentForm(f => ({ ...f, parentPhone: e.target.value }))}
                       className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Monthly Fee ($/mo)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm font-quick">$</span>
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={studentForm.tuitionAmount ? (studentForm.tuitionAmount / 100).toFixed(2) : ''}
+                      onChange={e => setStudentForm(f => ({ ...f, tuitionAmount: e.target.value ? Math.round(parseFloat(e.target.value) * 100) : 0 }))}
+                      placeholder="0.00"
+                      className="w-full rounded-2xl border border-stone-200 bg-stone-50 pl-7 pr-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
+                    />
                   </div>
                 </div>
                 <div>
@@ -1682,7 +1701,7 @@ function ClassFormModal({
               className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm resize-none" />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Monthly Tuition (optional)</label>
+            <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Current Year Default Fee ($/mo)</label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 text-sm font-quick">$</span>
               <input

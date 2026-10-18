@@ -14,6 +14,7 @@ export interface Student {
   firstName: string
   lastName: string
   classIds: string[]
+  tuitionAmount?: number  // in cents, per-student flat fee
   parentName?: string
   parentEmail?: string
   parentPhone?: string

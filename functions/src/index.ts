@@ -352,6 +352,16 @@ export const approveRegistration = onCall(
       invitedBy: request.auth.uid,
     }, { merge: true })
 
+    // Look up the current year default fee from the first assigned class
+    let defaultTuitionAmount: number | null = null
+    const allClassIds = classAssignments.flatMap(a => a.classIds ?? [])
+    if (allClassIds.length > 0) {
+      const classDoc = await db.collection('classes').doc(allClassIds[0]).get()
+      if (classDoc.exists) {
+        defaultTuitionAmount = classDoc.data()?.tuitionAmount ?? null
+      }
+    }
+
     // Create student records
     for (let i = 0; i < children.length; i++) {
       const child = children[i]
@@ -366,13 +376,19 @@ export const approveRegistration = onCall(
         .get()
 
       if (!existingSnap.empty) {
-        await existingSnap.docs[0].ref.update({
+        const existing = existingSnap.docs[0]
+        const updateData: Record<string, unknown> = {
           dateOfBirth: child.dateOfBirth ?? null,
           grade: child.grade ?? null,
           classIds,
           parentName: reg.parentName,
           parentPhone: reg.phone,
-        })
+        }
+        // Only set tuitionAmount if not already individually set
+        if (!existing.data().tuitionAmount && defaultTuitionAmount) {
+          updateData.tuitionAmount = defaultTuitionAmount
+        }
+        await existing.ref.update(updateData)
       } else {
         const studentId = Math.random().toString(36).slice(2)
         await db.collection('students').doc(studentId).set({
@@ -381,6 +397,7 @@ export const approveRegistration = onCall(
           dateOfBirth: child.dateOfBirth ?? null,
           grade: child.grade ?? null,
           classIds,
+          tuitionAmount: defaultTuitionAmount ?? null,
           parentName: reg.parentName,
           parentEmail: reg.email,
           parentPhone: reg.phone,
