@@ -902,6 +902,7 @@ function UsersTab() {
   const [changingRoleUid, setChangingRoleUid] = useState<string | null>(null)
   const [deletingUser, setDeletingUser] = useState<UserRecord | null>(null)
   const [deletingUserLoading, setDeletingUserLoading] = useState(false)
+  const [deletingUserStudentCount, setDeletingUserStudentCount] = useState(0)
 
   const inviteUserFn = httpsCallable(functions, 'inviteUser')
   const setUserRoleFn = httpsCallable(functions, 'setUserRole')
@@ -931,11 +932,17 @@ function UsersTab() {
     }
   }
 
-  async function handleDeleteUser() {
+  async function openDeleteUser(u: UserRecord) {
+    const snap = await getDocs(query(collection(db, 'students'), where('parentEmail', '==', u.email)))
+    setDeletingUserStudentCount(snap.size)
+    setDeletingUser(u)
+  }
+
+  async function handleDeleteUser(deleteStudents: boolean) {
     if (!deletingUser) return
     setDeletingUserLoading(true)
     try {
-      await deleteUserFn({ uid: deletingUser.uid })
+      await deleteUserFn({ uid: deletingUser.uid, deleteStudents })
       setUsers(prev => prev.filter(u => u.uid !== deletingUser.uid))
       setDeletingUser(null)
     } catch (err: unknown) {
@@ -1028,7 +1035,7 @@ function UsersTab() {
                   Impersonate
                 </button>
                 <button
-                  onClick={() => setDeletingUser(u)}
+                  onClick={() => openDeleteUser(u)}
                   className="text-xs font-semibold font-quick text-rose-400 hover:text-rose-600 border border-rose-200 hover:border-rose-400 px-3 py-1.5 rounded-lg transition flex-shrink-0"
                 >
                   Remove
@@ -1042,28 +1049,60 @@ function UsersTab() {
       {/* Delete confirmation modal */}
       {deletingUser && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-6">
-          <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-sm w-full text-center">
-            <div className="text-4xl mb-4">⚠️</div>
-            <h3 className="font-kids text-2xl text-wood-dark mb-2">Remove User?</h3>
-            <p className="text-stone-500 text-sm font-quick mb-6">
-              This will permanently delete <strong>{deletingUser.displayName || deletingUser.email}</strong> and revoke their access. This cannot be undone.
+          <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-sm w-full">
+            <div className="text-4xl mb-4 text-center">⚠️</div>
+            <h3 className="font-kids text-2xl text-wood-dark mb-2 text-center">Remove User?</h3>
+            <p className="text-stone-500 text-sm font-quick mb-4 text-center">
+              This will permanently delete <strong>{deletingUser.displayName || deletingUser.email}</strong> and revoke their access.
             </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeletingUser(null)}
-                disabled={deletingUserLoading}
-                className="flex-1 border border-stone-200 text-stone-600 font-bold font-quick py-3 rounded-full hover:bg-stone-50 transition disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteUser}
-                disabled={deletingUserLoading}
-                className="flex-1 bg-rose-500 text-white font-bold font-quick py-3 rounded-full hover:bg-rose-600 transition disabled:opacity-50"
-              >
-                {deletingUserLoading ? 'Removing…' : 'Remove'}
-              </button>
-            </div>
+            {deletingUserStudentCount > 0 ? (
+              <>
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 mb-6">
+                  <p className="text-sm font-semibold text-amber-800 font-quick">
+                    This parent has {deletingUserStudentCount} registered {deletingUserStudentCount === 1 ? 'child' : 'children'}.
+                  </p>
+                  <p className="text-xs text-amber-700 font-quick mt-0.5">What would you like to do with their student records?</p>
+                </div>
+                <div className="space-y-2 mb-3">
+                  <button
+                    onClick={() => handleDeleteUser(false)}
+                    disabled={deletingUserLoading}
+                    className="w-full bg-rose-500 text-white font-bold font-quick py-3 rounded-full hover:bg-rose-600 transition disabled:opacity-50 text-sm">
+                    {deletingUserLoading ? 'Removing…' : 'Remove user, keep student records'}
+                  </button>
+                  <button
+                    onClick={() => handleDeleteUser(true)}
+                    disabled={deletingUserLoading}
+                    className="w-full border border-rose-300 text-rose-600 font-bold font-quick py-3 rounded-full hover:bg-rose-50 transition disabled:opacity-50 text-sm">
+                    {deletingUserLoading ? 'Removing…' : 'Remove user and all student records'}
+                  </button>
+                </div>
+                <button
+                  onClick={() => setDeletingUser(null)}
+                  disabled={deletingUserLoading}
+                  className="w-full border border-stone-200 text-stone-600 font-bold font-quick py-3 rounded-full hover:bg-stone-50 transition disabled:opacity-50 text-sm">
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-stone-400 text-xs font-quick mb-6 text-center">This cannot be undone.</p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setDeletingUser(null)}
+                    disabled={deletingUserLoading}
+                    className="flex-1 border border-stone-200 text-stone-600 font-bold font-quick py-3 rounded-full hover:bg-stone-50 transition disabled:opacity-50">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleDeleteUser(false)}
+                    disabled={deletingUserLoading}
+                    className="flex-1 bg-rose-500 text-white font-bold font-quick py-3 rounded-full hover:bg-rose-600 transition disabled:opacity-50">
+                    {deletingUserLoading ? 'Removing…' : 'Remove'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

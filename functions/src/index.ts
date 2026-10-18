@@ -287,7 +287,7 @@ export const deleteUser = onCall(async (request) => {
   if (request.auth?.token?.role !== 'admin') {
     throw new HttpsError('permission-denied', 'Only admins can delete users.')
   }
-  const { uid } = request.data as { uid: string }
+  const { uid, deleteStudents = false } = request.data as { uid: string; deleteStudents?: boolean }
   if (!uid) throw new HttpsError('invalid-argument', 'uid is required.')
 
   const db = getFirestore()
@@ -302,8 +302,13 @@ export const deleteUser = onCall(async (request) => {
     db.collection('registrations').doc(uid).delete(),
   ]
 
-  // Clean up pending child requests (students are kept to preserve history)
   if (email) {
+    // Optionally delete student records
+    if (deleteStudents) {
+      const studentsSnap = await db.collection('students').where('parentEmail', '==', email).get()
+      studentsSnap.docs.forEach(d => cleanupOps.push(d.ref.delete()))
+    }
+    // Always clean up pending child requests
     const crSnap = await db.collection('childRequests').where('parentEmail', '==', email).get()
     crSnap.docs.forEach(d => cleanupOps.push(d.ref.delete()))
   }
