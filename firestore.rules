@@ -83,6 +83,11 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // Payments — admin only
+    match /payments/{docId} {
+      allow read, write: if isAdmin();
+    }
+
     // Family registrations — any authenticated user can create/read their own;
     // admin can read/write all
     match /registrations/{uid} {

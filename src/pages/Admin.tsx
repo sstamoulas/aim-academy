@@ -3074,6 +3074,8 @@ function PaymentsTab() {
       ])
       setStudents(studentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Student)))
       setPayments(paymentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentRecord)))
+    } catch (err) {
+      console.error('Payments loadData error:', err)
     } finally {
       setLoading(false)
     }
