@@ -1322,7 +1322,12 @@ function ClassesTab() {
     if (!selectedClass) return
     setAddingStudent(student.id)
     const updatedIds = [...student.classIds, selectedClass.id]
-    await setDoc(doc(db, 'students', student.id), { ...student, classIds: updatedIds })
+    const updatedStudent = {
+      ...student,
+      classIds: updatedIds,
+      tuitionAmount: student.tuitionAmount || selectedClass.tuitionAmount || 0,
+    }
+    await setDoc(doc(db, 'students', student.id), updatedStudent)
     await loadStudents(selectedClass.id)
     setPickerStudents(prev => prev.filter(s => s.id !== student.id))
     setAddingStudent(null)
