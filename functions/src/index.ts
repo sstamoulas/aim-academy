@@ -436,6 +436,118 @@ export const approveRegistration = onCall(
   }
 )
 
+// ── Payment tracking ──────────────────────────────────────────────────────────
+
+/** Mark or unmark a student's tuition payment for a given month. */
+export const markPayment = onCall(async (request) => {
+  if (request.auth?.token?.role !== 'admin') {
+    throw new HttpsError('permission-denied', 'Only admins can mark payments.')
+  }
+  const { studentId, studentName, parentEmail, tuitionAmount, month, paid } = request.data as {
+    studentId: string
+    studentName: string
+    parentEmail: string
+    tuitionAmount: number
+    month: string
+    paid: boolean
+  }
+  if (!studentId || !month) {
+    throw new HttpsError('invalid-argument', 'studentId and month are required.')
+  }
+
+  const db = getFirestore()
+  const docId = `${studentId}__${month}`
+  const paymentRef = db.collection('payments').doc(docId)
+
+  if (paid) {
+    await paymentRef.set({
+      studentId,
+      studentName,
+      parentEmail,
+      tuitionAmount,
+      month,
+      paidAt: new Date().toISOString(),
+      markedByUid: request.auth.uid,
+    })
+  } else {
+    await paymentRef.delete()
+  }
+
+  return { success: true }
+})
+
+/** Send tuition reminder emails to parents with unpaid students for a given month. */
+export const sendPaymentReminders = onCall(
+  { secrets: [gmailUser, gmailPass] },
+  async (request) => {
+    if (request.auth?.token?.role !== 'admin') {
+      throw new HttpsError('permission-denied', 'Only admins can send payment reminders.')
+    }
+    const { month } = request.data as { month: string }
+    if (!month) {
+      throw new HttpsError('invalid-argument', 'month is required.')
+    }
+
+    const db = getFirestore()
+
+    // Get all students with tuitionAmount > 0
+    const studentsSnap = await db.collection('students').where('tuitionAmount', '>', 0).get()
+    const students = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as {
+      id: string
+      firstName: string
+      lastName: string
+      parentEmail: string
+      tuitionAmount: number
+    }))
+
+    // Get all payment docs for this month
+    const paymentsSnap = await db.collection('payments').where('month', '==', month).get()
+    const paidStudentIds = new Set(paymentsSnap.docs.map(d => (d.data() as { studentId: string }).studentId))
+
+    // Find unpaid students
+    const unpaidStudents = students.filter(s => !paidStudentIds.has(s.id))
+
+    // Group by parentEmail
+    const byParent = new Map<string, typeof unpaidStudents>()
+    for (const student of unpaidStudents) {
+      const email = student.parentEmail
+      if (!email) continue
+      if (!byParent.has(email)) byParent.set(email, [])
+      byParent.get(email)!.push(student)
+    }
+
+    // Build month label (e.g. "October 2026")
+    const [year, monthNum] = month.split('-')
+    const monthLabel = new Date(Number(year), Number(monthNum) - 1, 1)
+      .toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
+    let emailsSent = 0
+    for (const [parentEmail, children] of byParent) {
+      const childList = children
+        .map(c => `<li><strong>${c.firstName} ${c.lastName}</strong> — $${(c.tuitionAmount / 100).toFixed(2)}/mo</li>`)
+        .join('\n')
+
+      await sendEmail({
+        user: gmailUser.value(),
+        pass: gmailPass.value(),
+        to: parentEmail,
+        subject: `AIM Academy — Tuition Reminder for ${monthLabel}`,
+        html: `
+          <p>As-salamu alaykum,</p>
+          <p>This is a friendly reminder that tuition for <strong>${monthLabel}</strong> has not yet been received for the following student(s):</p>
+          <ul>${childList}</ul>
+          <p>Please send payment via Zelle to <strong>aimacademyva@gmail.com</strong>.</p>
+          <p>If you have already sent payment, please disregard this message. Jazak Allah khayran!</p>
+          <p style="color:#888;font-size:12px;">Anas Ibn Malik Academy</p>
+        `,
+      })
+      emailsSent++
+    }
+
+    return { success: true, emailsSent }
+  }
+)
+
 /** Reject a pending family registration with an optional reason. */
 export const rejectRegistration = onCall(
   { secrets: [gmailUser, gmailPass] },

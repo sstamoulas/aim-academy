@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.rejectRegistration = exports.approveRegistration = exports.deleteUser = exports.inviteUser = exports.setUserRole = exports.createPaymentIntent = exports.submitContactForm = void 0;
+exports.rejectRegistration = exports.sendPaymentReminders = exports.markPayment = exports.approveRegistration = exports.deleteUser = exports.inviteUser = exports.setUserRole = exports.createPaymentIntent = exports.submitContactForm = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const app_1 = require("firebase-admin/app");
@@ -258,19 +258,36 @@ exports.deleteUser = (0, https_1.onCall)(async (request) => {
     if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
         throw new https_1.HttpsError('permission-denied', 'Only admins can delete users.');
     }
-    const { uid } = request.data;
+    const { uid, deleteStudents = false } = request.data;
     if (!uid)
         throw new https_1.HttpsError('invalid-argument', 'uid is required.');
     const db = (0, firestore_1.getFirestore)();
-    await Promise.all([
+    // Look up the user's email so we can clean up email-linked records
+    const authUser = await (0, auth_1.getAuth)().getUser(uid);
+    const email = authUser.email;
+    const cleanupOps = [
         (0, auth_1.getAuth)().deleteUser(uid),
         db.collection('users').doc(uid).delete(),
-    ]);
+        db.collection('registrations').doc(uid).delete(),
+    ];
+    if (email) {
+        // Optionally delete student records
+        if (deleteStudents) {
+            const studentsSnap = await db.collection('students').where('parentEmail', '==', email).get();
+            studentsSnap.docs.forEach(d => cleanupOps.push(d.ref.delete()));
+        }
+        // Always clean up pending child requests
+        const crSnap = await db.collection('childRequests').where('parentEmail', '==', email).get();
+        crSnap.docs.forEach(d => cleanupOps.push(d.ref.delete()));
+    }
+    const crUidSnap = await db.collection('childRequests').where('parentUid', '==', uid).get();
+    crUidSnap.docs.forEach(d => cleanupOps.push(d.ref.delete()));
+    await Promise.all(cleanupOps);
     return { success: true };
 });
 /** Approve a pending family registration. Sets parent role, creates students, sends welcome email. */
 exports.approveRegistration = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
     if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
         throw new https_1.HttpsError('permission-denied', 'Only admins can approve registrations.');
     }
@@ -294,24 +311,57 @@ exports.approveRegistration = (0, https_1.onCall)({ secrets: [gmailUser, gmailPa
         createdAt: new Date().toISOString(),
         invitedBy: request.auth.uid,
     }, { merge: true });
+    // Look up the current year default fee from the first assigned class
+    let defaultTuitionAmount = null;
+    const allClassIds = classAssignments.flatMap(a => { var _a; return (_a = a.classIds) !== null && _a !== void 0 ? _a : []; });
+    if (allClassIds.length > 0) {
+        const classDoc = await db.collection('classes').doc(allClassIds[0]).get();
+        if (classDoc.exists) {
+            defaultTuitionAmount = (_e = (_d = classDoc.data()) === null || _d === void 0 ? void 0 : _d.tuitionAmount) !== null && _e !== void 0 ? _e : null;
+        }
+    }
     // Create student records
     for (let i = 0; i < children.length; i++) {
         const child = children[i];
         const assignment = classAssignments.find(a => a.childIndex === i);
-        const classIds = (_d = assignment === null || assignment === void 0 ? void 0 : assignment.classIds) !== null && _d !== void 0 ? _d : [];
-        const studentId = Math.random().toString(36).slice(2);
-        await db.collection('students').doc(studentId).set({
-            firstName: child.firstName,
-            lastName: child.lastName,
-            dateOfBirth: (_e = child.dateOfBirth) !== null && _e !== void 0 ? _e : null,
-            grade: (_f = child.grade) !== null && _f !== void 0 ? _f : null,
-            classIds,
-            parentName: reg.parentName,
-            parentEmail: reg.email,
-            parentPhone: reg.phone,
-            notes: '',
-            createdAt: new Date().toISOString(),
-        });
+        const classIds = (_f = assignment === null || assignment === void 0 ? void 0 : assignment.classIds) !== null && _f !== void 0 ? _f : [];
+        // Reuse existing student record if name matches (preserves attendance history)
+        const existingSnap = await db.collection('students')
+            .where('parentEmail', '==', reg.email)
+            .where('firstName', '==', child.firstName)
+            .where('lastName', '==', child.lastName)
+            .get();
+        if (!existingSnap.empty) {
+            const existing = existingSnap.docs[0];
+            const updateData = {
+                dateOfBirth: (_g = child.dateOfBirth) !== null && _g !== void 0 ? _g : null,
+                grade: (_h = child.grade) !== null && _h !== void 0 ? _h : null,
+                classIds,
+                parentName: reg.parentName,
+                parentPhone: reg.phone,
+            };
+            // Only set tuitionAmount if not already individually set
+            if (!existing.data().tuitionAmount && defaultTuitionAmount) {
+                updateData.tuitionAmount = defaultTuitionAmount;
+            }
+            await existing.ref.update(updateData);
+        }
+        else {
+            const studentId = Math.random().toString(36).slice(2);
+            await db.collection('students').doc(studentId).set({
+                firstName: child.firstName,
+                lastName: child.lastName,
+                dateOfBirth: (_j = child.dateOfBirth) !== null && _j !== void 0 ? _j : null,
+                grade: (_k = child.grade) !== null && _k !== void 0 ? _k : null,
+                classIds,
+                tuitionAmount: defaultTuitionAmount !== null && defaultTuitionAmount !== void 0 ? defaultTuitionAmount : null,
+                parentName: reg.parentName,
+                parentEmail: reg.email,
+                parentPhone: reg.phone,
+                notes: '',
+                createdAt: new Date().toISOString(),
+            });
+        }
     }
     // Mark registration approved
     await regRef.update({
@@ -338,6 +388,92 @@ exports.approveRegistration = (0, https_1.onCall)({ secrets: [gmailUser, gmailPa
         console.error('Approval email failed (registration was still approved):', emailErr);
     }
     return { success: true };
+});
+// ── Payment tracking ──────────────────────────────────────────────────────────
+/** Mark or unmark a student's tuition payment for a given month. */
+exports.markPayment = (0, https_1.onCall)(async (request) => {
+    var _a, _b;
+    if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admins can mark payments.');
+    }
+    const { studentId, studentName, parentEmail, tuitionAmount, month, paid } = request.data;
+    if (!studentId || !month) {
+        throw new https_1.HttpsError('invalid-argument', 'studentId and month are required.');
+    }
+    const db = (0, firestore_1.getFirestore)();
+    const docId = `${studentId}__${month}`;
+    const paymentRef = db.collection('payments').doc(docId);
+    if (paid) {
+        await paymentRef.set({
+            studentId,
+            studentName,
+            parentEmail,
+            tuitionAmount,
+            month,
+            paidAt: new Date().toISOString(),
+            markedByUid: request.auth.uid,
+        });
+    }
+    else {
+        await paymentRef.delete();
+    }
+    return { success: true };
+});
+/** Send tuition reminder emails to parents with unpaid students for a given month. */
+exports.sendPaymentReminders = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
+    var _a, _b;
+    if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admins can send payment reminders.');
+    }
+    const { month } = request.data;
+    if (!month) {
+        throw new https_1.HttpsError('invalid-argument', 'month is required.');
+    }
+    const db = (0, firestore_1.getFirestore)();
+    // Get all students with tuitionAmount > 0
+    const studentsSnap = await db.collection('students').where('tuitionAmount', '>', 0).get();
+    const students = studentsSnap.docs.map(d => (Object.assign({ id: d.id }, d.data())));
+    // Get all payment docs for this month
+    const paymentsSnap = await db.collection('payments').where('month', '==', month).get();
+    const paidStudentIds = new Set(paymentsSnap.docs.map(d => d.data().studentId));
+    // Find unpaid students
+    const unpaidStudents = students.filter(s => !paidStudentIds.has(s.id));
+    // Group by parentEmail
+    const byParent = new Map();
+    for (const student of unpaidStudents) {
+        const email = student.parentEmail;
+        if (!email)
+            continue;
+        if (!byParent.has(email))
+            byParent.set(email, []);
+        byParent.get(email).push(student);
+    }
+    // Build month label (e.g. "October 2026")
+    const [year, monthNum] = month.split('-');
+    const monthLabel = new Date(Number(year), Number(monthNum) - 1, 1)
+        .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    let emailsSent = 0;
+    for (const [parentEmail, children] of byParent) {
+        const childList = children
+            .map(c => `<li><strong>${c.firstName} ${c.lastName}</strong> — $${(c.tuitionAmount / 100).toFixed(2)}/mo</li>`)
+            .join('\n');
+        await sendEmail({
+            user: gmailUser.value(),
+            pass: gmailPass.value(),
+            to: parentEmail,
+            subject: `AIM Academy — Tuition Reminder for ${monthLabel}`,
+            html: `
+          <p>As-salamu alaykum,</p>
+          <p>This is a friendly reminder that tuition for <strong>${monthLabel}</strong> has not yet been received for the following student(s):</p>
+          <ul>${childList}</ul>
+          <p>Please send payment via Zelle to <strong>aimacademyva@gmail.com</strong>.</p>
+          <p>If you have already sent payment, please disregard this message. Jazak Allah khayran!</p>
+          <p style="color:#888;font-size:12px;">Anas Ibn Malik Academy</p>
+        `,
+        });
+        emailsSent++;
+    }
+    return { success: true, emailsSent };
 });
 /** Reject a pending family registration with an optional reason. */
 exports.rejectRegistration = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {

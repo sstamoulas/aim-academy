@@ -209,7 +209,7 @@ export default function ParentPortal() {
   const [registerSuccess, setRegisterSuccess] = useState(false)
 
   const [reviewOpen, setReviewOpen] = useState(false)
-  const [reviewForm, setReviewForm] = useState({ quote: '', author: '', role: '' })
+  const [reviewForm, setReviewForm] = useState({ quote: '', adminRole: 'parent' })
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
   const [reviewSuccess, setReviewSuccess] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
@@ -252,21 +252,31 @@ export default function ParentPortal() {
     setExistingReviewStatus(snap.docs[0].data().status ?? 'pending')
   }
 
+  function formatAuthorName(name: string): string {
+    const parts = name.trim().split(/\s+/)
+    if (parts.length === 1) return parts[0]
+    return `${parts[0]} ${parts[parts.length - 1][0]}.`
+  }
+
   async function handleSubmitReview(e: React.FormEvent) {
     e.preventDefault()
     setReviewError(null)
-    if (!reviewForm.quote.trim() || !reviewForm.author.trim()) {
-      setReviewError('Please fill in your review and name.')
+    if (!reviewForm.quote.trim()) {
+      setReviewError('Please fill in your review.')
       return
     }
     if (!user) return
     setReviewSubmitting(true)
     try {
       const uid = impersonation?.uid ?? user.uid
+      const authorRaw = impersonation?.displayName || user.displayName || user.email || 'Anonymous'
+      const authorFormatted = formatAuthorName(authorRaw)
+      const derivedRole = (role === 'admin' && !impersonation) ? reviewForm.adminRole : (impersonation ? 'parent' : (role ?? 'parent'))
+      const roleLabel = derivedRole.charAt(0).toUpperCase() + derivedRole.slice(1)
       await addDoc(collection(db, 'reviews'), {
         quote: reviewForm.quote.trim(),
-        author: reviewForm.author.trim(),
-        role: reviewForm.role.trim() || null,
+        author: authorFormatted,
+        role: roleLabel,
         published: false,
         status: 'pending',
         order: 999,
@@ -451,26 +461,20 @@ export default function ParentPortal() {
                       className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:border-transparent resize-none"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-stone-600 font-quick mb-1.5">Your Name <span className="text-rose-500">*</span></label>
-                    <input
-                      type="text"
-                      value={reviewForm.author}
-                      onChange={e => setReviewForm(p => ({ ...p, author: e.target.value }))}
-                      placeholder="e.g. Fatima"
-                      className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-stone-600 font-quick mb-1.5">Your Role <span className="text-stone-400 font-normal">(optional)</span></label>
-                    <input
-                      type="text"
-                      value={reviewForm.role}
-                      onChange={e => setReviewForm(p => ({ ...p, role: e.target.value }))}
-                      placeholder="e.g. Parent of 2, AIMAVA parent since 2023"
-                      className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:border-transparent"
-                    />
-                  </div>
+                  {role === 'admin' && !impersonation && (
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-600 font-quick mb-1.5">Role (shown publicly)</label>
+                      <select
+                        value={reviewForm.adminRole}
+                        onChange={e => setReviewForm(p => ({ ...p, adminRole: e.target.value }))}
+                        className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400"
+                      >
+                        <option value="parent">Parent</option>
+                        <option value="teacher">Teacher</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+                  )}
                   {reviewError && (
                     <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">{reviewError}</p>
                   )}
@@ -675,7 +679,7 @@ export default function ParentPortal() {
                 </div>
                 {(existingReviewStatus === 'none' || existingReviewStatus === 'rejected') && (
                   <button
-                    onClick={() => { setReviewOpen(true); setReviewSuccess(false); setReviewError(null); setReviewForm(f => ({ ...f, author: displayName })) }}
+                    onClick={() => { setReviewOpen(true); setReviewSuccess(false); setReviewError(null); setReviewForm({ quote: '', adminRole: 'parent' }) }}
                     className="bg-sage-600 text-white font-bold font-quick px-5 py-2.5 rounded-full shadow-sm hover:brightness-95 transition text-sm flex-shrink-0">
                     Leave a Review
                   </button>

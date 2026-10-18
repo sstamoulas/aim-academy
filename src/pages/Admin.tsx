@@ -21,6 +21,7 @@ interface UserRecord {
   uid: string
   email: string
   displayName: string
+  phone?: string
   role: UserRole
   createdAt: string
   invitedBy: string | null
@@ -905,9 +906,12 @@ function UsersTab() {
   const [deletingUserStudentCount, setDeletingUserStudentCount] = useState(0)
   const [expandedParentUid, setExpandedParentUid] = useState<string | null>(null)
   const [parentStudents, setParentStudents] = useState<Student[]>([])
+  const [editingUser, setEditingUser] = useState<UserRecord | null>(null)
+  const [editUserForm, setEditUserForm] = useState<{ displayName: string; phone: string }>({ displayName: '', phone: '' })
+  const [savingUser, setSavingUser] = useState(false)
   const [studentFormOpen, setStudentFormOpen] = useState(false)
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null)
-  const [studentForm, setStudentForm] = useState<{ firstName: string; lastName: string; parentName: string; parentEmail: string; parentPhone: string; notes: string; tuitionAmount: number }>({ firstName: '', lastName: '', parentName: '', parentEmail: '', parentPhone: '', notes: '', tuitionAmount: 0 })
+  const [studentForm, setStudentForm] = useState<{ firstName: string; lastName: string; notes: string; tuitionAmount: number }>({ firstName: '', lastName: '', notes: '', tuitionAmount: 0 })
   const [savingStudent, setSavingStudent] = useState(false)
 
   const inviteUserFn = httpsCallable(functions, 'inviteUser')
@@ -958,6 +962,31 @@ function UsersTab() {
     }
   }
 
+  async function saveEditUser() {
+    if (!editingUser) return
+    setSavingUser(true)
+    try {
+      await setDoc(doc(db, 'users', editingUser.uid), {
+        displayName: editUserForm.displayName.trim(),
+        phone: editUserForm.phone.trim(),
+      }, { merge: true })
+      // Sync parentName / parentPhone on child student records
+      const studentsSnap = await getDocs(query(collection(db, 'students'), where('parentEmail', '==', editingUser.email)))
+      await Promise.all(studentsSnap.docs.map(d => setDoc(d.ref, {
+        parentName: editUserForm.displayName.trim(),
+        parentPhone: editUserForm.phone.trim(),
+      }, { merge: true })))
+      setUsers(prev => prev.map(u => u.uid === editingUser.uid
+        ? { ...u, displayName: editUserForm.displayName.trim(), phone: editUserForm.phone.trim() }
+        : u))
+      setEditingUser(null)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to save user.')
+    } finally {
+      setSavingUser(false)
+    }
+  }
+
   async function handleRoleChange(uid: string, role: UserRole) {
     setChangingRoleUid(uid)
     try {
@@ -982,7 +1011,7 @@ function UsersTab() {
   }
 
   function openEditStudent(s: Student) {
-    setStudentForm({ firstName: s.firstName, lastName: s.lastName, parentName: s.parentName ?? '', parentEmail: s.parentEmail ?? '', parentPhone: s.parentPhone ?? '', notes: s.notes ?? '', tuitionAmount: s.tuitionAmount ?? 0 })
+    setStudentForm({ firstName: s.firstName, lastName: s.lastName, notes: s.notes ?? '', tuitionAmount: s.tuitionAmount ?? 0 })
     setEditingStudentId(s.id)
     setStudentFormOpen(true)
   }
@@ -1070,6 +1099,12 @@ function UsersTab() {
                   </select>
                 )}
                 <button
+                  onClick={() => { setEditingUser(u); setEditUserForm({ displayName: u.displayName || '', phone: u.phone || '' }) }}
+                  className="text-xs font-semibold font-quick text-stone-400 hover:text-sage-700 border border-stone-200 hover:border-sage-400 px-3 py-1.5 rounded-lg transition flex-shrink-0"
+                >
+                  Edit
+                </button>
+                <button
                   onClick={() => {
                     sessionStorage.setItem('impersonating', JSON.stringify({ uid: u.uid, email: u.email, role: u.role, displayName: u.displayName || u.email }))
                     window.location.href = u.role === 'teacher' ? '/portal/teacher' : '/portal/parent'
@@ -1120,6 +1155,52 @@ function UsersTab() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Edit User modal */}
+      {editingUser && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-sm w-full">
+            <h3 className="font-kids text-2xl text-wood-dark mb-1">Edit User</h3>
+            <p className="text-xs text-stone-400 font-quick mb-6 truncate">{editingUser.email}</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Full Name</label>
+                <input
+                  value={editUserForm.displayName}
+                  onChange={e => setEditUserForm(f => ({ ...f, displayName: e.target.value }))}
+                  className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm font-quick"
+                  placeholder="Full name"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Phone</label>
+                <input
+                  value={editUserForm.phone}
+                  onChange={e => setEditUserForm(f => ({ ...f, phone: e.target.value }))}
+                  className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm font-quick"
+                  placeholder="(555) 555-5555"
+                  type="tel"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={saveEditUser}
+                disabled={savingUser}
+                className="flex-1 bg-wood text-white font-bold font-quick py-2.5 rounded-full shadow hover:brightness-95 transition text-sm disabled:opacity-50"
+              >
+                {savingUser ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                onClick={() => setEditingUser(null)}
+                className="flex-1 border border-stone-200 text-stone-600 font-semibold font-quick py-2.5 rounded-full hover:bg-stone-50 transition text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1276,23 +1357,6 @@ function UsersTab() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Parent / Guardian Name</label>
-                <input value={studentForm.parentName} onChange={e => setStudentForm(f => ({ ...f, parentName: e.target.value }))}
-                  className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Parent Email</label>
-                  <input type="email" value={studentForm.parentEmail} onChange={e => setStudentForm(f => ({ ...f, parentEmail: e.target.value }))}
-                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Parent Phone</label>
-                  <input value={studentForm.parentPhone} onChange={e => setStudentForm(f => ({ ...f, parentPhone: e.target.value }))}
-                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
-                </div>
-              </div>
-              <div>
                 <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Monthly Fee ($/mo)</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm font-quick">$</span>
@@ -1337,6 +1401,7 @@ const EMPTY_CLASS: Omit<AcademyClass, 'id' | 'createdAt'> = {
 function ClassesTab() {
   const [classes, setClasses] = useState<AcademyClass[]>([])
   const [teachers, setTeachers] = useState<UserRecord[]>([])
+  const [parentMap, setParentMap] = useState<Record<string, UserRecord>>({})
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedClass, setSelectedClass] = useState<AcademyClass | null>(null)
@@ -1355,6 +1420,9 @@ function ClassesTab() {
   const [pickerLoading, setPickerLoading] = useState(false)
   const [addingStudent, setAddingStudent] = useState<string | null>(null)
 
+  // Student detail modal
+  const [viewingStudent, setViewingStudent] = useState<Student | null>(null)
+
   // Delete confirm
   const [deletingClass, setDeletingClass] = useState<AcademyClass | null>(null)
   const [deletingStudent, setDeletingStudent] = useState<Student | null>(null)
@@ -1366,11 +1434,9 @@ function ClassesTab() {
       getDocs(collection(db, 'users')),
     ])
     setClasses(classSnap.docs.map(d => ({ id: d.id, ...d.data() } as AcademyClass)))
-    setTeachers(
-      teacherSnap.docs
-        .map(d => ({ uid: d.id, ...d.data() } as UserRecord))
-        .filter(u => u.role === 'teacher' || u.role === 'admin')
-    )
+    const allUsers = teacherSnap.docs.map(d => ({ uid: d.id, ...d.data() } as UserRecord))
+    setTeachers(allUsers.filter(u => u.role === 'teacher' || u.role === 'admin'))
+    setParentMap(Object.fromEntries(allUsers.filter(u => u.email).map(u => [u.email, u])))
     setLoading(false)
   }
 
@@ -1505,22 +1571,19 @@ function ClassesTab() {
             ) : (
               <div className="space-y-2">
                 {students.map(s => (
-                  <div key={s.id} className="bg-white rounded-2xl border border-stone-200/70 px-5 py-4 flex items-center gap-4">
+                  <div key={s.id} className="bg-white rounded-2xl border border-stone-200/70 px-5 py-4 flex items-center gap-4 cursor-pointer hover:border-sage-300 hover:bg-sage-50/30 transition" onClick={() => setViewingStudent(s)}>
                     <div className="w-9 h-9 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-sm flex-shrink-0">
                       {s.firstName[0]}{s.lastName[0]}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-stone-800 font-quick text-sm">{s.firstName} {s.lastName}</div>
-                      {s.parentName && <div className="text-xs text-stone-400 font-quick">Parent: {s.parentName}{s.parentPhone ? ` · ${s.parentPhone}` : ''}</div>}
+                      <div className="font-semibold text-stone-800 font-quick text-sm truncate">{s.firstName} {s.lastName}</div>
+                      <div className="text-xs text-stone-400 font-quick truncate">{s.parentEmail}</div>
                       <div className="text-xs font-quick mt-0.5">
-                        {s.tuitionAmount
-                          ? <span className="text-sage-700 font-semibold">${(s.tuitionAmount / 100).toFixed(2)}/mo</span>
-                          : <span className="text-stone-300">No fee set</span>
-                        }
+                        {s.tuitionAmount ? <span className="text-sage-700 font-semibold">${(s.tuitionAmount / 100).toFixed(2)}/mo</span> : <span className="text-stone-300">No fee set</span>}
                       </div>
                     </div>
                     <div className="flex gap-3 text-xs font-quick font-semibold flex-shrink-0">
-                      <button onClick={() => setDeletingStudent(s)} className="text-stone-400 hover:text-rose-600 transition cursor-pointer">Remove</button>
+                      <button onClick={e => { e.stopPropagation(); setDeletingStudent(s) }} className="text-stone-400 hover:text-rose-600 transition cursor-pointer">Remove</button>
                     </div>
                   </div>
                 ))}
@@ -1592,6 +1655,61 @@ function ClassesTab() {
             </div>
           </div>
         )}
+
+        {/* Student detail modal */}
+        {viewingStudent && (() => {
+          const s = viewingStudent
+          const parent = s.parentEmail ? parentMap[s.parentEmail] : null
+          const name = parent?.displayName || s.parentName
+          const phone = parent?.phone || s.parentPhone
+          return (
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setViewingStudent(null)}>
+              <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-lg flex-shrink-0">
+                    {s.firstName[0]}{s.lastName[0]}
+                  </div>
+                  <div>
+                    <h3 className="font-kids text-xl text-wood-dark">{s.firstName} {s.lastName}</h3>
+                    <p className="text-xs text-stone-400 font-quick">Student</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5 text-sm">
+                  <div className="text-stone-400 font-quick text-xs font-semibold uppercase tracking-wide pt-0.5">Fee</div>
+                  <div className="font-quick">
+                    {s.tuitionAmount ? <span className="text-sage-700 font-semibold">${(s.tuitionAmount / 100).toFixed(2)}/mo</span> : <span className="text-stone-300 text-xs">No fee set</span>}
+                  </div>
+                  {name && <>
+                    <div className="text-stone-400 font-quick text-xs font-semibold uppercase tracking-wide pt-0.5">Parent</div>
+                    <div className="text-stone-700 font-quick">{name}</div>
+                  </>}
+                  {s.parentEmail && <>
+                    <div className="text-stone-400 font-quick text-xs font-semibold uppercase tracking-wide pt-0.5">Email</div>
+                    <div className="text-stone-700 font-quick break-all">{s.parentEmail}</div>
+                  </>}
+                  {phone && <>
+                    <div className="text-stone-400 font-quick text-xs font-semibold uppercase tracking-wide pt-0.5">Phone</div>
+                    <div className="text-stone-700 font-quick">{phone}</div>
+                  </>}
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => { setDeletingStudent(s); setViewingStudent(null) }}
+                    className="flex-1 border border-rose-200 text-rose-500 font-semibold font-quick py-2.5 rounded-full hover:bg-rose-50 transition text-sm"
+                  >
+                    Remove
+                  </button>
+                  <button
+                    onClick={() => setViewingStudent(null)}
+                    className="flex-1 border border-stone-200 text-stone-600 font-semibold font-quick py-2.5 rounded-full hover:bg-stone-50 transition text-sm"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Remove student confirm */}
         {deletingStudent && (
@@ -2781,10 +2899,14 @@ function ContentTab() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-stone-700 font-quick mb-1.5">Role <span className="text-stone-400 font-normal">— optional</span></label>
-                  <input value={reviewForm.role ?? ''}
+                  <select value={reviewForm.role ?? ''}
                     onChange={e => setReviewForm(f => ({...f, role: e.target.value}))}
-                    placeholder="e.g. Parent of 2, AIMAVA parent since 2023"
-                    className="w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 transition" />
+                    className="w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 transition">
+                    <option value="">— None —</option>
+                    <option value="Parent">Parent</option>
+                    <option value="Teacher">Teacher</option>
+                    <option value="Admin">Admin</option>
+                  </select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -2915,13 +3037,215 @@ function ContentTab() {
   )
 }
 
+// ── Payments Tab ──────────────────────────────────────────────────────────────
+
+interface PaymentRecord {
+  id: string
+  studentId: string
+  studentName: string
+  parentEmail: string
+  tuitionAmount: number
+  month: string
+  paidAt: string
+  markedByUid: string
+}
+
+function PaymentsTab() {
+  const today = new Date()
+  const defaultMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+
+  const [selectedMonth, setSelectedMonth] = useState(defaultMonth)
+  const [students, setStudents] = useState<Student[]>([])
+  const [payments, setPayments] = useState<PaymentRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [sendingReminders, setSendingReminders] = useState(false)
+  const [reminderResult, setReminderResult] = useState<string | null>(null)
+
+  const markPaymentFn = httpsCallable(functions, 'markPayment')
+  const sendPaymentRemindersFn = httpsCallable(functions, 'sendPaymentReminders')
+
+  async function loadData(month: string) {
+    setLoading(true)
+    try {
+      const [studentsSnap, paymentsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'students'), where('tuitionAmount', '>', 0))),
+        getDocs(query(collection(db, 'payments'), where('month', '==', month))),
+      ])
+      setStudents(studentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Student)))
+      setPayments(paymentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentRecord)))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { loadData(selectedMonth) }, [selectedMonth])
+
+  async function handleMarkPayment(student: Student, paid: boolean) {
+    setActionLoading(student.id)
+    try {
+      await markPaymentFn({
+        studentId: student.id,
+        studentName: `${student.firstName} ${student.lastName}`,
+        parentEmail: student.parentEmail ?? '',
+        tuitionAmount: student.tuitionAmount ?? 0,
+        month: selectedMonth,
+        paid,
+      })
+      await loadData(selectedMonth)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to update payment.')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  async function handleSendReminders() {
+    setSendingReminders(true)
+    setReminderResult(null)
+    try {
+      const result = await sendPaymentRemindersFn({ month: selectedMonth })
+      const data = result.data as { success: boolean; emailsSent: number }
+      setReminderResult(`Reminders sent to ${data.emailsSent} parent${data.emailsSent !== 1 ? 's' : ''}`)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to send reminders.')
+    } finally {
+      setSendingReminders(false)
+    }
+  }
+
+  const paidMap = new Map(payments.map(p => [p.studentId, p]))
+  const paidCount = students.filter(s => paidMap.has(s.id)).length
+  const unpaidCount = students.length - paidCount
+  const totalOutstanding = students
+    .filter(s => !paidMap.has(s.id))
+    .reduce((sum, s) => sum + (s.tuitionAmount ?? 0), 0)
+
+  const [yearStr, monthStr] = selectedMonth.split('-')
+  const monthLabel = new Date(Number(yearStr), Number(monthStr) - 1, 1)
+    .toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
+  return (
+    <div className="space-y-6">
+      {/* Header row */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="font-kids text-3xl text-wood-dark">Payments</h2>
+          <p className="text-sm text-stone-500 font-quick mt-0.5">{monthLabel}</p>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={e => { setSelectedMonth(e.target.value); setReminderResult(null) }}
+            className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-quick text-stone-700 focus:outline-none focus:ring-2 focus:ring-sage-400"
+          />
+          <button
+            onClick={handleSendReminders}
+            disabled={sendingReminders}
+            className="bg-sage-600 text-white font-quick font-semibold text-sm px-4 py-2 rounded-full hover:brightness-95 transition disabled:opacity-60"
+          >
+            {sendingReminders ? 'Sending…' : 'Send Reminders'}
+          </button>
+        </div>
+      </div>
+
+      {reminderResult && (
+        <div className="bg-sage-50 border border-sage-200 text-sage-700 font-quick text-sm rounded-xl px-4 py-3">
+          {reminderResult}
+        </div>
+      )}
+
+      {/* Stats */}
+      {!loading && (
+        <div className="flex flex-wrap gap-3">
+          <div className="bg-white rounded-2xl border border-stone-200 shadow-sm px-5 py-3 text-center min-w-[100px]">
+            <div className="text-2xl font-bold text-sage-700 font-kids">{paidCount}</div>
+            <div className="text-xs text-stone-500 font-quick mt-0.5">Paid</div>
+          </div>
+          <div className="bg-white rounded-2xl border border-stone-200 shadow-sm px-5 py-3 text-center min-w-[100px]">
+            <div className="text-2xl font-bold text-amber-600 font-kids">{unpaidCount}</div>
+            <div className="text-xs text-stone-500 font-quick mt-0.5">Unpaid</div>
+          </div>
+          <div className="bg-white rounded-2xl border border-stone-200 shadow-sm px-5 py-3 text-center min-w-[140px]">
+            <div className="text-2xl font-bold text-rose-600 font-kids">${(totalOutstanding / 100).toFixed(2)}</div>
+            <div className="text-xs text-stone-500 font-quick mt-0.5">Total Outstanding</div>
+          </div>
+        </div>
+      )}
+
+      {/* Student list */}
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <div className="w-8 h-8 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" />
+        </div>
+      ) : students.length === 0 ? (
+        <div className="text-center py-20 text-stone-400 font-quick">No students with tuition fees found.</div>
+      ) : (
+        <div className="space-y-3">
+          {students.map(student => {
+            const payment = paidMap.get(student.id)
+            const isPaid = !!payment
+            const isActioning = actionLoading === student.id
+            const feeDisplay = `$${((student.tuitionAmount ?? 0) / 100).toFixed(2)}/mo`
+
+            return (
+              <div key={student.id} className="bg-white rounded-[20px] border border-stone-200/70 shadow-sm p-5 flex items-center justify-between gap-4 flex-wrap">
+                <div className="min-w-0">
+                  <div className="font-semibold text-stone-800 font-quick">
+                    {student.firstName} {student.lastName}
+                  </div>
+                  <div className="text-sm text-stone-500 font-quick mt-0.5">
+                    {student.parentEmail ?? '—'} · {feeDisplay}
+                  </div>
+                </div>
+                <div className="flex-shrink-0">
+                  {isPaid ? (
+                    <button
+                      onClick={() => handleMarkPayment(student, false)}
+                      disabled={isActioning}
+                      className="flex items-center gap-1.5 bg-sage-100 text-sage-700 border border-sage-200 font-quick font-semibold text-sm px-3 py-1.5 rounded-full hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition disabled:opacity-60"
+                      title="Click to unmark as paid"
+                    >
+                      {isActioning ? (
+                        <span className="w-4 h-4 border-2 border-sage-300 border-t-sage-600 rounded-full animate-spin inline-block" />
+                      ) : (
+                        <>
+                          <span>✓ Paid</span>
+                          <span className="text-xs font-normal text-sage-500">
+                            {new Date(payment.paidAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleMarkPayment(student, true)}
+                      disabled={isActioning}
+                      className="bg-stone-100 text-stone-500 border border-stone-200 font-quick font-semibold text-sm px-3 py-1.5 rounded-full hover:bg-sage-50 hover:text-sage-700 hover:border-sage-200 transition disabled:opacity-60"
+                    >
+                      {isActioning ? (
+                        <span className="w-4 h-4 border-2 border-stone-300 border-t-stone-500 rounded-full animate-spin inline-block" />
+                      ) : 'Mark Paid'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Admin Root ────────────────────────────────────────────────────────────────
 
 export default function Admin() {
   const [user, setUser] = useState<User | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'events' | 'classes' | 'users' | 'registrations' | 'content' | 'contact'>('events')
+  const [activeTab, setActiveTab] = useState<'events' | 'classes' | 'users' | 'registrations' | 'content' | 'contact' | 'payments'>('events')
   const [pendingCount, setPendingCount] = useState(0)
   const [events, setEvents] = useState<AcademyEvent[]>([])
   const [editing, setEditing] = useState<Partial<AcademyEvent> | null>(null)
@@ -3025,7 +3349,7 @@ export default function Admin() {
         </div>
         {/* Tab bar */}
         <div className="max-w-4xl mx-auto px-6 flex gap-1 -mb-px overflow-x-auto scrollbar-none">
-          {(['events', 'classes', 'registrations', 'users', 'content', 'contact'] as const).map(tab => (
+          {(['events', 'classes', 'registrations', 'users', 'content', 'contact', 'payments'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => { setActiveTab(tab); setEditing(null) }}
@@ -3035,7 +3359,7 @@ export default function Admin() {
                   : 'border-transparent text-stone-400 hover:text-stone-600'
               }`}
             >
-              {tab === 'events' ? 'Events' : tab === 'classes' ? 'Classes' : tab === 'users' ? 'Users' : tab === 'registrations' ? 'Registrations' : tab === 'content' ? 'Content' : 'Contact'}
+              {tab === 'events' ? 'Events' : tab === 'classes' ? 'Classes' : tab === 'users' ? 'Users' : tab === 'registrations' ? 'Registrations' : tab === 'content' ? 'Content' : tab === 'contact' ? 'Contact' : 'Payments'}
               {tab === 'registrations' && pendingCount > 0 && (
                 <span className="bg-amber-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
                   {pendingCount}
@@ -3076,6 +3400,8 @@ export default function Admin() {
           <UsersTab />
         ) : activeTab === 'contact' ? (
           <ContactSubmissionsTab />
+        ) : activeTab === 'payments' ? (
+          <PaymentsTab />
         ) : (
           <ContentTab />
         )}
