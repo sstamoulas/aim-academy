@@ -903,6 +903,12 @@ function UsersTab() {
   const [deletingUser, setDeletingUser] = useState<UserRecord | null>(null)
   const [deletingUserLoading, setDeletingUserLoading] = useState(false)
   const [deletingUserStudentCount, setDeletingUserStudentCount] = useState(0)
+  const [expandedParentUid, setExpandedParentUid] = useState<string | null>(null)
+  const [parentStudents, setParentStudents] = useState<Student[]>([])
+  const [studentFormOpen, setStudentFormOpen] = useState(false)
+  const [editingStudentId, setEditingStudentId] = useState<string | null>(null)
+  const [studentForm, setStudentForm] = useState<{ firstName: string; lastName: string; parentName: string; parentEmail: string; parentPhone: string; notes: string; tuitionAmount: number }>({ firstName: '', lastName: '', parentName: '', parentEmail: '', parentPhone: '', notes: '', tuitionAmount: 0 })
+  const [savingStudent, setSavingStudent] = useState(false)
 
   const inviteUserFn = httpsCallable(functions, 'inviteUser')
   const setUserRoleFn = httpsCallable(functions, 'setUserRole')
@@ -962,6 +968,44 @@ function UsersTab() {
     } finally {
       setChangingRoleUid(null)
     }
+  }
+
+  async function toggleParentStudents(u: UserRecord) {
+    if (expandedParentUid === u.uid) {
+      setExpandedParentUid(null)
+      setParentStudents([])
+      return
+    }
+    setExpandedParentUid(u.uid)
+    const snap = await getDocs(query(collection(db, 'students'), where('parentEmail', '==', u.email)))
+    setParentStudents(snap.docs.map(d => ({ id: d.id, ...d.data() } as Student)))
+  }
+
+  function openEditStudent(s: Student) {
+    setStudentForm({ firstName: s.firstName, lastName: s.lastName, parentName: s.parentName ?? '', parentEmail: s.parentEmail ?? '', parentPhone: s.parentPhone ?? '', notes: s.notes ?? '', tuitionAmount: s.tuitionAmount ?? 0 })
+    setEditingStudentId(s.id)
+    setStudentFormOpen(true)
+  }
+
+  async function saveStudent() {
+    if (!editingStudentId) return
+    setSavingStudent(true)
+    const existing = parentStudents.find(s => s.id === editingStudentId)
+    await setDoc(doc(db, 'students', editingStudentId), {
+      ...existing,
+      ...studentForm,
+    })
+    // Refresh
+    if (expandedParentUid) {
+      const u = users.find(u => u.uid === expandedParentUid)
+      if (u) {
+        const snap = await getDocs(query(collection(db, 'students'), where('parentEmail', '==', u.email)))
+        setParentStudents(snap.docs.map(d => ({ id: d.id, ...d.data() } as Student)))
+      }
+    }
+    setStudentFormOpen(false)
+    setEditingStudentId(null)
+    setSavingStudent(false)
   }
 
   function initials(u: UserRecord) {
@@ -1041,6 +1085,39 @@ function UsersTab() {
                   Remove
                 </button>
               </div>
+              {u.role === 'parent' && (
+                <div className="mt-3 pt-3 border-t border-stone-100">
+                  <button
+                    onClick={() => toggleParentStudents(u)}
+                    className="text-xs font-semibold font-quick text-stone-400 hover:text-sage-700 transition">
+                    {expandedParentUid === u.uid ? 'Hide Children ▲' : 'View Children ▼'}
+                  </button>
+                  {expandedParentUid === u.uid && (
+                    <div className="mt-3 space-y-2">
+                      {parentStudents.length === 0 ? (
+                        <p className="text-xs text-stone-400 font-quick">No registered children.</p>
+                      ) : parentStudents.map(s => (
+                        <div key={s.id} className="flex items-center gap-3 bg-stone-50 rounded-2xl px-4 py-3 border border-stone-100">
+                          <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center text-xs font-bold text-sage-700 font-quick flex-shrink-0">
+                            {s.firstName[0]}{s.lastName[0]}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-stone-800 font-quick text-sm">{s.firstName} {s.lastName}</div>
+                            <div className="text-xs text-stone-400 font-quick">
+                              {s.tuitionAmount ? `$${(s.tuitionAmount / 100).toFixed(2)}/mo` : 'No fee set'}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => openEditStudent(s)}
+                            className="text-xs font-semibold font-quick text-stone-400 hover:text-sage-700 border border-stone-200 hover:border-sage-400 px-3 py-1.5 rounded-lg transition flex-shrink-0">
+                            Edit
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -1179,6 +1256,74 @@ function UsersTab() {
           </div>
         </div>
       )}
+
+      {/* Edit student modal */}
+      {studentFormOpen && editingStudentId && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-6">
+          <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-sm w-full">
+            <h3 className="font-kids text-2xl text-wood-dark mb-6">Edit Student</h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">First Name</label>
+                  <input value={studentForm.firstName} onChange={e => setStudentForm(f => ({ ...f, firstName: e.target.value }))} required
+                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Last Name</label>
+                  <input value={studentForm.lastName} onChange={e => setStudentForm(f => ({ ...f, lastName: e.target.value }))} required
+                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Parent / Guardian Name</label>
+                <input value={studentForm.parentName} onChange={e => setStudentForm(f => ({ ...f, parentName: e.target.value }))}
+                  className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Parent Email</label>
+                  <input type="email" value={studentForm.parentEmail} onChange={e => setStudentForm(f => ({ ...f, parentEmail: e.target.value }))}
+                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Parent Phone</label>
+                  <input value={studentForm.parentPhone} onChange={e => setStudentForm(f => ({ ...f, parentPhone: e.target.value }))}
+                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Monthly Fee ($/mo)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm font-quick">$</span>
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={studentForm.tuitionAmount ? studentForm.tuitionAmount / 100 : ''}
+                    onChange={e => setStudentForm(f => ({ ...f, tuitionAmount: e.target.value ? Math.round(parseFloat(e.target.value) * 100) : 0 }))}
+                    placeholder="0.00"
+                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 pl-7 pr-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Notes (optional)</label>
+                <textarea value={studentForm.notes} onChange={e => setStudentForm(f => ({ ...f, notes: e.target.value }))} rows={2}
+                  className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm resize-none" />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={saveStudent} disabled={savingStudent || !studentForm.firstName.trim() || !studentForm.lastName.trim()}
+                className="flex-1 bg-wood text-white font-bold font-quick py-3 rounded-full hover:brightness-95 transition disabled:opacity-60">
+                {savingStudent ? 'Saving…' : 'Save'}
+              </button>
+              <button onClick={() => { setStudentFormOpen(false); setEditingStudentId(null) }}
+                className="flex-1 border border-stone-200 text-stone-600 font-quick font-semibold py-3 rounded-full hover:bg-stone-50 transition">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1187,10 +1332,6 @@ function UsersTab() {
 
 const EMPTY_CLASS: Omit<AcademyClass, 'id' | 'createdAt'> = {
   name: '', description: '', teacherUid: '', teacherName: '', schedule: '', tuitionAmount: 0,
-}
-
-const EMPTY_STUDENT: Omit<Student, 'id' | 'classIds' | 'createdAt'> = {
-  firstName: '', lastName: '', parentName: '', parentEmail: '', parentPhone: '', notes: '', tuitionAmount: 0,
 }
 
 function ClassesTab() {
@@ -1206,12 +1347,6 @@ function ClassesTab() {
   const [classForm, setClassForm] = useState<Omit<AcademyClass, 'id' | 'createdAt'>>(EMPTY_CLASS)
   const [editingClassId, setEditingClassId] = useState<string | null>(null)
   const [savingClass, setSavingClass] = useState(false)
-
-  // Student form (edit only)
-  const [studentFormOpen, setStudentFormOpen] = useState(false)
-  const [studentForm, setStudentForm] = useState<Omit<Student, 'id' | 'classIds' | 'createdAt'>>(EMPTY_STUDENT)
-  const [editingStudentId, setEditingStudentId] = useState<string | null>(null)
-  const [savingStudent, setSavingStudent] = useState(false)
 
   // Student picker (add to class)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -1270,28 +1405,6 @@ function ClassesTab() {
     if (selectedClass?.id === cls.id) setSelectedClass(null)
   }
 
-  async function saveStudent() {
-    if (!selectedClass) return
-    setSavingStudent(true)
-    const id = editingStudentId ?? uid()
-    const existingClassIds = editingStudentId
-      ? (students.find(s => s.id === editingStudentId)?.classIds ?? [])
-      : []
-    const classIds = existingClassIds.includes(selectedClass.id)
-      ? existingClassIds
-      : [...existingClassIds, selectedClass.id]
-    await setDoc(doc(db, 'students', id), {
-      ...studentForm,
-      classIds,
-      createdAt: editingStudentId ? (students.find(s => s.id === id)?.createdAt ?? new Date().toISOString()) : new Date().toISOString(),
-    })
-    await loadStudents(selectedClass.id)
-    setStudentFormOpen(false)
-    setEditingStudentId(null)
-    setStudentForm(EMPTY_STUDENT)
-    setSavingStudent(false)
-  }
-
   async function removeStudentFromClass(student: Student) {
     if (!selectedClass) return
     const updatedIds = student.classIds.filter(id => id !== selectedClass.id)
@@ -1331,12 +1444,6 @@ function ClassesTab() {
     await loadStudents(selectedClass.id)
     setPickerStudents(prev => prev.filter(s => s.id !== student.id))
     setAddingStudent(null)
-  }
-
-  function openEditStudent(s: Student) {
-    setStudentForm({ firstName: s.firstName, lastName: s.lastName, parentName: s.parentName ?? '', parentEmail: s.parentEmail ?? '', parentPhone: s.parentPhone ?? '', notes: s.notes ?? '', tuitionAmount: s.tuitionAmount ?? 0 })
-    setEditingStudentId(s.id)
-    setStudentFormOpen(true)
   }
 
   if (loading) {
@@ -1413,7 +1520,6 @@ function ClassesTab() {
                       </div>
                     </div>
                     <div className="flex gap-3 text-xs font-quick font-semibold flex-shrink-0">
-                      <button onClick={() => openEditStudent(s)} className="text-stone-400 hover:text-sage-700 transition cursor-pointer">Edit</button>
                       <button onClick={() => setDeletingStudent(s)} className="text-stone-400 hover:text-rose-600 transition cursor-pointer">Remove</button>
                     </div>
                   </div>
@@ -1483,74 +1589,6 @@ function ClassesTab() {
                   }
                 </div>
               )}
-            </div>
-          </div>
-        )}
-
-        {/* Edit student form modal */}
-        {studentFormOpen && editingStudentId && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-6">
-            <div className="bg-white rounded-[28px] shadow-2xl border border-stone-200 p-8 max-w-sm w-full">
-              <h3 className="font-kids text-2xl text-wood-dark mb-6">Edit Student</h3>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">First Name</label>
-                    <input value={studentForm.firstName} onChange={e => setStudentForm(f => ({ ...f, firstName: e.target.value }))} required
-                      className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Last Name</label>
-                    <input value={studentForm.lastName} onChange={e => setStudentForm(f => ({ ...f, lastName: e.target.value }))} required
-                      className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Parent / Guardian Name</label>
-                  <input value={studentForm.parentName} onChange={e => setStudentForm(f => ({ ...f, parentName: e.target.value }))}
-                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Parent Email</label>
-                    <input type="email" value={studentForm.parentEmail} onChange={e => setStudentForm(f => ({ ...f, parentEmail: e.target.value }))}
-                      className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Parent Phone</label>
-                    <input value={studentForm.parentPhone} onChange={e => setStudentForm(f => ({ ...f, parentPhone: e.target.value }))}
-                      className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Monthly Fee ($/mo)</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm font-quick">$</span>
-                    <input
-                      type="number" min="0" step="0.01"
-                      value={studentForm.tuitionAmount ? studentForm.tuitionAmount / 100 : ''}
-                      onChange={e => setStudentForm(f => ({ ...f, tuitionAmount: e.target.value ? Math.round(parseFloat(e.target.value) * 100) : 0 }))}
-                      placeholder="0.00"
-                      className="w-full rounded-2xl border border-stone-200 bg-stone-50 pl-7 pr-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Notes (optional)</label>
-                  <textarea value={studentForm.notes} onChange={e => setStudentForm(f => ({ ...f, notes: e.target.value }))} rows={2}
-                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm resize-none" />
-                </div>
-              </div>
-              <div className="flex gap-3 mt-6">
-                <button onClick={saveStudent} disabled={savingStudent || !studentForm.firstName.trim() || !studentForm.lastName.trim()}
-                  className="flex-1 bg-wood text-white font-bold font-quick py-3 rounded-full hover:brightness-95 transition disabled:opacity-60">
-                  {savingStudent ? 'Saving…' : 'Save'}
-                </button>
-                <button onClick={() => { setStudentFormOpen(false); setEditingStudentId(null) }}
-                  className="flex-1 border border-stone-200 text-stone-600 font-quick font-semibold py-3 rounded-full hover:bg-stone-50 transition">
-                  Cancel
-                </button>
-              </div>
             </div>
           </div>
         )}
