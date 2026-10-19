@@ -1906,6 +1906,7 @@ function RegistrationsTab() {
   const [rejectCrTarget, setRejectCrTarget] = useState<ChildRequest | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [processing, setProcessing] = useState<string | null>(null)
+  const [deletingReg, setDeletingReg] = useState<string | null>(null) // id being deleted
 
   const approveRegistrationFn = httpsCallable(functions, 'approveRegistration')
   const rejectRegistrationFn = httpsCallable(functions, 'rejectRegistration')
@@ -1934,6 +1935,28 @@ function RegistrationsTab() {
         : [...current, classId]
       return { ...prev, [regId]: { ...regMap, [childIndex]: updated } }
     })
+  }
+
+  async function handleDeleteReg(id: string) {
+    setDeletingReg(id)
+    try {
+      await deleteDoc(doc(db, 'registrations', id))
+      setRegistrations(prev => prev.filter(r => r.id !== id))
+      setModalReg(null)
+    } finally {
+      setDeletingReg(null)
+    }
+  }
+
+  async function handleDeleteChildRequest(id: string) {
+    setDeletingReg(id)
+    try {
+      await deleteDoc(doc(db, 'childRequests', id))
+      setChildRequests(prev => prev.filter(r => r.id !== id))
+      setModalCr(null)
+    } finally {
+      setDeletingReg(null)
+    }
   }
 
   async function handleApprove(reg: Registration) {
@@ -2173,7 +2196,16 @@ function RegistrationsTab() {
                         </div>
                       )}
                       {reg.status === 'approved' && (
-                        <p className="text-xs text-stone-400 font-quick italic">Review completed — edit assignments in Classes tab.</p>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs text-stone-400 font-quick italic">Review completed — edit assignments in Classes tab.</p>
+                          <button
+                            onClick={() => handleDeleteReg(reg.id)}
+                            disabled={deletingReg === reg.id}
+                            className="flex-shrink-0 text-xs font-semibold font-quick text-rose-400 hover:text-rose-600 border border-rose-200 hover:border-rose-400 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                          >
+                            {deletingReg === reg.id ? 'Deleting…' : 'Delete Record'}
+                          </button>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -2196,6 +2228,12 @@ function RegistrationsTab() {
                       <button onClick={() => { setRejectTarget(reg); setRejectReason('') }} disabled={processing === reg.id}
                         className="flex-1 border border-rose-200 text-rose-600 font-quick font-semibold py-2.5 rounded-full hover:bg-rose-50 transition disabled:opacity-60 text-sm">
                         Reject
+                      </button>
+                    )}
+                    {reg.status === 'rejected' && (
+                      <button onClick={() => handleDeleteReg(reg.id)} disabled={deletingReg === reg.id}
+                        className="flex-1 border border-rose-200 text-rose-600 font-quick font-semibold py-2.5 rounded-full hover:bg-rose-50 transition disabled:opacity-60 text-sm">
+                        {deletingReg === reg.id ? 'Deleting…' : 'Delete Record'}
                       </button>
                     )}
                   </div>
@@ -2272,18 +2310,26 @@ function RegistrationsTab() {
                   </div>
                 )}
                 {/* Actions */}
-                {cr.status === 'pending' && (
-                  <div className="flex gap-3 pb-2">
-                    <button onClick={() => handleApproveChildRequest(cr)} disabled={processing === cr.id}
-                      className="flex-1 bg-sage-600 text-white font-bold font-quick py-2.5 rounded-full hover:brightness-95 transition disabled:opacity-60 text-sm">
-                      {processing === cr.id ? 'Approving…' : 'Approve'}
-                    </button>
-                    <button onClick={() => { setRejectCrTarget(cr); setRejectReason('') }} disabled={processing === cr.id}
+                <div className="flex gap-3 pb-2">
+                  {cr.status === 'pending' && (
+                    <>
+                      <button onClick={() => handleApproveChildRequest(cr)} disabled={processing === cr.id}
+                        className="flex-1 bg-sage-600 text-white font-bold font-quick py-2.5 rounded-full hover:brightness-95 transition disabled:opacity-60 text-sm">
+                        {processing === cr.id ? 'Approving…' : 'Approve'}
+                      </button>
+                      <button onClick={() => { setRejectCrTarget(cr); setRejectReason('') }} disabled={processing === cr.id}
+                        className="flex-1 border border-rose-200 text-rose-600 font-quick font-semibold py-2.5 rounded-full hover:bg-rose-50 transition disabled:opacity-60 text-sm">
+                        Reject
+                      </button>
+                    </>
+                  )}
+                  {(cr.status === 'approved' || cr.status === 'rejected') && (
+                    <button onClick={() => handleDeleteChildRequest(cr.id)} disabled={deletingReg === cr.id}
                       className="flex-1 border border-rose-200 text-rose-600 font-quick font-semibold py-2.5 rounded-full hover:bg-rose-50 transition disabled:opacity-60 text-sm">
-                      Reject
+                      {deletingReg === cr.id ? 'Deleting…' : 'Delete Record'}
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           </div>
