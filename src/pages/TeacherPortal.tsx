@@ -5,7 +5,11 @@ import {
 import {
   collection, doc, getDocs, setDoc, query, where, orderBy,
 } from 'firebase/firestore'
+import { getFunctions, httpsCallable } from 'firebase/functions'
 import { auth, db } from '../firebase'
+
+const functions = getFunctions()
+const notifyAnnouncementParentsFn = httpsCallable(functions, 'notifyAnnouncementParents')
 import type { AcademyClass, Student, AttendanceSession, Announcement } from '../types/portal'
 import ImpersonationBanner, { getImpersonation, type ImpersonationState } from '../components/ImpersonationBanner'
 
@@ -249,9 +253,11 @@ function AnnouncementsTab({ cls, teacherUid, teacherName }: {
     if (!form.title.trim() || !form.body.trim()) return
     setSaving(true)
     const id = uid()
+    const title = form.title.trim()
+    const body = form.body.trim()
     await setDoc(doc(db, 'announcements', id), {
-      title: form.title.trim(),
-      body: form.body.trim(),
+      title,
+      body,
       classId: cls.id,
       className: cls.name,
       authorUid: teacherUid,
@@ -259,6 +265,14 @@ function AnnouncementsTab({ cls, teacherUid, teacherName }: {
       createdAt: new Date().toISOString(),
       published: form.published,
     })
+    // Fire-and-forget: email parents in this class
+    notifyAnnouncementParentsFn({
+      classId: cls.id,
+      className: cls.name,
+      teacherName,
+      title,
+      body,
+    }).catch(err => console.error('Announcement notification failed:', err))
     await load()
     setForm({ title: '', body: '', published: true })
     setComposing(false)

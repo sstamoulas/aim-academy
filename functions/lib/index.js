@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.rejectRegistration = exports.sendPaymentReminders = exports.markPayment = exports.approveRegistration = exports.deleteUser = exports.inviteUser = exports.setUserRole = exports.createPaymentIntent = exports.submitContactForm = void 0;
+exports.rejectRegistration = exports.notifyAnnouncementParents = exports.sendPaymentReminders = exports.markPayment = exports.approveRegistration = exports.deleteUser = exports.inviteUser = exports.setUserRole = exports.createPaymentIntent = exports.submitContactForm = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const app_1 = require("firebase-admin/app");
@@ -472,6 +472,58 @@ exports.sendPaymentReminders = (0, https_1.onCall)({ secrets: [gmailUser, gmailP
         `,
         });
         emailsSent++;
+    }
+    return { success: true, emailsSent };
+});
+// ── Announcement notifications ────────────────────────────────────────────────
+/** Email all parents in a class when a teacher posts an announcement. */
+exports.notifyAnnouncementParents = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
+    var _a, _b;
+    const role = (_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role;
+    if (role !== 'admin' && role !== 'teacher') {
+        throw new https_1.HttpsError('permission-denied', 'Only teachers and admins can send announcement notifications.');
+    }
+    const { classId, className, teacherName, title, body } = request.data;
+    if (!classId || !title) {
+        throw new https_1.HttpsError('invalid-argument', 'classId and title are required.');
+    }
+    const db = (0, firestore_1.getFirestore)();
+    const studentsSnap = await db.collection('students').where('classIds', 'array-contains', classId).get();
+    // Collect unique parent emails
+    const parentEmails = new Set();
+    for (const doc of studentsSnap.docs) {
+        const email = doc.data().parentEmail;
+        if (email)
+            parentEmails.add(email);
+    }
+    if (parentEmails.size === 0)
+        return { success: true, emailsSent: 0 };
+    const teacherLabel = teacherName ? `Ustadh/Ustadha ${teacherName}` : 'Your teacher';
+    const bodyHtml = body.replace(/\n/g, '<br>');
+    let emailsSent = 0;
+    for (const parentEmail of parentEmails) {
+        try {
+            await sendEmail({
+                user: gmailUser.value(),
+                pass: gmailPass.value(),
+                to: parentEmail,
+                subject: `New Announcement — ${className}`,
+                html: `
+            <p>As-salamu alaykum,</p>
+            <p>${teacherLabel} has posted a new announcement for <strong>${className}</strong>:</p>
+            <div style="background:#f5f5f0;border-left:4px solid #7a9e7e;padding:12px 16px;margin:16px 0;border-radius:4px">
+              <p style="margin:0 0 6px 0;font-weight:600">${title}</p>
+              <p style="margin:0;color:#444">${bodyHtml}</p>
+            </div>
+            <p><a href="https://aimava.org/portal/parent">View in Parent Portal →</a></p>
+            <p style="color:#888;font-size:12px;">Anas Ibn Malik Academy</p>
+          `,
+            });
+            emailsSent++;
+        }
+        catch (err) {
+            console.error(`Failed to email ${parentEmail}:`, err);
+        }
     }
     return { success: true, emailsSent };
 });

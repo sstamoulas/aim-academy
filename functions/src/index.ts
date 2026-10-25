@@ -548,6 +548,71 @@ export const sendPaymentReminders = onCall(
   }
 )
 
+// ── Announcement notifications ────────────────────────────────────────────────
+
+/** Email all parents in a class when a teacher posts an announcement. */
+export const notifyAnnouncementParents = onCall(
+  { secrets: [gmailUser, gmailPass] },
+  async (request) => {
+    const role = request.auth?.token?.role
+    if (role !== 'admin' && role !== 'teacher') {
+      throw new HttpsError('permission-denied', 'Only teachers and admins can send announcement notifications.')
+    }
+    const { classId, className, teacherName, title, body } = request.data as {
+      classId: string
+      className: string
+      teacherName: string
+      title: string
+      body: string
+    }
+    if (!classId || !title) {
+      throw new HttpsError('invalid-argument', 'classId and title are required.')
+    }
+
+    const db = getFirestore()
+    const studentsSnap = await db.collection('students').where('classIds', 'array-contains', classId).get()
+
+    // Collect unique parent emails
+    const parentEmails = new Set<string>()
+    for (const doc of studentsSnap.docs) {
+      const email = (doc.data() as { parentEmail?: string }).parentEmail
+      if (email) parentEmails.add(email)
+    }
+
+    if (parentEmails.size === 0) return { success: true, emailsSent: 0 }
+
+    const teacherLabel = teacherName ? `Ustadh/Ustadha ${teacherName}` : 'Your teacher'
+    const bodyHtml = body.replace(/\n/g, '<br>')
+
+    let emailsSent = 0
+    for (const parentEmail of parentEmails) {
+      try {
+        await sendEmail({
+          user: gmailUser.value(),
+          pass: gmailPass.value(),
+          to: parentEmail,
+          subject: `New Announcement — ${className}`,
+          html: `
+            <p>As-salamu alaykum,</p>
+            <p>${teacherLabel} has posted a new announcement for <strong>${className}</strong>:</p>
+            <div style="background:#f5f5f0;border-left:4px solid #7a9e7e;padding:12px 16px;margin:16px 0;border-radius:4px">
+              <p style="margin:0 0 6px 0;font-weight:600">${title}</p>
+              <p style="margin:0;color:#444">${bodyHtml}</p>
+            </div>
+            <p><a href="https://aimava.org/portal/parent">View in Parent Portal →</a></p>
+            <p style="color:#888;font-size:12px;">Anas Ibn Malik Academy</p>
+          `,
+        })
+        emailsSent++
+      } catch (err) {
+        console.error(`Failed to email ${parentEmail}:`, err)
+      }
+    }
+
+    return { success: true, emailsSent }
+  }
+)
+
 /** Reject a pending family registration with an optional reason. */
 export const rejectRegistration = onCall(
   { secrets: [gmailUser, gmailPass] },
