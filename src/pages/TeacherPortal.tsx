@@ -490,8 +490,7 @@ export default function TeacherPortal() {
     setClassesLoading(true)
     let q
     if (impersonation) {
-      // When impersonating a teacher, we'd need their UID — for now show all classes (admin-level access)
-      q = query(collection(db, 'classes'), orderBy('createdAt', 'desc'))
+      q = query(collection(db, 'classes'), where('teacherUid', '==', impersonation.uid))
     } else if (role === 'admin') {
       q = query(collection(db, 'classes'), orderBy('createdAt', 'desc'))
     } else {
@@ -558,7 +557,7 @@ export default function TeacherPortal() {
         {selectedClass ? (
           <ClassDetail
             cls={selectedClass}
-            teacherUid={user.uid}
+            teacherUid={impersonation ? impersonation.uid : user.uid}
             teacherName={displayName}
             onBack={() => setSelectedClass(null)}
           />
