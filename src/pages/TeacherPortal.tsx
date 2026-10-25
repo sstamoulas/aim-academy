@@ -34,9 +34,9 @@ function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: str
     const studs = studSnap.docs.map(d => ({ id: d.id, ...d.data() } as Student))
     setStudents(studs)
     setSessions(sessSnap.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceSession)))
-    // Default: all present
+    // Default: all absent
     const init: Record<string, boolean> = {}
-    studs.forEach(s => { init[s.id] = true })
+    studs.forEach(s => { init[s.id] = false })
     setRecords(init)
     setLoading(false)
   }
@@ -52,7 +52,7 @@ function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: str
       setRecords(map)
     } else {
       const init: Record<string, boolean> = {}
-      students.forEach(s => { init[s.id] = true })
+      students.forEach(s => { init[s.id] = false })
       setRecords(init)
     }
     setSaved(false)
