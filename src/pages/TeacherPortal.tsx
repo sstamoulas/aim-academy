@@ -218,17 +218,25 @@ function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: str
             <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">No students enrolled in this class yet.</div>
           ) : (
             <>
-              <div className="space-y-2 mb-6">
-                {students.map(s => {
+              <div className="rounded-2xl border border-stone-200/70 overflow-hidden mb-6">
+                {students.map((s, idx) => {
                   const status = records[s.id] ?? 'absent'
                   return (
                     <div key={s.id}
-                      className={`w-full flex items-center gap-4 rounded-2xl border-2 px-5 py-3.5 transition ${
-                        status === 'present' ? 'border-sage-400 bg-sage-50' :
-                        status === 'late' ? 'border-amber-300 bg-amber-50' :
-                        status === 'excused' ? 'border-stone-300 bg-stone-50' :
-                        'border-rose-200 bg-rose-50'
+                      className={`flex items-center gap-3 px-4 py-3 transition ${idx > 0 ? 'border-t border-stone-200/70' : ''} ${
+                        status === 'present' ? 'bg-sage-50' :
+                        status === 'late' ? 'bg-amber-50' :
+                        status === 'excused' ? 'bg-stone-50' :
+                        'bg-white'
                       }`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold font-quick text-xs flex-shrink-0 ${
+                        status === 'present' ? 'bg-sage-500 text-white' :
+                        status === 'late' ? 'bg-amber-400 text-white' :
+                        status === 'excused' ? 'bg-stone-400 text-white' :
+                        'bg-sage-100 text-sage-700'
+                      }`}>
+                        {s.firstName[0]}{s.lastName[0]}
+                      </div>
                       <div className={`font-semibold font-quick text-sm flex-1 ${status === 'absent' ? 'text-stone-500' : 'text-stone-800'}`}>
                         {s.firstName} {s.lastName}
                       </div>
@@ -274,16 +282,24 @@ function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: str
             <div>
               <button onClick={() => setSelectedSession(null)} className="text-sm font-quick font-semibold text-stone-500 hover:text-sage-700 transition mb-4">← Back to history</button>
               <h4 className="font-semibold text-stone-700 font-quick mb-4">{selectedSession.date}</h4>
-              <div className="space-y-2">
-                {selectedSession.records.map(r => {
+              <div className="rounded-2xl border border-stone-200/70 overflow-hidden">
+                {selectedSession.records.map((r, idx) => {
                   const status: AttendanceStatus = r.status ?? ((r as unknown as { present?: boolean }).present ? 'present' : 'absent')
                   return (
-                    <div key={r.studentId} className={`flex items-center gap-4 rounded-2xl px-5 py-3 border ${
-                      status === 'present' ? 'bg-sage-50 border-sage-200' :
-                      status === 'late' ? 'bg-amber-50 border-amber-200' :
-                      status === 'excused' ? 'bg-stone-50 border-stone-200' :
-                      'bg-rose-50 border-rose-200'
+                    <div key={r.studentId} className={`flex items-center gap-3 px-4 py-3 ${idx > 0 ? 'border-t border-stone-200/70' : ''} ${
+                      status === 'present' ? 'bg-sage-50' :
+                      status === 'late' ? 'bg-amber-50' :
+                      status === 'excused' ? 'bg-stone-50' :
+                      'bg-white'
                     }`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold font-quick text-xs flex-shrink-0 ${
+                        status === 'present' ? 'bg-sage-500 text-white' :
+                        status === 'late' ? 'bg-amber-400 text-white' :
+                        status === 'excused' ? 'bg-stone-400 text-white' :
+                        'bg-sage-100 text-sage-700'
+                      }`}>
+                        {r.studentName.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                      </div>
                       <span className="font-quick text-sm text-stone-700 flex-1">{r.studentName}</span>
                       <span className={`text-xs font-bold font-quick px-2.5 py-0.5 rounded-full ${STATUS_COLORS[status]}`}>
                         {STATUS_LABELS[status]}
@@ -294,8 +310,8 @@ function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: str
               </div>
             </div>
           ) : (
-            <div className="space-y-2">
-              {sessions.map(sess => {
+            <div className="rounded-2xl border border-stone-200/70 overflow-hidden">
+              {sessions.map((sess, idx) => {
                 const counts = { present: 0, late: 0, excused: 0, absent: 0 }
                 sess.records.forEach(r => {
                   const st: AttendanceStatus = r.status ?? ((r as unknown as { present?: boolean }).present ? 'present' : 'absent')
@@ -303,15 +319,17 @@ function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: str
                 })
                 return (
                   <button key={sess.id} onClick={() => setSelectedSession(sess)}
-                    className="w-full bg-white rounded-2xl border border-stone-200/70 px-5 py-4 flex items-center gap-4 hover:border-sage-300 hover:bg-sage-50/30 transition text-left">
-                    <div className="text-2xl flex-shrink-0">📋</div>
-                    <div className="flex-1">
+                    className={`w-full bg-white px-4 py-3 flex items-center gap-3 hover:bg-stone-50 transition text-left ${idx > 0 ? 'border-t border-stone-200/70' : ''}`}>
+                    <div className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
                       <div className="font-semibold text-stone-800 font-quick text-sm">{sess.date}</div>
                       <div className="text-xs text-stone-400 font-quick">
                         {counts.present} present · {counts.late} late · {counts.excused} excused · {counts.absent} absent
                       </div>
                     </div>
-                    <span className="text-xs text-stone-400 font-quick">View →</span>
+                    <svg className="w-4 h-4 text-stone-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                   </button>
                 )
               })}
