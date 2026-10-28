@@ -7,7 +7,7 @@ import {
 } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { auth, db } from '../firebase'
-import type { AcademyClass, Student, AttendanceSession, AttendanceStatus, MissedWork, Announcement, ISHomeworkAssignment } from '../types/portal'
+import type { AcademyClass, Student, AttendanceSession, AttendanceStatus, MissedWork, Announcement, ISHomeworkAssignment, QaidahFluency, QaidahProgress, QaidahHistoryEntry } from '../types/portal'
 import ImpersonationBanner, { getImpersonation, type ImpersonationState } from '../components/ImpersonationBanner'
 
 const functions = getFunctions()
@@ -933,9 +933,223 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
   )
 }
 
+// ── Qa'idah Progress Tab ──────────────────────────────────────────────────────
+
+const FLUENCY_LABELS: Record<QaidahFluency, string> = {
+  needs_practice: 'Needs Practice',
+  improving: 'Improving',
+  fluent: 'Fluent',
+}
+
+const FLUENCY_COLORS: Record<QaidahFluency, string> = {
+  needs_practice: 'bg-rose-100 text-rose-700',
+  improving: 'bg-amber-100 text-amber-700',
+  fluent: 'bg-sage-100 text-sage-700',
+}
+
+interface QaidahEntry {
+  currentLesson: string
+  fluency: QaidahFluency
+  notes: string
+  history: QaidahHistoryEntry[]
+}
+
+function QaidahTab({ cls, students, teacherUid }: { cls: AcademyClass; students: Student[]; teacherUid: string }) {
+  const [data, setData] = useState<Record<string, QaidahEntry>>({})
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState<Record<string, boolean>>({})
+  const [saved, setSaved] = useState<Record<string, boolean>>({})
+  const [showHistory, setShowHistory] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      const docs = await Promise.all(
+        students.map(s => getDoc(doc(db, 'qaidahProgress', `${cls.id}__${s.id}`)))
+      )
+      const map: Record<string, QaidahEntry> = {}
+      students.forEach((s, i) => {
+        const d = docs[i]
+        if (d.exists()) {
+          const p = d.data() as QaidahProgress
+          map[s.id] = { currentLesson: p.currentLesson, fluency: p.fluency, notes: p.notes, history: p.history ?? [] }
+        } else {
+          map[s.id] = { currentLesson: '', fluency: 'needs_practice', history: [], notes: '' }
+        }
+      })
+      setData(map)
+      setLoading(false)
+    }
+    if (students.length > 0) load(); else setLoading(false)
+  }, [cls.id, students.map(s => s.id).join(',')])
+
+  function update(studentId: string, field: keyof QaidahEntry, value: string | QaidahFluency) {
+    setData(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: value } }))
+  }
+
+  async function handleSave(s: Student) {
+    setSaving(prev => ({ ...prev, [s.id]: true }))
+    const entry = data[s.id]
+    await setDoc(doc(db, 'qaidahProgress', `${cls.id}__${s.id}`), {
+      classId: cls.id,
+      studentId: s.id,
+      studentName: `${s.firstName} ${s.lastName}`,
+      currentLesson: entry.currentLesson,
+      fluency: entry.fluency,
+      notes: entry.notes,
+      history: entry.history,
+      updatedAt: new Date().toISOString(),
+      updatedBy: teacherUid,
+    })
+    setSaving(prev => ({ ...prev, [s.id]: false }))
+    setSaved(prev => ({ ...prev, [s.id]: true }))
+    setTimeout(() => setSaved(prev => ({ ...prev, [s.id]: false })), 3000)
+  }
+
+  async function handleAdvance(s: Student) {
+    const entry = data[s.id]
+    if (!entry.currentLesson.trim()) return
+    const historyEntry: QaidahHistoryEntry = {
+      lesson: entry.currentLesson,
+      fluency: entry.fluency,
+      notes: entry.notes,
+      recordedAt: new Date().toISOString(),
+      recordedBy: teacherUid,
+    }
+    const newEntry: QaidahEntry = {
+      currentLesson: '',
+      fluency: 'needs_practice',
+      notes: '',
+      history: [historyEntry, ...entry.history],
+    }
+    setData(prev => ({ ...prev, [s.id]: newEntry }))
+    setSaving(prev => ({ ...prev, [s.id]: true }))
+    await setDoc(doc(db, 'qaidahProgress', `${cls.id}__${s.id}`), {
+      classId: cls.id,
+      studentId: s.id,
+      studentName: `${s.firstName} ${s.lastName}`,
+      ...newEntry,
+      updatedAt: new Date().toISOString(),
+      updatedBy: teacherUid,
+    })
+    setSaving(prev => ({ ...prev, [s.id]: false }))
+    setSaved(prev => ({ ...prev, [s.id]: true }))
+    setTimeout(() => setSaved(prev => ({ ...prev, [s.id]: false })), 3000)
+  }
+
+  if (loading) return <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+  if (students.length === 0) return <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">No students enrolled in this class yet.</div>
+
+  return (
+    <div className="space-y-4">
+      {students.map(s => {
+        const entry = data[s.id] ?? { currentLesson: '', fluency: 'needs_practice' as QaidahFluency, notes: '', history: [] }
+        const isSaving = saving[s.id]
+        const isSaved = saved[s.id]
+        const historyOpen = showHistory[s.id] ?? false
+
+        return (
+          <div key={s.id} className="bg-white rounded-2xl border border-stone-200/70 p-5">
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-xs flex-shrink-0">
+                {s.firstName[0]}{s.lastName[0]}
+              </div>
+              <div className="font-semibold text-stone-800 font-quick flex-1">{s.firstName} {s.lastName}</div>
+              {entry.currentLesson && (
+                <span className={`text-xs font-bold font-quick px-2.5 py-0.5 rounded-full ${FLUENCY_COLORS[entry.fluency]}`}>
+                  {FLUENCY_LABELS[entry.fluency]}
+                </span>
+              )}
+            </div>
+
+            {/* Fields */}
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Current Lesson</label>
+                <input
+                  value={entry.currentLesson}
+                  onChange={e => update(s.id, 'currentLesson', e.target.value)}
+                  placeholder="e.g. Noorani Qa'idah Page 18 — Compound Letters"
+                  className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Fluency</label>
+                <select
+                  value={entry.fluency}
+                  onChange={e => update(s.id, 'fluency', e.target.value as QaidahFluency)}
+                  className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm">
+                  <option value="needs_practice">Needs Practice</option>
+                  <option value="improving">Improving</option>
+                  <option value="fluent">Fluent</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Teacher Note</label>
+                <input
+                  value={entry.notes}
+                  onChange={e => update(s.id, 'notes', e.target.value)}
+                  placeholder="Optional note…"
+                  className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                onClick={() => handleSave(s)}
+                disabled={isSaving}
+                className="bg-wood text-white font-bold font-quick px-5 py-2 rounded-full text-sm hover:brightness-95 transition disabled:opacity-60">
+                {isSaving ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                onClick={() => handleAdvance(s)}
+                disabled={isSaving || !entry.currentLesson.trim()}
+                title="Save current lesson to history and start a new one"
+                className="border border-sage-400 text-sage-700 font-bold font-quick px-5 py-2 rounded-full text-sm hover:bg-sage-50 transition disabled:opacity-40">
+                Advance →
+              </button>
+              {isSaved && <span className="text-sm text-sage-600 font-quick font-semibold">Saved!</span>}
+              {entry.history.length > 0 && (
+                <button
+                  onClick={() => setShowHistory(prev => ({ ...prev, [s.id]: !historyOpen }))}
+                  className="ml-auto text-xs font-quick text-stone-400 hover:text-stone-600 transition">
+                  {historyOpen ? 'Hide history' : `History (${entry.history.length})`}
+                </button>
+              )}
+            </div>
+
+            {/* History */}
+            {historyOpen && entry.history.length > 0 && (
+              <div className="mt-4 border-t border-stone-100 pt-4 space-y-2">
+                {entry.history.map((h, i) => (
+                  <div key={i} className="flex items-start gap-3 text-xs font-quick">
+                    <div className="flex-1">
+                      <span className="font-semibold text-stone-700">{h.lesson}</span>
+                      {h.notes && <span className="text-stone-400"> · {h.notes}</span>}
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${FLUENCY_COLORS[h.fluency as QaidahFluency]}`}>
+                      {FLUENCY_LABELS[h.fluency as QaidahFluency]}
+                    </span>
+                    <span className="text-stone-300 flex-shrink-0">
+                      {new Date(h.recordedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Class Detail ──────────────────────────────────────────────────────────────
 
-type DetailTab = 'attendance' | 'progress' | 'homework' | 'quiz' | 'missedWork' | 'announcements' | 'students'
+type DetailTab = 'attendance' | 'progress' | 'qaidah' | 'homework' | 'quiz' | 'missedWork' | 'announcements' | 'students'
 
 function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
   cls: AcademyClass; teacherUid: string; teacherName: string; onBack: () => void; initialTab?: DetailTab
@@ -957,6 +1171,7 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
   const TABS: [DetailTab, string][] = [
     ['attendance', 'Attendance'],
     ['progress', 'Progress'],
+    ['qaidah', "Qa'idah"],
     ['homework', 'Homework'],
     ['quiz', 'Quiz'],
     ['missedWork', 'Missed Work'],
@@ -1005,6 +1220,7 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
       {tab === 'quiz' && (loadingStudents ? <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div> : <QuizTab cls={cls} students={students} teacherUid={teacherUid} />)}
       {tab === 'missedWork' && <MissedWorkTab cls={cls} teacherUid={teacherUid} />}
       {tab === 'announcements' && <AnnouncementsTab cls={cls} teacherUid={teacherUid} teacherName={teacherName} />}
+      {tab === 'qaidah' && (loadingStudents ? <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div> : <QaidahTab cls={cls} students={students} teacherUid={teacherUid} />)}
     </div>
   )
 }

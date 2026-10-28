@@ -137,3 +137,26 @@ export interface ISHomeworkAssignment {
   createdBy: string
   createdByName: string
 }
+
+export type QaidahFluency = 'needs_practice' | 'improving' | 'fluent'
+
+export interface QaidahHistoryEntry {
+  lesson: string
+  fluency: QaidahFluency
+  notes: string
+  recordedAt: string
+  recordedBy: string
+}
+
+export interface QaidahProgress {
+  id: string // classId__studentId
+  classId: string
+  studentId: string
+  studentName: string
+  currentLesson: string
+  fluency: QaidahFluency
+  notes: string
+  history: QaidahHistoryEntry[]
+  updatedAt: string
+  updatedBy: string
+}

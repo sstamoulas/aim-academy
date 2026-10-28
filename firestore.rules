@@ -118,5 +118,10 @@ service cloud.firestore {
       allow read, write: if isStaff();
       allow read: if isParent();
     }
+
+    // Qa'idah progress tracking — staff read/write
+    match /qaidahProgress/{docId} {
+      allow read, write: if isStaff();
+    }
   }
 }
