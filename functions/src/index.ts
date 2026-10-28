@@ -755,6 +755,66 @@ export const rejectRegistration = onCall(
   }
 )
 
+// ── notifyMissedWorkParent ────────────────────────────────────────────────────
+// Teacher/admin: sends parent an email about their child's missed work.
+
+export const notifyMissedWorkParent = onCall(
+  { secrets: [gmailUser, gmailPass] },
+  async (request) => {
+    const db = getFirestore()
+
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Must be signed in.')
+    const role = request.auth.token?.role as string | undefined
+    if (role !== 'teacher' && role !== 'admin') {
+      throw new HttpsError('permission-denied', 'Teachers and admins only.')
+    }
+
+    const { missedWorkId } = request.data as { missedWorkId: string }
+    if (!missedWorkId) throw new HttpsError('invalid-argument', 'missedWorkId required.')
+
+    const mwDoc = await db.collection('missedWork').doc(missedWorkId).get()
+    if (!mwDoc.exists) throw new HttpsError('not-found', 'Missed work record not found.')
+    const mw = mwDoc.data()!
+
+    // Look up student to get parent email
+    const stuDoc = await db.collection('students').doc(mw.studentId).get()
+    if (!stuDoc.exists) throw new HttpsError('not-found', 'Student not found.')
+    const stu = stuDoc.data()!
+
+    const parentEmail: string | undefined = stu.parentEmail
+    if (!parentEmail) return { success: false, reason: 'No parent email on file.' }
+
+    const dateStr = new Date(mw.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+    const what: string[] = []
+    if (mw.missedLesson)   what.push('Islamic Studies Lesson')
+    if (mw.missedHomework) what.push('Islamic Studies Homework/Worksheet')
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: gmailUser.value(), pass: gmailPass.value() },
+    })
+
+    await transporter.sendMail({
+      from: `"AIM Academy" <${gmailUser.value()}>`,
+      to: parentEmail,
+      subject: `Missed Work — ${mw.studentName} — ${mw.className}`,
+      html: `
+        <p>As-salamu alaykum <strong>${stu.parentName || 'Dear Parent'}</strong>,</p>
+        <p>This is a reminder that <strong>${mw.studentName}</strong> was absent from <strong>${mw.className}</strong> on <strong>${dateStr}</strong>.</p>
+        ${what.length > 0 ? `
+        <p><strong>What was missed:</strong></p>
+        <ul>${what.map(w => `<li>${w}</li>`).join('')}</ul>
+        ` : ''}
+        ${mw.missedWorkNotes ? `<p><strong>Teacher's notes:</strong><br/>${mw.missedWorkNotes.replace(/\n/g, '<br/>')}</p>` : ''}
+        <p>Please reach out to the teacher if you have any questions.</p>
+        <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br/>Anas Ibn Malik Academy</p>
+      `,
+    })
+
+    return { success: true }
+  }
+)
+
 // ── seedDatabase ──────────────────────────────────────────────────────────────
 // Admin-only: writes realistic test data (classes, students, attendance, etc.)
 // All documents use "seed_" prefixed IDs so they can be cleared without risk.

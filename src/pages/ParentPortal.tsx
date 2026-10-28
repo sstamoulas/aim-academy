@@ -3,10 +3,10 @@ import {
   signOut, onAuthStateChanged, type User,
 } from 'firebase/auth'
 import {
-  collection, doc, getDoc, getDocs, addDoc, query, where,
+  collection, doc, getDoc, getDocs, addDoc, query, where, orderBy,
 } from 'firebase/firestore'
 import { auth, db } from '../firebase'
-import type { AcademyClass, Student, AttendanceSession, AttendanceRecord, Announcement, ChildRequest } from '../types/portal'
+import type { AcademyClass, Student, AttendanceSession, AttendanceRecord, Announcement, ChildRequest, MissedWork } from '../types/portal'
 import ImpersonationBanner, { getImpersonation, clearImpersonation, type ImpersonationState } from '../components/ImpersonationBanner'
 
 // ── Child Detail ──────────────────────────────────────────────────────────────
@@ -21,9 +21,10 @@ function ChildDetail({ data, onBack }: {
   onBack: () => void
 }) {
   const { student, classes } = data
-  const [tab, setTab] = useState<'attendance' | 'announcements'>('attendance')
+  const [tab, setTab] = useState<'attendance' | 'missedWork' | 'announcements'>('attendance')
   const [sessions, setSessions] = useState<AttendanceSession[]>([])
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const [missedWorkItems, setMissedWorkItems] = useState<MissedWork[]>([])
   const [loading, setLoading] = useState(true)
 
   async function load() {
@@ -53,6 +54,15 @@ function ChildDetail({ data, onBack }: {
       ))
       setAnnouncements(annoSnap.docs.map(d => ({ id: d.id, ...d.data() } as Announcement)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
     }
+
+    // Load unresolved missed work for this student
+    const mwSnap = await getDocs(query(
+      collection(db, 'missedWork'),
+      where('studentId', '==', student.id),
+      where('resolved', '==', false),
+      orderBy('date', 'desc'),
+    ))
+    setMissedWorkItems(mwSnap.docs.map(d => ({ id: d.id, ...d.data() } as MissedWork)))
 
     setLoading(false)
   }
@@ -112,6 +122,7 @@ function ChildDetail({ data, onBack }: {
       <div className="flex gap-1 border-b border-stone-200 mb-6">
         {([
           ['attendance', `Attendance (${totalCount})`],
+          ['missedWork', `Missed Work${missedWorkItems.length > 0 ? ` (${missedWorkItems.length})` : ''}`],
           ['announcements', `Announcements (${announcements.length})`],
         ] as const).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)}
@@ -160,6 +171,46 @@ function ChildDetail({ data, onBack }: {
                   }`}>
                     {statusLabel}
                   </span>
+                </div>
+              )
+            })}
+          </div>
+        )
+      ) : tab === 'missedWork' ? (
+        missedWorkItems.length === 0 ? (
+          <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">
+            No missed work on record.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {missedWorkItems.map(item => {
+              const cls = classes.find(c => c.id === item.classId)
+              const what: string[] = []
+              if (item.missedLesson) what.push('IS Lesson')
+              if (item.missedHomework) what.push('IS Homework')
+              return (
+                <div key={item.id} className="bg-white rounded-2xl border border-rose-100 p-5">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div>
+                      <div className="font-quick font-semibold text-stone-800 text-sm">
+                        {new Date(item.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                      </div>
+                      <div className="text-xs text-stone-400 font-quick mt-0.5">{cls?.name ?? item.className}</div>
+                    </div>
+                    <span className="text-xs font-bold font-quick bg-rose-100 text-rose-600 border border-rose-200 px-2.5 py-0.5 rounded-full flex-shrink-0">Absent</span>
+                  </div>
+                  {what.length > 0 && (
+                    <div className="flex gap-2 mb-2">
+                      {what.map(w => (
+                        <span key={w} className="text-xs font-quick font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-0.5 rounded-full">{w}</span>
+                      ))}
+                    </div>
+                  )}
+                  {item.missedWorkNotes ? (
+                    <p className="text-sm font-quick text-stone-600 leading-relaxed">{item.missedWorkNotes}</p>
+                  ) : (
+                    <p className="text-xs font-quick text-stone-400 italic">No additional notes from teacher.</p>
+                  )}
                 </div>
               )
             })}

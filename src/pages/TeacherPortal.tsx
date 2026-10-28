@@ -12,6 +12,7 @@ import ImpersonationBanner, { getImpersonation, type ImpersonationState } from '
 
 const functions = getFunctions()
 const notifyAnnouncementParentsFn = httpsCallable(functions, 'notifyAnnouncementParents')
+const notifyMissedWorkParentFn = httpsCallable(functions, 'notifyMissedWorkParent')
 
 // ── Date/week helpers ─────────────────────────────────────────────────────────
 
@@ -685,8 +686,11 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
   const [loading, setLoading] = useState(true)
   const [showResolved, setShowResolved] = useState(false)
   const [notes, setNotes] = useState<Record<string, string>>({})
+  const [missedLesson, setMissedLesson] = useState<Record<string, boolean>>({})
+  const [missedHomework, setMissedHomework] = useState<Record<string, boolean>>({})
   const [savingNotes, setSavingNotes] = useState<Record<string, boolean>>({})
   const [resolvingId, setResolvingId] = useState<string | null>(null)
+  const [notifyStatus, setNotifyStatus] = useState<Record<string, string>>({})
 
   async function load() {
     setLoading(true)
@@ -700,8 +704,16 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
     const loaded = snap.docs.map(d => ({ id: d.id, ...d.data() } as MissedWork))
     setItems(loaded)
     const noteMap: Record<string, string> = {}
-    loaded.forEach(item => { noteMap[item.id] = item.missedWorkNotes ?? '' })
+    const lessonMap: Record<string, boolean> = {}
+    const hwMap: Record<string, boolean> = {}
+    loaded.forEach(item => {
+      noteMap[item.id] = item.missedWorkNotes ?? ''
+      lessonMap[item.id] = item.missedLesson ?? false
+      hwMap[item.id] = item.missedHomework ?? false
+    })
     setNotes(noteMap)
+    setMissedLesson(lessonMap)
+    setMissedHomework(hwMap)
     setLoading(false)
   }
 
@@ -709,7 +721,11 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
 
   async function saveNotes(itemId: string) {
     setSavingNotes(prev => ({ ...prev, [itemId]: true }))
-    await setDoc(doc(db, 'missedWork', itemId), { missedWorkNotes: notes[itemId] ?? '' }, { merge: true })
+    await setDoc(doc(db, 'missedWork', itemId), {
+      missedWorkNotes: notes[itemId] ?? '',
+      missedLesson: missedLesson[itemId] ?? false,
+      missedHomework: missedHomework[itemId] ?? false,
+    }, { merge: true })
     setSavingNotes(prev => ({ ...prev, [itemId]: false }))
   }
 
@@ -718,6 +734,17 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
     await setDoc(doc(db, 'missedWork', itemId), { resolved: true, resolvedAt: new Date().toISOString() }, { merge: true })
     setResolvingId(null)
     await load()
+  }
+
+  async function notifyParent(itemId: string) {
+    setNotifyStatus(prev => ({ ...prev, [itemId]: 'sending' }))
+    try {
+      await notifyMissedWorkParentFn({ missedWorkId: itemId })
+      setNotifyStatus(prev => ({ ...prev, [itemId]: 'sent' }))
+    } catch {
+      setNotifyStatus(prev => ({ ...prev, [itemId]: 'error' }))
+    }
+    setTimeout(() => setNotifyStatus(prev => ({ ...prev, [itemId]: '' })), 4000)
   }
 
   if (loading) return <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
@@ -760,8 +787,31 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
                   </span>
                 )}
               </div>
+
+              {/* Structured options */}
+              <div className="flex gap-4 mb-3">
+                <label className={`flex items-center gap-2 cursor-pointer select-none ${showResolved ? 'opacity-60 pointer-events-none' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={missedLesson[item.id] ?? false}
+                    onChange={e => setMissedLesson(prev => ({ ...prev, [item.id]: e.target.checked }))}
+                    className="w-4 h-4 rounded accent-rose-500"
+                  />
+                  <span className="text-sm font-quick text-stone-700">IS Lesson</span>
+                </label>
+                <label className={`flex items-center gap-2 cursor-pointer select-none ${showResolved ? 'opacity-60 pointer-events-none' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={missedHomework[item.id] ?? false}
+                    onChange={e => setMissedHomework(prev => ({ ...prev, [item.id]: e.target.checked }))}
+                    className="w-4 h-4 rounded accent-rose-500"
+                  />
+                  <span className="text-sm font-quick text-stone-700">IS Homework</span>
+                </label>
+              </div>
+
               <div className="mb-3">
-                <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Missed work notes</label>
+                <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Additional notes</label>
                 <textarea
                   value={notes[item.id] ?? ''}
                   onChange={e => setNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
@@ -772,7 +822,7 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
                 />
               </div>
               {!showResolved && (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <button
                     onClick={() => saveNotes(item.id)}
                     disabled={savingNotes[item.id]}
@@ -785,6 +835,14 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
                     className="bg-sage-100 text-sage-700 font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-sage-200 transition disabled:opacity-60">
                     {resolvingId === item.id ? 'Resolving…' : 'Mark Resolved'}
                   </button>
+                  <button
+                    onClick={() => notifyParent(item.id)}
+                    disabled={notifyStatus[item.id] === 'sending'}
+                    className="bg-wood/10 text-wood font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-wood/20 transition disabled:opacity-60 border border-wood/20">
+                    {notifyStatus[item.id] === 'sending' ? 'Sending…' : 'Notify Parent'}
+                  </button>
+                  {notifyStatus[item.id] === 'sent' && <span className="text-xs font-quick text-sage-600 font-semibold">Email sent!</span>}
+                  {notifyStatus[item.id] === 'error' && <span className="text-xs font-quick text-rose-500 font-semibold">Failed to send.</span>}
                 </div>
               )}
             </div>

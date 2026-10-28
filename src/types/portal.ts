@@ -119,6 +119,8 @@ export interface MissedWork {
   studentId: string
   studentName: string
   date: string // YYYY-MM-DD
+  missedLesson?: boolean
+  missedHomework?: boolean
   missedWorkNotes: string
   resolved: boolean
   resolvedAt?: string
