@@ -70,14 +70,20 @@ function shiftMonth(m: string, delta: number): string {
 
 interface ProgData { quranPosition: string; qaidahPosition: string; islamicStudiesLevel: string; notes: string; updatedAt?: string }
 type ISHomeworkStatus = 'complete' | 'partially_complete' | 'not_complete' | 'no_homework'
-const IS_HW_OPTIONS: { value: ISHomeworkStatus; label: string; short: string; color: string }[] = [
-  { value: 'complete',           label: 'Complete',           short: 'C',  color: 'bg-sage-500 text-white border-sage-500' },
-  { value: 'partially_complete', label: 'Partial',            short: 'P',  color: 'bg-amber-400 text-white border-amber-400' },
-  { value: 'not_complete',       label: 'Not Complete',       short: 'NC', color: 'bg-rose-500 text-white border-rose-500' },
-  { value: 'no_homework',        label: 'No Homework',        short: 'NH', color: 'bg-stone-400 text-white border-stone-400' },
+const IS_HW_OPTIONS: { value: ISHomeworkStatus; label: string; short: string }[] = [
+  { value: 'complete',           label: 'Complete',     short: 'C'  },
+  { value: 'partially_complete', label: 'Partial',      short: 'P'  },
+  { value: 'not_complete',       label: 'Not Complete', short: 'NC' },
+  { value: 'no_homework',        label: 'No Homework',  short: 'NH' },
 ]
+function isHwActiveClass(value: ISHomeworkStatus): string {
+  if (value === 'complete')           return 'bg-green-500 text-white border-green-500'
+  if (value === 'partially_complete') return 'bg-amber-400 text-white border-amber-400'
+  if (value === 'not_complete')       return 'bg-rose-500 text-white border-rose-500'
+  return 'bg-stone-400 text-white border-stone-400'
+}
 const IS_HW_BADGE: Record<ISHomeworkStatus, string> = {
-  complete:           'bg-sage-100 text-sage-700',
+  complete:           'bg-green-100 text-green-700',
   partially_complete: 'bg-amber-100 text-amber-700',
   not_complete:       'bg-rose-100 text-rose-600',
   no_homework:        'bg-stone-100 text-stone-500',
@@ -612,7 +618,7 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
                         onClick={() => setCompleted(prev => ({ ...prev, [s.id]: opt.value }))}
                         title={opt.label}
                         className={`px-2.5 py-1 rounded-full text-xs font-bold font-quick transition border ${
-                          status === opt.value ? opt.color : 'bg-white text-stone-400 border-stone-200 hover:border-stone-300'
+                          status === opt.value ? isHwActiveClass(opt.value) : 'bg-white text-stone-400 border-stone-200 hover:border-stone-300'
                         }`}>
                         {opt.short}
                       </button>
