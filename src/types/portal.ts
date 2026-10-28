@@ -140,6 +140,35 @@ export interface ISHomeworkAssignment {
 
 export type QaidahFluency = 'needs_practice' | 'improving' | 'fluent'
 
+export type QuranStatus = 'new' | 'practicing' | 'needs_review' | 'mastered'
+
+export interface QuranHistoryEntry {
+  surah: string
+  ayah: string
+  status: QuranStatus
+  nextAssignment: string
+  revisionSurahs: string
+  notes: string
+  recordedAt: string
+  recordedBy: string
+}
+
+export interface QuranProgress {
+  id: string // classId__studentId
+  classId: string
+  studentId: string
+  studentName: string
+  currentSurah: string
+  currentAyah: string
+  status: QuranStatus
+  nextAssignment: string
+  revisionSurahs: string
+  notes: string
+  history: QuranHistoryEntry[]
+  updatedAt: string
+  updatedBy: string
+}
+
 export interface QaidahHistoryEntry {
   lesson: string
   fluency: QaidahFluency

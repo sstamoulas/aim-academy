@@ -7,7 +7,7 @@ import {
 } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { auth, db } from '../firebase'
-import type { AcademyClass, Student, AttendanceSession, AttendanceStatus, MissedWork, Announcement, ISHomeworkAssignment, QaidahFluency, QaidahProgress, QaidahHistoryEntry } from '../types/portal'
+import type { AcademyClass, Student, AttendanceSession, AttendanceStatus, MissedWork, Announcement, ISHomeworkAssignment, QaidahFluency, QaidahProgress, QaidahHistoryEntry, QuranStatus, QuranProgress, QuranHistoryEntry } from '../types/portal'
 import ImpersonationBanner, { getImpersonation, type ImpersonationState } from '../components/ImpersonationBanner'
 
 const functions = getFunctions()
@@ -1241,9 +1241,240 @@ function QaidahTab({ cls, students, teacherUid }: { cls: AcademyClass; students:
   )
 }
 
+// ── Qur'an Progress ───────────────────────────────────────────────────────────
+
+const QURAN_STATUS_LABELS: Record<QuranStatus, string> = {
+  new: 'New',
+  practicing: 'Practicing',
+  needs_review: 'Needs Review',
+  mastered: 'Mastered',
+}
+
+const QURAN_STATUS_COLORS: Record<QuranStatus, string> = {
+  new: 'bg-stone-100 text-stone-500',
+  practicing: 'bg-blue-100 text-blue-700',
+  needs_review: 'bg-amber-100 text-amber-700',
+  mastered: 'bg-sage-100 text-sage-700',
+}
+
+interface QuranEntry {
+  currentSurah: string
+  currentAyah: string
+  status: QuranStatus
+  nextAssignment: string
+  revisionSurahs: string
+  notes: string
+  history: QuranHistoryEntry[]
+}
+
+function QuranTab({ cls, students, teacherUid }: { cls: AcademyClass; students: Student[]; teacherUid: string }) {
+  const [data, setData] = useState<Record<string, QuranEntry>>({})
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState<Record<string, boolean>>({})
+  const [saved, setSaved] = useState<Record<string, boolean>>({})
+  const [showHistory, setShowHistory] = useState<Record<string, boolean>>({})
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  const blank: QuranEntry = { currentSurah: '', currentAyah: '', status: 'new', nextAssignment: '', revisionSurahs: '', notes: '', history: [] }
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      const docs = await Promise.all(students.map(s => getDoc(doc(db, 'quranProgress', `${cls.id}__${s.id}`))))
+      const map: Record<string, QuranEntry> = {}
+      students.forEach((s, i) => {
+        const d = docs[i]
+        if (d.exists()) {
+          const p = d.data() as QuranProgress
+          map[s.id] = { currentSurah: p.currentSurah, currentAyah: p.currentAyah, status: p.status, nextAssignment: p.nextAssignment, revisionSurahs: p.revisionSurahs, notes: p.notes, history: p.history ?? [] }
+        } else {
+          map[s.id] = { ...blank }
+        }
+      })
+      setData(map)
+      setLoading(false)
+    }
+    if (students.length > 0) load(); else setLoading(false)
+  }, [cls.id, students.map(s => s.id).join(',')])
+
+  function update(studentId: string, field: keyof QuranEntry, value: string | QuranStatus) {
+    setData(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: value } }))
+  }
+
+  async function handleSave(s: Student) {
+    setSaving(prev => ({ ...prev, [s.id]: true }))
+    const entry = data[s.id]
+    await setDoc(doc(db, 'quranProgress', `${cls.id}__${s.id}`), {
+      classId: cls.id, studentId: s.id, studentName: `${s.firstName} ${s.lastName}`,
+      ...entry, updatedAt: new Date().toISOString(), updatedBy: teacherUid,
+    })
+    setSaving(prev => ({ ...prev, [s.id]: false }))
+    setSaved(prev => ({ ...prev, [s.id]: true }))
+    setTimeout(() => setSaved(prev => ({ ...prev, [s.id]: false })), 3000)
+  }
+
+  async function handleSnapshot(s: Student) {
+    const entry = data[s.id]
+    if (!entry.currentSurah.trim()) return
+    const historyEntry: QuranHistoryEntry = {
+      surah: entry.currentSurah, ayah: entry.currentAyah, status: entry.status,
+      nextAssignment: entry.nextAssignment, revisionSurahs: entry.revisionSurahs,
+      notes: entry.notes, recordedAt: new Date().toISOString(), recordedBy: teacherUid,
+    }
+    const newEntry: QuranEntry = { ...blank, history: [historyEntry, ...entry.history] }
+    setData(prev => ({ ...prev, [s.id]: newEntry }))
+    setSaving(prev => ({ ...prev, [s.id]: true }))
+    await setDoc(doc(db, 'quranProgress', `${cls.id}__${s.id}`), {
+      classId: cls.id, studentId: s.id, studentName: `${s.firstName} ${s.lastName}`,
+      ...newEntry, updatedAt: new Date().toISOString(), updatedBy: teacherUid,
+    })
+    setSaving(prev => ({ ...prev, [s.id]: false }))
+    setSaved(prev => ({ ...prev, [s.id]: true }))
+    setTimeout(() => setSaved(prev => ({ ...prev, [s.id]: false })), 3000)
+  }
+
+  if (loading) return <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+  if (students.length === 0) return <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">No students enrolled in this class yet.</div>
+
+  return (
+    <div className="rounded-2xl border border-stone-200/70 overflow-hidden">
+      {students.map((s, idx) => {
+        const entry = data[s.id] ?? { ...blank }
+        const isOpen = expanded === s.id
+        const isSaving = saving[s.id]
+        const isSaved = saved[s.id]
+        const historyOpen = showHistory[s.id] ?? false
+
+        return (
+          <div key={s.id} className={`bg-white ${idx > 0 ? 'border-t border-stone-100' : ''}`}>
+            {/* Collapsed row */}
+            <button type="button" onClick={() => setExpanded(isOpen ? null : s.id)}
+              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50/60 transition text-left">
+              <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-xs flex-shrink-0">
+                {s.firstName[0]}{s.lastName[0]}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-stone-800 font-quick text-sm">{s.firstName} {s.lastName}</div>
+                {entry.currentSurah ? (
+                  <div className="text-xs text-stone-400 font-quick truncate mt-0.5">
+                    {entry.currentSurah}{entry.currentAyah ? ` · Ayah ${entry.currentAyah}` : ''}
+                  </div>
+                ) : (
+                  <div className="text-xs text-stone-300 font-quick mt-0.5 italic">No surah set</div>
+                )}
+              </div>
+              {entry.currentSurah && (
+                <span className={`text-xs font-bold font-quick px-2.5 py-0.5 rounded-full flex-shrink-0 ${QURAN_STATUS_COLORS[entry.status]}`}>
+                  {QURAN_STATUS_LABELS[entry.status]}
+                </span>
+              )}
+              <svg className={`w-4 h-4 text-stone-300 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {/* Expanded panel */}
+            {isOpen && (
+              <div className="px-5 pb-5 border-t border-stone-100 bg-stone-50/40">
+                <div className="pt-4 space-y-3 mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Current Surah</label>
+                      <input value={entry.currentSurah} onChange={e => update(s.id, 'currentSurah', e.target.value)}
+                        placeholder="e.g. Al-Mulk"
+                        className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Ayah / Range</label>
+                      <input value={entry.currentAyah} onChange={e => update(s.id, 'currentAyah', e.target.value)}
+                        placeholder="e.g. 1–10 or 5"
+                        className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Status</label>
+                      <select value={entry.status} onChange={e => update(s.id, 'status', e.target.value as QuranStatus)}
+                        className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm">
+                        <option value="new">New</option>
+                        <option value="practicing">Practicing</option>
+                        <option value="needs_review">Needs Review</option>
+                        <option value="mastered">Mastered</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Next Assignment</label>
+                      <input value={entry.nextAssignment} onChange={e => update(s.id, 'nextAssignment', e.target.value)}
+                        placeholder="e.g. Ayah 11–20"
+                        className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Revision Surahs</label>
+                    <input value={entry.revisionSurahs} onChange={e => update(s.id, 'revisionSurahs', e.target.value)}
+                      placeholder="e.g. Al-Fatiha, Al-Ikhlas, Al-Falaq"
+                      className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Teacher Note</label>
+                    <input value={entry.notes} onChange={e => update(s.id, 'notes', e.target.value)}
+                      placeholder="Optional note…"
+                      className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button onClick={() => handleSave(s)} disabled={isSaving}
+                    className="bg-wood text-white font-bold font-quick px-5 py-2 rounded-full text-sm hover:brightness-95 transition disabled:opacity-60">
+                    {isSaving ? 'Saving…' : 'Save'}
+                  </button>
+                  <button onClick={() => handleSnapshot(s)} disabled={isSaving || !entry.currentSurah.trim()}
+                    title="Save current position to history and start fresh"
+                    className="border border-sage-400 text-sage-700 font-bold font-quick px-5 py-2 rounded-full text-sm hover:bg-sage-50 transition disabled:opacity-40">
+                    Record →
+                  </button>
+                  {isSaved && <span className="text-sm text-sage-600 font-quick font-semibold">Saved!</span>}
+                  {entry.history.length > 0 && (
+                    <button onClick={() => setShowHistory(prev => ({ ...prev, [s.id]: !historyOpen }))}
+                      className="ml-auto text-xs font-quick text-stone-400 hover:text-stone-600 transition">
+                      {historyOpen ? 'Hide history' : `History (${entry.history.length})`}
+                    </button>
+                  )}
+                </div>
+
+                {historyOpen && entry.history.length > 0 && (
+                  <div className="mt-4 border-t border-stone-100 pt-4 space-y-2">
+                    {entry.history.map((h, i) => (
+                      <div key={i} className="flex items-start gap-3 text-xs font-quick">
+                        <div className="flex-1 min-w-0">
+                          <span className="font-semibold text-stone-700">{h.surah}</span>
+                          {h.ayah && <span className="text-stone-400"> · Ayah {h.ayah}</span>}
+                          {h.notes && <span className="text-stone-400"> · {h.notes}</span>}
+                          {h.nextAssignment && <div className="text-stone-400 mt-0.5">Next: {h.nextAssignment}</div>}
+                          {h.revisionSurahs && <div className="text-stone-400 mt-0.5">Revision: {h.revisionSurahs}</div>}
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${QURAN_STATUS_COLORS[h.status as QuranStatus]}`}>
+                          {QURAN_STATUS_LABELS[h.status as QuranStatus]}
+                        </span>
+                        <span className="text-stone-300 flex-shrink-0">
+                          {new Date(h.recordedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Class Detail ──────────────────────────────────────────────────────────────
 
-type DetailTab = 'attendance' | 'progress' | 'qaidah' | 'homework' | 'quiz' | 'missedWork' | 'announcements' | 'students'
+type DetailTab = 'attendance' | 'progress' | 'quran' | 'qaidah' | 'homework' | 'quiz' | 'missedWork' | 'announcements' | 'students'
 
 function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
   cls: AcademyClass; teacherUid: string; teacherName: string; onBack: () => void; initialTab?: DetailTab
@@ -1265,6 +1496,7 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
   const TABS: [DetailTab, string][] = [
     ['attendance', 'Attendance'],
     ['progress', 'Progress'],
+    ['quran', "Qur'an"],
     ['qaidah', "Qa'idah"],
     ['homework', 'Homework'],
     ['quiz', 'Quiz'],
@@ -1276,6 +1508,7 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
   const TAB_ICONS: Record<DetailTab, React.ReactElement> = {
     attendance: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>,
     progress:   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
+    quran:      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>,
     qaidah:     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>,
     homework:   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>,
     quiz:       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>,
@@ -1346,6 +1579,7 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
           {tab === 'quiz' && (loadingStudents ? loadingSpinner : <QuizTab cls={cls} students={students} teacherUid={teacherUid} />)}
           {tab === 'missedWork' && <MissedWorkTab cls={cls} teacherUid={teacherUid} />}
           {tab === 'announcements' && <AnnouncementsTab cls={cls} teacherUid={teacherUid} teacherName={teacherName} />}
+          {tab === 'quran' && (loadingStudents ? loadingSpinner : <QuranTab cls={cls} students={students} teacherUid={teacherUid} />)}
           {tab === 'qaidah' && (loadingStudents ? loadingSpinner : <QaidahTab cls={cls} students={students} teacherUid={teacherUid} />)}
         </div>
       </div>
