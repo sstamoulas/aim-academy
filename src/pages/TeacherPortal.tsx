@@ -581,7 +581,9 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
                 <button key={s.id} type="button" onClick={() => setCompleted(prev => ({ ...prev, [s.id]: !done }))}
                   className={`w-full flex items-center gap-3 px-4 py-3 text-left transition ${idx > 0 ? 'border-t border-stone-200/70' : ''} ${done ? 'bg-sage-50 hover:bg-sage-100/60' : 'bg-white hover:bg-stone-50'}`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold font-quick text-xs flex-shrink-0 ${done ? 'bg-sage-500 text-white' : 'bg-sage-100 text-sage-700'}`}>
-                    {done ? '✓' : `${s.firstName[0]}${s.lastName[0]}`}
+                    {done
+                      ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                      : `${s.firstName[0]}${s.lastName[0]}`}
                   </div>
                   <span className={`font-quick text-sm flex-1 ${done ? 'text-stone-800' : 'text-stone-500'}`}>{s.firstName} {s.lastName}</span>
                   <span className={`text-xs font-bold font-quick px-2 py-0.5 rounded-full ${done ? 'bg-sage-100 text-sage-700' : 'bg-stone-100 text-stone-400'}`}>
