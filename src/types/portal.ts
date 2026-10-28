@@ -101,8 +101,10 @@ export interface StudentProgress {
   updatedBy?: string
 }
 
+export type ISHomeworkStatus = 'complete' | 'partially_complete' | 'not_complete' | 'no_homework'
+
 export interface WeeklyHomework {
-  completed: Record<string, boolean>
+  completed: Record<string, ISHomeworkStatus>
   updatedAt?: string
 }
 

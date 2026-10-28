@@ -69,7 +69,20 @@ function shiftMonth(m: string, delta: number): string {
 // ── Progress types (inline) ───────────────────────────────────────────────────
 
 interface ProgData { quranPosition: string; qaidahPosition: string; islamicStudiesLevel: string; notes: string; updatedAt?: string }
-interface HwData { completed: Record<string, boolean>; updatedAt?: string }
+type ISHomeworkStatus = 'complete' | 'partially_complete' | 'not_complete' | 'no_homework'
+const IS_HW_OPTIONS: { value: ISHomeworkStatus; label: string; short: string; color: string }[] = [
+  { value: 'complete',           label: 'Complete',           short: 'C',  color: 'bg-sage-500 text-white border-sage-500' },
+  { value: 'partially_complete', label: 'Partial',            short: 'P',  color: 'bg-amber-400 text-white border-amber-400' },
+  { value: 'not_complete',       label: 'Not Complete',       short: 'NC', color: 'bg-rose-500 text-white border-rose-500' },
+  { value: 'no_homework',        label: 'No Homework',        short: 'NH', color: 'bg-stone-400 text-white border-stone-400' },
+]
+const IS_HW_BADGE: Record<ISHomeworkStatus, string> = {
+  complete:           'bg-sage-100 text-sage-700',
+  partially_complete: 'bg-amber-100 text-amber-700',
+  not_complete:       'bg-rose-100 text-rose-600',
+  no_homework:        'bg-stone-100 text-stone-500',
+}
+interface HwData { completed: Record<string, ISHomeworkStatus | boolean>; updatedAt?: string }
 interface QuizData { maxScore: number; scores: Record<string, number>; updatedAt?: string }
 
 // ── Status badge helper ───────────────────────────────────────────────────────
@@ -461,7 +474,7 @@ function ProgressTab({ cls, students, teacherUid }: { cls: AcademyClass; student
 
 function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyClass; students: Student[]; teacherUid: string; teacherName: string }) {
   const [week, setWeek] = useState(currentWeek())
-  const [completed, setCompleted] = useState<Record<string, boolean>>({})
+  const [completed, setCompleted] = useState<Record<string, ISHomeworkStatus>>({})
   const [assignment, setAssignment] = useState<ISHomeworkAssignment | null>(null)
   const [assignmentForm, setAssignmentForm] = useState({ title: '', description: '' })
   const [loading, setLoading] = useState(true)
@@ -477,7 +490,17 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
         getDoc(doc(db, 'weeklyHomework', `${cls.id}__${week}`)),
         getDoc(doc(db, 'isHomework', `${cls.id}__${week}`)),
       ])
-      setCompleted(hwSnap.exists() ? ((hwSnap.data() as HwData).completed ?? {}) : {})
+      if (hwSnap.exists()) {
+        const raw = (hwSnap.data() as HwData).completed ?? {}
+        // Backward compat: map legacy boolean values to ISHomeworkStatus
+        const mapped: Record<string, ISHomeworkStatus> = {}
+        Object.entries(raw).forEach(([k, v]) => {
+          mapped[k] = typeof v === 'boolean' ? (v ? 'complete' : 'not_complete') : v as ISHomeworkStatus
+        })
+        setCompleted(mapped)
+      } else {
+        setCompleted({})
+      }
       if (assignSnap.exists()) {
         const a = { id: assignSnap.id, ...assignSnap.data() } as ISHomeworkAssignment
         setAssignment(a)
@@ -576,20 +599,29 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
           <p className="text-xs text-stone-400 font-quick mb-3">Islamic Studies homework completion</p>
           <div className="rounded-2xl border border-stone-200/70 overflow-hidden mb-5">
             {students.map((s, idx) => {
-              const done = completed[s.id] ?? false
+              const status: ISHomeworkStatus = completed[s.id] ?? 'not_complete'
               return (
-                <button key={s.id} type="button" onClick={() => setCompleted(prev => ({ ...prev, [s.id]: !done }))}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition ${idx > 0 ? 'border-t border-stone-200/70' : ''} ${done ? 'bg-sage-50 hover:bg-sage-100/60' : 'bg-white hover:bg-stone-50'}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold font-quick text-xs flex-shrink-0 ${done ? 'bg-sage-500 text-white' : 'bg-sage-100 text-sage-700'}`}>
-                    {done
-                      ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                      : `${s.firstName[0]}${s.lastName[0]}`}
+                <div key={s.id} className={`flex items-center gap-3 px-4 py-3 ${idx > 0 ? 'border-t border-stone-200/70' : ''} bg-white`}>
+                  <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center font-bold font-quick text-sage-700 text-xs flex-shrink-0">
+                    {s.firstName[0]}{s.lastName[0]}
                   </div>
-                  <span className={`font-quick text-sm flex-1 ${done ? 'text-stone-800' : 'text-stone-500'}`}>{s.firstName} {s.lastName}</span>
-                  <span className={`text-xs font-bold font-quick px-2 py-0.5 rounded-full ${done ? 'bg-sage-100 text-sage-700' : 'bg-stone-100 text-stone-400'}`}>
-                    {done ? 'Submitted' : 'Missing'}
+                  <span className="font-quick text-sm text-stone-800 flex-1">{s.firstName} {s.lastName}</span>
+                  <div className="flex gap-1 flex-shrink-0">
+                    {IS_HW_OPTIONS.map(opt => (
+                      <button key={opt.value} type="button"
+                        onClick={() => setCompleted(prev => ({ ...prev, [s.id]: opt.value }))}
+                        title={opt.label}
+                        className={`px-2.5 py-1 rounded-full text-xs font-bold font-quick transition border ${
+                          status === opt.value ? opt.color : 'bg-white text-stone-400 border-stone-200 hover:border-stone-300'
+                        }`}>
+                        {opt.short}
+                      </button>
+                    ))}
+                  </div>
+                  <span className={`text-xs font-bold font-quick px-2 py-0.5 rounded-full flex-shrink-0 ${IS_HW_BADGE[status]}`}>
+                    {IS_HW_OPTIONS.find(o => o.value === status)?.label}
                   </span>
-                </button>
+                </div>
               )
             })}
           </div>
