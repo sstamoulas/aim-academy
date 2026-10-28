@@ -88,3 +88,23 @@ export interface Announcement {
   createdAt: string
   published: boolean
 }
+
+export interface StudentProgress {
+  quranPosition: string
+  qaidahPosition: string
+  islamicStudiesLevel: string
+  notes: string
+  updatedAt?: string
+  updatedBy?: string
+}
+
+export interface WeeklyHomework {
+  completed: Record<string, boolean>
+  updatedAt?: string
+}
+
+export interface MonthlyQuiz {
+  maxScore: number
+  scores: Record<string, number>
+  updatedAt?: string
+}

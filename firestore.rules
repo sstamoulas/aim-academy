@@ -95,5 +95,16 @@ service cloud.firestore {
       allow read, update: if isAdmin() || (request.auth != null && request.auth.uid == uid);
       allow delete: if isAdmin();
     }
+
+    // Teacher progress tracking
+    match /studentProgress/{docId} {
+      allow read, write: if isStaff();
+    }
+    match /weeklyHomework/{docId} {
+      allow read, write: if isStaff();
+    }
+    match /quizResults/{docId} {
+      allow read, write: if isStaff();
+    }
   }
 }
