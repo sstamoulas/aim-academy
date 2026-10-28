@@ -330,6 +330,7 @@ function ProgressTab({ cls, students, teacherUid }: { cls: AcademyClass; student
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<Record<string, boolean>>({})
   const [saved, setSaved] = useState<Record<string, boolean>>({})
+  const [expanded, setExpanded] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -368,47 +369,69 @@ function ProgressTab({ cls, students, teacherUid }: { cls: AcademyClass; student
   if (students.length === 0) return <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">No students enrolled in this class yet.</div>
 
   return (
-    <div className="space-y-4">
-      {students.map(s => {
+    <div className="rounded-2xl border border-stone-200/70 overflow-hidden">
+      {students.map((s, idx) => {
         const p = progMap[s.id] ?? { quranPosition: '', qaidahPosition: '', islamicStudiesLevel: '', notes: '' }
+        const isOpen = expanded === s.id
+        const hasData = p.quranPosition || p.qaidahPosition || p.islamicStudiesLevel
         return (
-          <div key={s.id} className="bg-white rounded-2xl border border-stone-200/70 p-5">
-            <div className="flex items-center gap-3 mb-4">
+          <div key={s.id} className={idx > 0 ? 'border-t border-stone-200/70' : ''}>
+            {/* Collapsed row */}
+            <button
+              onClick={() => setExpanded(isOpen ? null : s.id)}
+              className="w-full flex items-center gap-3 px-4 py-3 bg-white hover:bg-stone-50 transition text-left"
+            >
               <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-xs flex-shrink-0">
                 {s.firstName[0]}{s.lastName[0]}
               </div>
-              <div className="font-semibold text-stone-800 font-quick flex-1">{s.firstName} {s.lastName}</div>
-              {p.updatedAt && (
-                <span className="text-xs text-stone-400 font-quick">
-                  Updated {new Date(p.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-stone-800 font-quick text-sm">{s.firstName} {s.lastName}</div>
+                {!isOpen && hasData && (
+                  <div className="text-xs text-stone-400 font-quick truncate">
+                    {[p.quranPosition, p.qaidahPosition, p.islamicStudiesLevel].filter(Boolean).join(' · ')}
+                  </div>
+                )}
+              </div>
+              {p.updatedAt && !isOpen && (
+                <span className="text-xs text-stone-400 font-quick flex-shrink-0">
+                  {new Date(p.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </span>
               )}
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {[
-                { field: 'quranPosition' as const, label: "Qur'an Position", placeholder: "e.g. Surah Al-Mulk, Ayah 5" },
-                { field: 'qaidahPosition' as const, label: "Qa'idah Position", placeholder: "e.g. Noorani Qa'idah, Page 12" },
-                { field: 'islamicStudiesLevel' as const, label: 'Islamic Studies', placeholder: 'e.g. Grade 3, Chapter 2' },
-                { field: 'notes' as const, label: 'Notes', placeholder: 'Optional notes…' },
-              ].map(({ field, label, placeholder }) => (
-                <div key={field}>
-                  <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">{label}</label>
-                  <input
-                    value={p[field] as string}
-                    onChange={e => update(s.id, field, e.target.value)}
-                    placeholder={placeholder}
-                    className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
-                  />
+              <svg className={`w-4 h-4 text-stone-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {/* Expanded panel */}
+            {isOpen && (
+              <div className="px-4 pb-4 pt-1 bg-stone-50/60 border-t border-stone-100">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                  {[
+                    { field: 'quranPosition' as const, label: "Qur'an Position", placeholder: "e.g. Surah Al-Mulk, Ayah 5" },
+                    { field: 'qaidahPosition' as const, label: "Qa'idah Position", placeholder: "e.g. Noorani Qa'idah, Page 12" },
+                    { field: 'islamicStudiesLevel' as const, label: 'Islamic Studies', placeholder: 'e.g. Grade 3, Chapter 2' },
+                    { field: 'notes' as const, label: 'Notes', placeholder: 'Optional notes…' },
+                  ].map(({ field, label, placeholder }) => (
+                    <div key={field}>
+                      <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">{label}</label>
+                      <input
+                        value={p[field] as string}
+                        onChange={e => update(s.id, field, e.target.value)}
+                        placeholder={placeholder}
+                        className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div className="flex items-center gap-3 mt-4">
-              <button onClick={() => saveStudent(s)} disabled={saving[s.id]}
-                className="bg-wood text-white font-bold font-quick px-5 py-2 rounded-full text-sm hover:brightness-95 transition disabled:opacity-60">
-                {saving[s.id] ? 'Saving…' : 'Save'}
-              </button>
-              {saved[s.id] && <span className="text-sm text-sage-600 font-quick font-semibold">Saved!</span>}
-            </div>
+                <div className="flex items-center gap-3 mt-3">
+                  <button onClick={() => saveStudent(s)} disabled={saving[s.id]}
+                    className="bg-wood text-white font-bold font-quick px-5 py-2 rounded-full text-sm hover:brightness-95 transition disabled:opacity-60">
+                    {saving[s.id] ? 'Saving…' : 'Save'}
+                  </button>
+                  {saved[s.id] && <span className="text-sm text-sage-600 font-quick font-semibold">Saved!</span>}
+                </div>
+              </div>
+            )}
           </div>
         )
       })}
