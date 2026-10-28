@@ -902,15 +902,13 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5">
-        <h3 className="font-semibold text-stone-700 font-quick text-sm">
-          {showResolved ? 'Resolved missed work' : 'Unresolved missed work'}
-        </h3>
-        <button
-          onClick={() => setShowResolved(v => !v)}
-          className="text-xs font-semibold font-quick text-stone-500 hover:text-sage-700 border border-stone-200 px-3 py-1.5 rounded-full transition">
-          {showResolved ? 'Show Unresolved' : 'Show Resolved'}
-        </button>
+      <div className="flex items-center gap-1 mb-5 bg-stone-100 rounded-xl p-1 w-fit">
+        {([false, true] as const).map(v => (
+          <button key={String(v)} onClick={() => setShowResolved(v)}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold font-quick transition ${showResolved === v ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}>
+            {v ? 'Resolved' : 'Unresolved'}
+          </button>
+        ))}
       </div>
 
       {items.length === 0 ? (
