@@ -107,9 +107,16 @@ service cloud.firestore {
       allow read, write: if isStaff();
     }
 
-    // Missed work flags — staff read/write
+    // Missed work flags — staff read/write; parents can read
     match /missedWork/{docId} {
       allow read, write: if isStaff();
+      allow read: if isParent();
+    }
+
+    // Classwide IS homework assignments — staff write; parents + staff read
+    match /isHomework/{docId} {
+      allow read, write: if isStaff();
+      allow read: if isParent();
     }
   }
 }

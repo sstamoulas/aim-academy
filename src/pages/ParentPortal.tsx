@@ -3,10 +3,10 @@ import {
   signOut, onAuthStateChanged, type User,
 } from 'firebase/auth'
 import {
-  collection, doc, getDoc, getDocs, addDoc, query, where, orderBy,
+  collection, doc, getDoc, getDocs, addDoc, query, where, orderBy, limit,
 } from 'firebase/firestore'
 import { auth, db } from '../firebase'
-import type { AcademyClass, Student, AttendanceSession, AttendanceRecord, Announcement, ChildRequest, MissedWork } from '../types/portal'
+import type { AcademyClass, Student, AttendanceSession, AttendanceRecord, Announcement, ChildRequest, MissedWork, ISHomeworkAssignment } from '../types/portal'
 import ImpersonationBanner, { getImpersonation, clearImpersonation, type ImpersonationState } from '../components/ImpersonationBanner'
 
 // ── Child Detail ──────────────────────────────────────────────────────────────
@@ -21,10 +21,11 @@ function ChildDetail({ data, onBack }: {
   onBack: () => void
 }) {
   const { student, classes } = data
-  const [tab, setTab] = useState<'attendance' | 'missedWork' | 'announcements'>('attendance')
+  const [tab, setTab] = useState<'attendance' | 'missedWork' | 'homework' | 'announcements'>('attendance')
   const [sessions, setSessions] = useState<AttendanceSession[]>([])
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [missedWorkItems, setMissedWorkItems] = useState<MissedWork[]>([])
+  const [homeworkAssignments, setHomeworkAssignments] = useState<ISHomeworkAssignment[]>([])
   const [loading, setLoading] = useState(true)
 
   async function load() {
@@ -63,6 +64,20 @@ function ChildDetail({ data, onBack }: {
       orderBy('date', 'desc'),
     ))
     setMissedWorkItems(mwSnap.docs.map(d => ({ id: d.id, ...d.data() } as MissedWork)))
+
+    // Load recent IS homework assignments for all student classes
+    const hwAssignments: ISHomeworkAssignment[] = []
+    await Promise.all(classIds.map(async classId => {
+      const hwSnap = await getDocs(query(
+        collection(db, 'isHomework'),
+        where('classId', '==', classId),
+        orderBy('week', 'desc'),
+        limit(8),
+      ))
+      hwSnap.docs.forEach(d => hwAssignments.push({ id: d.id, ...d.data() } as ISHomeworkAssignment))
+    }))
+    hwAssignments.sort((a, b) => b.week.localeCompare(a.week))
+    setHomeworkAssignments(hwAssignments)
 
     setLoading(false)
   }
@@ -123,6 +138,7 @@ function ChildDetail({ data, onBack }: {
         {([
           ['attendance', `Attendance (${totalCount})`],
           ['missedWork', `Missed Work${missedWorkItems.length > 0 ? ` (${missedWorkItems.length})` : ''}`],
+          ['homework', `Homework${homeworkAssignments.length > 0 ? ` (${homeworkAssignments.length})` : ''}`],
           ['announcements', `Announcements (${announcements.length})`],
         ] as const).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)}
@@ -210,6 +226,40 @@ function ChildDetail({ data, onBack }: {
                     <p className="text-sm font-quick text-stone-600 leading-relaxed">{item.missedWorkNotes}</p>
                   ) : (
                     <p className="text-xs font-quick text-stone-400 italic">No additional notes from teacher.</p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )
+      ) : tab === 'homework' ? (
+        homeworkAssignments.length === 0 ? (
+          <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">
+            No homework assignments posted yet.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {homeworkAssignments.map(hw => {
+              const cls = classes.find(c => c.id === hw.classId)
+              return (
+                <div key={hw.id} className="bg-white rounded-2xl border border-amber-100 p-5">
+                  <div className="flex items-start justify-between gap-3 mb-1">
+                    <div className="font-quick font-semibold text-stone-800 text-sm">{hw.title}</div>
+                    <span className="text-xs font-quick text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap">IS Homework</span>
+                  </div>
+                  <div className="text-xs text-stone-400 font-quick mb-2">
+                    {cls?.name ?? ''} · {(() => {
+                      const [yr, wk] = hw.week.split('-W')
+                      const jan1 = new Date(Number(yr), 0, 1)
+                      const simple = new Date(jan1.getTime() + (Number(wk) - 1) * 7 * 86400000)
+                      const dow = simple.getDay()
+                      const mon = new Date(simple)
+                      mon.setDate(simple.getDate() - (dow === 0 ? 6 : dow - 1))
+                      return `Week of ${mon.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                    })()}
+                  </div>
+                  {hw.description && (
+                    <p className="text-sm font-quick text-stone-600 leading-relaxed">{hw.description}</p>
                   )}
                 </div>
               )

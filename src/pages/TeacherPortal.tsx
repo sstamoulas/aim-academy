@@ -7,7 +7,7 @@ import {
 } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { auth, db } from '../firebase'
-import type { AcademyClass, Student, AttendanceSession, AttendanceStatus, MissedWork, Announcement } from '../types/portal'
+import type { AcademyClass, Student, AttendanceSession, AttendanceStatus, MissedWork, Announcement, ISHomeworkAssignment } from '../types/portal'
 import ImpersonationBanner, { getImpersonation, type ImpersonationState } from '../components/ImpersonationBanner'
 
 const functions = getFunctions()
@@ -150,6 +150,11 @@ function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: str
       createdAt: new Date().toISOString(),
     })
 
+    // Check if there's a classwide IS homework assignment for this date's week
+    const dateWeek = isoWeek(new Date(date + 'T00:00:00'))
+    const assignmentSnap = await getDoc(doc(db, 'isHomework', `${cls.id}__${dateWeek}`))
+    const hasAssignment = assignmentSnap.exists()
+
     // Handle missedWork docs
     await Promise.all(students.map(async s => {
       const missedDocId = `${cls.id}_${date}_${s.id}`
@@ -164,6 +169,7 @@ function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: str
           missedWorkNotes: '',
           resolved: false,
           createdAt: new Date().toISOString(),
+          ...(hasAssignment ? { missedHomework: true } : {}),
         }, { merge: true })
       } else {
         try {
@@ -412,22 +418,57 @@ function ProgressTab({ cls, students, teacherUid }: { cls: AcademyClass; student
 
 // ── Homework ──────────────────────────────────────────────────────────────────
 
-function HomeworkTab({ cls, students, teacherUid }: { cls: AcademyClass; students: Student[]; teacherUid: string }) {
+function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyClass; students: Student[]; teacherUid: string; teacherName: string }) {
   const [week, setWeek] = useState(currentWeek())
   const [completed, setCompleted] = useState<Record<string, boolean>>({})
+  const [assignment, setAssignment] = useState<ISHomeworkAssignment | null>(null)
+  const [assignmentForm, setAssignmentForm] = useState({ title: '', description: '' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [savingAssignment, setSavingAssignment] = useState(false)
+  const [savedAssignment, setSavedAssignment] = useState(false)
 
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const snap = await getDoc(doc(db, 'weeklyHomework', `${cls.id}__${week}`))
-      setCompleted(snap.exists() ? ((snap.data() as HwData).completed ?? {}) : {})
+      const [hwSnap, assignSnap] = await Promise.all([
+        getDoc(doc(db, 'weeklyHomework', `${cls.id}__${week}`)),
+        getDoc(doc(db, 'isHomework', `${cls.id}__${week}`)),
+      ])
+      setCompleted(hwSnap.exists() ? ((hwSnap.data() as HwData).completed ?? {}) : {})
+      if (assignSnap.exists()) {
+        const a = { id: assignSnap.id, ...assignSnap.data() } as ISHomeworkAssignment
+        setAssignment(a)
+        setAssignmentForm({ title: a.title, description: a.description })
+      } else {
+        setAssignment(null)
+        setAssignmentForm({ title: '', description: '' })
+      }
       setLoading(false)
     }
     load()
   }, [cls.id, week])
+
+  async function handleSaveAssignment() {
+    if (!assignmentForm.title.trim()) return
+    setSavingAssignment(true)
+    const docId = `${cls.id}__${week}`
+    const now = new Date().toISOString()
+    await setDoc(doc(db, 'isHomework', docId), {
+      classId: cls.id,
+      week,
+      title: assignmentForm.title.trim(),
+      description: assignmentForm.description.trim(),
+      createdAt: assignment?.createdAt ?? now,
+      createdBy: teacherUid,
+      createdByName: teacherName,
+    })
+    setAssignment({ id: docId, classId: cls.id, week, title: assignmentForm.title.trim(), description: assignmentForm.description.trim(), createdAt: assignment?.createdAt ?? now, createdBy: teacherUid, createdByName: teacherName })
+    setSavingAssignment(false)
+    setSavedAssignment(true)
+    setTimeout(() => setSavedAssignment(false), 3000)
+  }
 
   async function handleSave() {
     setSaving(true)
@@ -448,6 +489,45 @@ function HomeworkTab({ cls, students, teacherUid }: { cls: AcademyClass; student
         <span className="font-quick text-sm font-semibold text-stone-700 flex-1 text-center">{weekLabel(week)}</span>
         <button onClick={() => setWeek(w => shiftWeek(w, 1))} className="w-8 h-8 rounded-full border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-stone-50 transition">›</button>
       </div>
+
+      {/* Class Assignment Card */}
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-6">
+        <h4 className="font-semibold text-stone-800 font-quick text-sm mb-3">Class Assignment (IS Homework)</h4>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Assignment Title</label>
+            <input
+              value={assignmentForm.title}
+              onChange={e => setAssignmentForm(f => ({ ...f, title: e.target.value }))}
+              placeholder="e.g. Chapter 4 Review — The Five Pillars"
+              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Description (optional)</label>
+            <textarea
+              value={assignmentForm.description}
+              onChange={e => setAssignmentForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="Pages to read, what to study, etc."
+              rows={2}
+              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm resize-none"
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSaveAssignment}
+              disabled={savingAssignment || !assignmentForm.title.trim()}
+              className="bg-amber-500 text-white font-bold font-quick px-5 py-2 rounded-full text-sm hover:brightness-95 transition disabled:opacity-60">
+              {savingAssignment ? 'Saving…' : assignment ? 'Update Assignment' : 'Post Assignment'}
+            </button>
+            {savedAssignment && <span className="text-sm text-amber-700 font-quick font-semibold">Saved!</span>}
+            {assignment && !savedAssignment && (
+              <span className="text-xs text-stone-400 font-quick">Posted · visible to parents</span>
+            )}
+          </div>
+        </div>
+      </div>
+
       {students.length === 0 ? (
         <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">No students enrolled in this class yet.</div>
       ) : (
@@ -469,7 +549,7 @@ function HomeworkTab({ cls, students, teacherUid }: { cls: AcademyClass; student
           <div className="flex items-center gap-3">
             <button onClick={handleSave} disabled={saving}
               className="bg-wood text-white font-bold font-quick px-8 py-3 rounded-full shadow-md hover:brightness-95 transition disabled:opacity-60">
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? 'Saving…' : 'Save Completion'}
             </button>
             {saved && <span className="text-sm text-sage-600 font-quick font-semibold">Saved!</span>}
           </div>
@@ -921,7 +1001,7 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
 
       {tab === 'attendance' && <AttendanceTab cls={cls} teacherUid={teacherUid} />}
       {tab === 'progress' && (loadingStudents ? <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div> : <ProgressTab cls={cls} students={students} teacherUid={teacherUid} />)}
-      {tab === 'homework' && (loadingStudents ? <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div> : <HomeworkTab cls={cls} students={students} teacherUid={teacherUid} />)}
+      {tab === 'homework' && (loadingStudents ? <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div> : <HomeworkTab cls={cls} students={students} teacherUid={teacherUid} teacherName={teacherName} />)}
       {tab === 'quiz' && (loadingStudents ? <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div> : <QuizTab cls={cls} students={students} teacherUid={teacherUid} />)}
       {tab === 'missedWork' && <MissedWorkTab cls={cls} teacherUid={teacherUid} />}
       {tab === 'announcements' && <AnnouncementsTab cls={cls} teacherUid={teacherUid} teacherName={teacherName} />}

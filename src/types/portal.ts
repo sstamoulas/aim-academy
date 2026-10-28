@@ -126,3 +126,14 @@ export interface MissedWork {
   resolvedAt?: string
   createdAt: string
 }
+
+export interface ISHomeworkAssignment {
+  id: string
+  classId: string
+  week: string // ISO week YYYY-Wnn
+  title: string
+  description: string
+  createdAt: string
+  createdBy: string
+  createdByName: string
+}
