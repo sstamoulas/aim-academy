@@ -1487,6 +1487,11 @@ function QuranTab({ cls, students, teacherUid }: { cls: AcademyClass; students: 
                               </div>
                             </div>
                             <div>
+                              <label className="block text-stone-400 mb-0.5">Revision Surahs</label>
+                              <input value={h.revisionSurahs} onChange={e => updateHistory(s.id, i, 'revisionSurahs', e.target.value)}
+                                className="w-full rounded-lg border border-stone-200 px-2 py-1 text-stone-800 focus:outline-none focus:ring-1 focus:ring-sage-400 text-xs" />
+                            </div>
+                            <div>
                               <label className="block text-stone-400 mb-0.5">Note</label>
                               <input value={h.notes} onChange={e => updateHistory(s.id, i, 'notes', e.target.value)}
                                 className="w-full rounded-lg border border-stone-200 px-2 py-1 text-stone-800 focus:outline-none focus:ring-1 focus:ring-sage-400 text-xs" />
