@@ -1395,7 +1395,7 @@ function UsersTab() {
 // ── Classes Tab ───────────────────────────────────────────────────────────────
 
 const EMPTY_CLASS: Omit<AcademyClass, 'id' | 'createdAt'> = {
-  name: '', description: '', teacherUid: '', teacherName: '', schedule: '', tuitionAmount: 0,
+  name: '', description: '', teacherUid: '', teacherName: '', schedule: '', tuitionAmount: 0, nextReportDeadline: '',
 }
 
 function ClassesTab() {
@@ -1480,7 +1480,7 @@ function ClassesTab() {
   }
 
   function openEditClass(cls: AcademyClass) {
-    setClassForm({ name: cls.name, description: cls.description ?? '', teacherUid: cls.teacherUid, teacherName: cls.teacherName, schedule: cls.schedule ?? '', tuitionAmount: cls.tuitionAmount ?? 0 })
+    setClassForm({ name: cls.name, description: cls.description ?? '', teacherUid: cls.teacherUid, teacherName: cls.teacherName, schedule: cls.schedule ?? '', tuitionAmount: cls.tuitionAmount ?? 0, nextReportDeadline: cls.nextReportDeadline ?? '' })
     setEditingClassId(cls.id)
     setClassFormOpen(true)
   }
@@ -1873,6 +1873,15 @@ function ClassFormModal({
                 className="w-full rounded-2xl border border-stone-200 bg-stone-50 pl-8 pr-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
               />
             </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Progress Report Deadline</label>
+            <input
+              type="date"
+              value={form.nextReportDeadline ?? ''}
+              onChange={e => onChange({ ...form, nextReportDeadline: e.target.value })}
+              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
+            />
           </div>
         </div>
         <div className="flex gap-3 mt-6">

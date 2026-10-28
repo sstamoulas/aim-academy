@@ -6,6 +6,7 @@ export interface AcademyClass {
   teacherName: string
   schedule?: string
   tuitionAmount?: number  // in cents, e.g. 15000 = $150/mo
+  nextReportDeadline?: string // YYYY-MM-DD
   createdAt: string
 }
 

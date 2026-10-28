@@ -737,8 +737,30 @@ function Dashboard({ classes, onSelect }: { classes: AcademyClass[]; onSelect: (
             ] : []
             const pending = tasks.filter(t => !t.done)
 
+            // Progress report deadline
+            const deadlineBanner = (() => {
+              if (!cls.nextReportDeadline) return null
+              const dl = new Date(cls.nextReportDeadline + 'T00:00:00')
+              const today = new Date(); today.setHours(0, 0, 0, 0)
+              const daysLeft = Math.round((dl.getTime() - today.getTime()) / 86400000)
+              if (daysLeft < 0) return null // past
+              const label = dl.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              const urgent = daysLeft <= 3
+              const soon = daysLeft <= 14
+              if (!soon) return null
+              return { label, daysLeft, urgent }
+            })()
+
             return (
               <div key={cls.id} className="bg-white rounded-2xl border border-stone-200/70 p-5 hover:border-sage-300 hover:shadow-sm transition">
+                {deadlineBanner && (
+                  <div className={`flex items-center gap-2 text-xs font-quick font-semibold mb-3 px-3 py-2 rounded-xl ${deadlineBanner.urgent ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>
+                    <span>{deadlineBanner.urgent ? '🔴' : '📋'}</span>
+                    <span>
+                      Progress reports due {deadlineBanner.label} — {deadlineBanner.daysLeft === 0 ? 'due today!' : `${deadlineBanner.daysLeft} day${deadlineBanner.daysLeft === 1 ? '' : 's'} left`}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-sage-100 flex items-center justify-center text-2xl flex-shrink-0">📚</div>
                   <div className="flex-1 min-w-0">
