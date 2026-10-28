@@ -765,6 +765,7 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
   const [items, setItems] = useState<MissedWork[]>([])
   const [loading, setLoading] = useState(true)
   const [showResolved, setShowResolved] = useState(false)
+  const [expanded, setExpanded] = useState<string | null>(null)
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [missedLesson, setMissedLesson] = useState<Record<string, boolean>>({})
   const [missedHomework, setMissedHomework] = useState<Record<string, boolean>>({})
@@ -851,82 +852,92 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {items.map(item => (
-            <div key={item.id} className="bg-white rounded-2xl border border-stone-200/70 p-5">
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <div>
-                  <div className="font-semibold text-stone-800 font-quick text-sm">{item.studentName}</div>
-                  <div className="text-xs text-stone-400 font-quick mt-0.5">
-                    Absent on {new Date(item.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+        <div className="rounded-2xl border border-stone-200/70 overflow-hidden">
+          {items.map((item, idx) => {
+            const isOpen = expanded === item.id
+            const what: string[] = []
+            if (missedLesson[item.id])   what.push('IS Lesson')
+            if (missedHomework[item.id]) what.push('IS Homework')
+            return (
+              <div key={item.id} className={`bg-white ${idx > 0 ? 'border-t border-stone-100' : ''}`}>
+                {/* Collapsed row */}
+                <button
+                  type="button"
+                  onClick={() => setExpanded(isOpen ? null : item.id)}
+                  className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50/60 transition text-left">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-stone-800 font-quick text-sm">{item.studentName}</div>
+                    <div className="text-xs text-stone-400 font-quick mt-0.5">
+                      Absent · {new Date(item.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    </div>
                   </div>
-                </div>
-                {item.resolvedAt && (
-                  <span className="text-xs font-quick text-sage-600 bg-sage-50 border border-sage-200 px-2.5 py-0.5 rounded-full flex-shrink-0">
-                    Resolved {new Date(item.resolvedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {what.map(w => (
+                      <span key={w} className="text-xs font-bold font-quick bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full">{w}</span>
+                    ))}
+                    {item.resolvedAt && (
+                      <span className="text-xs font-quick text-sage-600 bg-sage-50 border border-sage-200 px-2.5 py-0.5 rounded-full">
+                        Resolved
+                      </span>
+                    )}
+                    {notes[item.id] && <span className="text-xs text-stone-300 font-quick truncate max-w-[120px]">{notes[item.id]}</span>}
+                  </div>
+                  <span className="text-stone-300 text-sm">{isOpen ? '▲' : '▼'}</span>
+                </button>
+
+                {/* Expanded panel */}
+                {isOpen && (
+                  <div className="px-5 pb-5 border-t border-stone-100 bg-stone-50/40">
+                    <div className="pt-4">
+                      <div className={`flex gap-4 mb-3 ${showResolved ? 'opacity-60 pointer-events-none' : ''}`}>
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input type="checkbox" checked={missedLesson[item.id] ?? false}
+                            onChange={e => setMissedLesson(prev => ({ ...prev, [item.id]: e.target.checked }))}
+                            className="w-4 h-4 rounded accent-rose-500" />
+                          <span className="text-sm font-quick text-stone-700">IS Lesson</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input type="checkbox" checked={missedHomework[item.id] ?? false}
+                            onChange={e => setMissedHomework(prev => ({ ...prev, [item.id]: e.target.checked }))}
+                            className="w-4 h-4 rounded accent-rose-500" />
+                          <span className="text-sm font-quick text-stone-700">IS Homework</span>
+                        </label>
+                      </div>
+                      <div className="mb-3">
+                        <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Additional notes</label>
+                        <textarea
+                          value={notes[item.id] ?? ''}
+                          onChange={e => setNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
+                          rows={3}
+                          placeholder="Describe what the student missed…"
+                          disabled={showResolved}
+                          className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm resize-none disabled:opacity-60"
+                        />
+                      </div>
+                      {!showResolved && (
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <button onClick={() => saveNotes(item.id)} disabled={savingNotes[item.id]}
+                            className="bg-stone-100 text-stone-700 font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-stone-200 transition disabled:opacity-60">
+                            {savingNotes[item.id] ? 'Saving…' : 'Save Notes'}
+                          </button>
+                          <button onClick={() => markResolved(item.id)} disabled={resolvingId === item.id}
+                            className="bg-sage-100 text-sage-700 font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-sage-200 transition disabled:opacity-60">
+                            {resolvingId === item.id ? 'Resolving…' : 'Mark Resolved'}
+                          </button>
+                          <button onClick={() => notifyParent(item.id)} disabled={notifyStatus[item.id] === 'sending'}
+                            className="bg-wood/10 text-wood font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-wood/20 transition disabled:opacity-60 border border-wood/20">
+                            {notifyStatus[item.id] === 'sending' ? 'Sending…' : 'Notify Parent'}
+                          </button>
+                          {notifyStatus[item.id] === 'sent' && <span className="text-xs font-quick text-sage-600 font-semibold">Email sent!</span>}
+                          {notifyStatus[item.id] === 'error' && <span className="text-xs font-quick text-rose-500 font-semibold">Failed to send.</span>}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
-
-              {/* Structured options */}
-              <div className="flex gap-4 mb-3">
-                <label className={`flex items-center gap-2 cursor-pointer select-none ${showResolved ? 'opacity-60 pointer-events-none' : ''}`}>
-                  <input
-                    type="checkbox"
-                    checked={missedLesson[item.id] ?? false}
-                    onChange={e => setMissedLesson(prev => ({ ...prev, [item.id]: e.target.checked }))}
-                    className="w-4 h-4 rounded accent-rose-500"
-                  />
-                  <span className="text-sm font-quick text-stone-700">IS Lesson</span>
-                </label>
-                <label className={`flex items-center gap-2 cursor-pointer select-none ${showResolved ? 'opacity-60 pointer-events-none' : ''}`}>
-                  <input
-                    type="checkbox"
-                    checked={missedHomework[item.id] ?? false}
-                    onChange={e => setMissedHomework(prev => ({ ...prev, [item.id]: e.target.checked }))}
-                    className="w-4 h-4 rounded accent-rose-500"
-                  />
-                  <span className="text-sm font-quick text-stone-700">IS Homework</span>
-                </label>
-              </div>
-
-              <div className="mb-3">
-                <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Additional notes</label>
-                <textarea
-                  value={notes[item.id] ?? ''}
-                  onChange={e => setNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
-                  rows={3}
-                  placeholder="Describe what the student missed…"
-                  disabled={showResolved}
-                  className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm resize-none disabled:opacity-60"
-                />
-              </div>
-              {!showResolved && (
-                <div className="flex items-center gap-3 flex-wrap">
-                  <button
-                    onClick={() => saveNotes(item.id)}
-                    disabled={savingNotes[item.id]}
-                    className="bg-stone-100 text-stone-700 font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-stone-200 transition disabled:opacity-60">
-                    {savingNotes[item.id] ? 'Saving…' : 'Save Notes'}
-                  </button>
-                  <button
-                    onClick={() => markResolved(item.id)}
-                    disabled={resolvingId === item.id}
-                    className="bg-sage-100 text-sage-700 font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-sage-200 transition disabled:opacity-60">
-                    {resolvingId === item.id ? 'Resolving…' : 'Mark Resolved'}
-                  </button>
-                  <button
-                    onClick={() => notifyParent(item.id)}
-                    disabled={notifyStatus[item.id] === 'sending'}
-                    className="bg-wood/10 text-wood font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-wood/20 transition disabled:opacity-60 border border-wood/20">
-                    {notifyStatus[item.id] === 'sending' ? 'Sending…' : 'Notify Parent'}
-                  </button>
-                  {notifyStatus[item.id] === 'sent' && <span className="text-xs font-quick text-sage-600 font-semibold">Email sent!</span>}
-                  {notifyStatus[item.id] === 'error' && <span className="text-xs font-quick text-rose-500 font-semibold">Failed to send.</span>}
-                </div>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
