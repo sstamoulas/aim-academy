@@ -556,15 +556,19 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
       ) : (
         <>
           <p className="text-xs text-stone-400 font-quick mb-3">Islamic Studies homework completion</p>
-          <div className="space-y-2 mb-5">
-            {students.map(s => {
+          <div className="rounded-2xl border border-stone-200/70 overflow-hidden mb-5">
+            {students.map((s, idx) => {
               const done = completed[s.id] ?? false
               return (
                 <button key={s.id} type="button" onClick={() => setCompleted(prev => ({ ...prev, [s.id]: !done }))}
-                  className={`w-full flex items-center gap-4 rounded-2xl border-2 px-5 py-3.5 text-left transition ${done ? 'border-sage-400 bg-sage-50' : 'border-stone-200 bg-white'}`}>
-                  <div className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold flex-shrink-0 border-2 ${done ? 'border-sage-500 bg-sage-500 text-white' : 'border-stone-300 bg-white text-transparent'}`}>✓</div>
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition ${idx > 0 ? 'border-t border-stone-200/70' : ''} ${done ? 'bg-sage-50 hover:bg-sage-100/60' : 'bg-white hover:bg-stone-50'}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold font-quick text-xs flex-shrink-0 ${done ? 'bg-sage-500 text-white' : 'bg-sage-100 text-sage-700'}`}>
+                    {done ? '✓' : `${s.firstName[0]}${s.lastName[0]}`}
+                  </div>
                   <span className={`font-quick text-sm flex-1 ${done ? 'text-stone-800' : 'text-stone-500'}`}>{s.firstName} {s.lastName}</span>
-                  <span className={`text-xs font-bold font-quick ${done ? 'text-sage-600' : 'text-stone-400'}`}>{done ? 'Submitted' : 'Missing'}</span>
+                  <span className={`text-xs font-bold font-quick px-2 py-0.5 rounded-full ${done ? 'bg-sage-100 text-sage-700' : 'bg-stone-100 text-stone-400'}`}>
+                    {done ? 'Submitted' : 'Missing'}
+                  </span>
                 </button>
               )
             })}
