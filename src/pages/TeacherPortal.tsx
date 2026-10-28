@@ -1273,6 +1273,7 @@ function QuranTab({ cls, students, teacherUid }: { cls: AcademyClass; students: 
   const [saving, setSaving] = useState<Record<string, boolean>>({})
   const [saved, setSaved] = useState<Record<string, boolean>>({})
   const [showHistory, setShowHistory] = useState<Record<string, boolean>>({})
+  const [editingHistory, setEditingHistory] = useState<Record<string, number | null>>({}) // studentId → history index being edited
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const blank: QuranEntry = { currentSurah: '', currentAyah: '', status: 'new', nextAssignment: '', revisionSurahs: '', notes: '', history: [] }
@@ -1301,36 +1302,48 @@ function QuranTab({ cls, students, teacherUid }: { cls: AcademyClass; students: 
     setData(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: value } }))
   }
 
+  function updateHistory(studentId: string, idx: number, field: keyof QuranHistoryEntry, value: string) {
+    setData(prev => {
+      const history = [...(prev[studentId]?.history ?? [])]
+      history[idx] = { ...history[idx], [field]: value }
+      return { ...prev, [studentId]: { ...prev[studentId], history } }
+    })
+  }
+
   async function handleSave(s: Student) {
     setSaving(prev => ({ ...prev, [s.id]: true }))
     const entry = data[s.id]
+    const today = new Date().toISOString().split('T')[0]
+    // Upsert today's history entry (dedupe by date)
+    const existingIdx = entry.history.findIndex(h => h.recordedAt.startsWith(today))
+    const todayEntry: QuranHistoryEntry = {
+      surah: entry.currentSurah, ayah: entry.currentAyah, status: entry.status,
+      nextAssignment: entry.nextAssignment, revisionSurahs: entry.revisionSurahs,
+      notes: entry.notes, recordedAt: new Date().toISOString(), recordedBy: teacherUid,
+    }
+    const history = existingIdx >= 0
+      ? entry.history.map((h, i) => i === existingIdx ? todayEntry : h)
+      : (entry.currentSurah.trim() ? [todayEntry, ...entry.history] : entry.history)
+    const updated = { ...entry, history }
+    setData(prev => ({ ...prev, [s.id]: updated }))
     await setDoc(doc(db, 'quranProgress', `${cls.id}__${s.id}`), {
       classId: cls.id, studentId: s.id, studentName: `${s.firstName} ${s.lastName}`,
-      ...entry, updatedAt: new Date().toISOString(), updatedBy: teacherUid,
+      ...updated, updatedAt: new Date().toISOString(), updatedBy: teacherUid,
     })
     setSaving(prev => ({ ...prev, [s.id]: false }))
     setSaved(prev => ({ ...prev, [s.id]: true }))
     setTimeout(() => setSaved(prev => ({ ...prev, [s.id]: false })), 3000)
   }
 
-  async function handleSnapshot(s: Student) {
-    const entry = data[s.id]
-    if (!entry.currentSurah.trim()) return
-    const historyEntry: QuranHistoryEntry = {
-      surah: entry.currentSurah, ayah: entry.currentAyah, status: entry.status,
-      nextAssignment: entry.nextAssignment, revisionSurahs: entry.revisionSurahs,
-      notes: entry.notes, recordedAt: new Date().toISOString(), recordedBy: teacherUid,
-    }
-    const newEntry: QuranEntry = { ...blank, history: [historyEntry, ...entry.history] }
-    setData(prev => ({ ...prev, [s.id]: newEntry }))
+  async function saveHistoryEdit(s: Student) {
     setSaving(prev => ({ ...prev, [s.id]: true }))
+    const entry = data[s.id]
     await setDoc(doc(db, 'quranProgress', `${cls.id}__${s.id}`), {
       classId: cls.id, studentId: s.id, studentName: `${s.firstName} ${s.lastName}`,
-      ...newEntry, updatedAt: new Date().toISOString(), updatedBy: teacherUid,
+      ...entry, updatedAt: new Date().toISOString(), updatedBy: teacherUid,
     })
+    setEditingHistory(prev => ({ ...prev, [s.id]: null }))
     setSaving(prev => ({ ...prev, [s.id]: false }))
-    setSaved(prev => ({ ...prev, [s.id]: true }))
-    setTimeout(() => setSaved(prev => ({ ...prev, [s.id]: false })), 3000)
   }
 
   if (loading) return <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
@@ -1344,6 +1357,7 @@ function QuranTab({ cls, students, teacherUid }: { cls: AcademyClass; students: 
         const isSaving = saving[s.id]
         const isSaved = saved[s.id]
         const historyOpen = showHistory[s.id] ?? false
+        const editingIdx = editingHistory[s.id] ?? null
 
         return (
           <div key={s.id} className={`bg-white ${idx > 0 ? 'border-t border-stone-100' : ''}`}>
@@ -1428,11 +1442,6 @@ function QuranTab({ cls, students, teacherUid }: { cls: AcademyClass; students: 
                     className="bg-wood text-white font-bold font-quick px-5 py-2 rounded-full text-sm hover:brightness-95 transition disabled:opacity-60">
                     {isSaving ? 'Saving…' : 'Save'}
                   </button>
-                  <button onClick={() => handleSnapshot(s)} disabled={isSaving || !entry.currentSurah.trim()}
-                    title="Save current position to history and start fresh"
-                    className="border border-sage-400 text-sage-700 font-bold font-quick px-5 py-2 rounded-full text-sm hover:bg-sage-50 transition disabled:opacity-40">
-                    Record →
-                  </button>
                   {isSaved && <span className="text-sm text-sage-600 font-quick font-semibold">Saved!</span>}
                   {entry.history.length > 0 && (
                     <button onClick={() => setShowHistory(prev => ({ ...prev, [s.id]: !historyOpen }))}
@@ -1443,22 +1452,77 @@ function QuranTab({ cls, students, teacherUid }: { cls: AcademyClass; students: 
                 </div>
 
                 {historyOpen && entry.history.length > 0 && (
-                  <div className="mt-4 border-t border-stone-100 pt-4 space-y-2">
+                  <div className="mt-4 border-t border-stone-100 pt-4 space-y-3">
                     {entry.history.map((h, i) => (
-                      <div key={i} className="flex items-start gap-3 text-xs font-quick">
-                        <div className="flex-1 min-w-0">
-                          <span className="font-semibold text-stone-700">{h.surah}</span>
-                          {h.ayah && <span className="text-stone-400"> · Ayah {h.ayah}</span>}
-                          {h.notes && <span className="text-stone-400"> · {h.notes}</span>}
-                          {h.nextAssignment && <div className="text-stone-400 mt-0.5">Next: {h.nextAssignment}</div>}
-                          {h.revisionSurahs && <div className="text-stone-400 mt-0.5">Revision: {h.revisionSurahs}</div>}
-                        </div>
-                        <span className={`px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${QURAN_STATUS_COLORS[h.status as QuranStatus]}`}>
-                          {QURAN_STATUS_LABELS[h.status as QuranStatus]}
-                        </span>
-                        <span className="text-stone-300 flex-shrink-0">
-                          {new Date(h.recordedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </span>
+                      <div key={i} className="rounded-xl border border-stone-200 bg-white p-3 text-xs font-quick">
+                        {editingIdx === i ? (
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-stone-400 mb-0.5">Surah</label>
+                                <input value={h.surah} onChange={e => updateHistory(s.id, i, 'surah', e.target.value)}
+                                  className="w-full rounded-lg border border-stone-200 px-2 py-1 text-stone-800 focus:outline-none focus:ring-1 focus:ring-sage-400 text-xs" />
+                              </div>
+                              <div>
+                                <label className="block text-stone-400 mb-0.5">Ayah</label>
+                                <input value={h.ayah} onChange={e => updateHistory(s.id, i, 'ayah', e.target.value)}
+                                  className="w-full rounded-lg border border-stone-200 px-2 py-1 text-stone-800 focus:outline-none focus:ring-1 focus:ring-sage-400 text-xs" />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-stone-400 mb-0.5">Status</label>
+                                <select value={h.status} onChange={e => updateHistory(s.id, i, 'status', e.target.value)}
+                                  className="w-full rounded-lg border border-stone-200 px-2 py-1 text-stone-800 focus:outline-none text-xs">
+                                  <option value="new">New</option>
+                                  <option value="practicing">Practicing</option>
+                                  <option value="needs_review">Needs Review</option>
+                                  <option value="mastered">Mastered</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-stone-400 mb-0.5">Next Assignment</label>
+                                <input value={h.nextAssignment} onChange={e => updateHistory(s.id, i, 'nextAssignment', e.target.value)}
+                                  className="w-full rounded-lg border border-stone-200 px-2 py-1 text-stone-800 focus:outline-none focus:ring-1 focus:ring-sage-400 text-xs" />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-stone-400 mb-0.5">Note</label>
+                              <input value={h.notes} onChange={e => updateHistory(s.id, i, 'notes', e.target.value)}
+                                className="w-full rounded-lg border border-stone-200 px-2 py-1 text-stone-800 focus:outline-none focus:ring-1 focus:ring-sage-400 text-xs" />
+                            </div>
+                            <div className="flex gap-2 pt-1">
+                              <button onClick={() => saveHistoryEdit(s)} disabled={isSaving}
+                                className="bg-wood text-white font-bold px-3 py-1 rounded-full text-xs hover:brightness-95 transition disabled:opacity-60">
+                                {isSaving ? 'Saving…' : 'Save'}
+                              </button>
+                              <button onClick={() => setEditingHistory(prev => ({ ...prev, [s.id]: null }))}
+                                className="text-stone-400 hover:text-stone-600 px-3 py-1 rounded-full text-xs transition">
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start gap-2">
+                            <div className="flex-1 min-w-0">
+                              <span className="font-semibold text-stone-700">{h.surah}</span>
+                              {h.ayah && <span className="text-stone-400"> · Ayah {h.ayah}</span>}
+                              {h.notes && <span className="text-stone-400"> · {h.notes}</span>}
+                              {h.nextAssignment && <div className="text-stone-400 mt-0.5">Next: {h.nextAssignment}</div>}
+                              {h.revisionSurahs && <div className="text-stone-400 mt-0.5">Revision: {h.revisionSurahs}</div>}
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${QURAN_STATUS_COLORS[h.status as QuranStatus]}`}>
+                              {QURAN_STATUS_LABELS[h.status as QuranStatus]}
+                            </span>
+                            <span className="text-stone-300 flex-shrink-0">
+                              {new Date(h.recordedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </span>
+                            <button onClick={() => setEditingHistory(prev => ({ ...prev, [s.id]: i }))}
+                              className="text-stone-300 hover:text-stone-500 transition flex-shrink-0" title="Edit">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
