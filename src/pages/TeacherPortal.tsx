@@ -960,6 +960,7 @@ function QaidahTab({ cls, students, teacherUid }: { cls: AcademyClass; students:
   const [saving, setSaving] = useState<Record<string, boolean>>({})
   const [saved, setSaved] = useState<Record<string, boolean>>({})
   const [showHistory, setShowHistory] = useState<Record<string, boolean>>({})
+  const [expanded, setExpanded] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -1041,103 +1042,115 @@ function QaidahTab({ cls, students, teacherUid }: { cls: AcademyClass; students:
   if (students.length === 0) return <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">No students enrolled in this class yet.</div>
 
   return (
-    <div className="space-y-4">
-      {students.map(s => {
+    <div className="rounded-2xl border border-stone-200/70 overflow-hidden">
+      {students.map((s, idx) => {
         const entry = data[s.id] ?? { currentLesson: '', fluency: 'needs_practice' as QaidahFluency, notes: '', history: [] }
+        const isOpen = expanded === s.id
         const isSaving = saving[s.id]
         const isSaved = saved[s.id]
         const historyOpen = showHistory[s.id] ?? false
 
         return (
-          <div key={s.id} className="bg-white rounded-2xl border border-stone-200/70 p-5">
-            {/* Header */}
-            <div className="flex items-center gap-3 mb-4">
+          <div key={s.id} className={`bg-white ${idx > 0 ? 'border-t border-stone-100' : ''}`}>
+            {/* Collapsed row — always visible */}
+            <button
+              type="button"
+              onClick={() => setExpanded(isOpen ? null : s.id)}
+              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50/60 transition text-left">
               <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-xs flex-shrink-0">
                 {s.firstName[0]}{s.lastName[0]}
               </div>
-              <div className="font-semibold text-stone-800 font-quick flex-1">{s.firstName} {s.lastName}</div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-stone-800 font-quick text-sm">{s.firstName} {s.lastName}</div>
+                {entry.currentLesson ? (
+                  <div className="text-xs text-stone-400 font-quick truncate mt-0.5">{entry.currentLesson}</div>
+                ) : (
+                  <div className="text-xs text-stone-300 font-quick mt-0.5 italic">No lesson set</div>
+                )}
+              </div>
               {entry.currentLesson && (
-                <span className={`text-xs font-bold font-quick px-2.5 py-0.5 rounded-full ${FLUENCY_COLORS[entry.fluency]}`}>
+                <span className={`text-xs font-bold font-quick px-2.5 py-0.5 rounded-full flex-shrink-0 ${FLUENCY_COLORS[entry.fluency]}`}>
                   {FLUENCY_LABELS[entry.fluency]}
                 </span>
               )}
-            </div>
+              <span className="text-stone-300 text-sm flex-shrink-0">{isOpen ? '▲' : '▼'}</span>
+            </button>
 
-            {/* Fields */}
-            <div className="space-y-3 mb-4">
-              <div>
-                <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Current Lesson</label>
-                <input
-                  value={entry.currentLesson}
-                  onChange={e => update(s.id, 'currentLesson', e.target.value)}
-                  placeholder="e.g. Noorani Qa'idah Page 18 — Compound Letters"
-                  className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Fluency</label>
-                <select
-                  value={entry.fluency}
-                  onChange={e => update(s.id, 'fluency', e.target.value as QaidahFluency)}
-                  className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm">
-                  <option value="needs_practice">Needs Practice</option>
-                  <option value="improving">Improving</option>
-                  <option value="fluent">Fluent</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Teacher Note</label>
-                <input
-                  value={entry.notes}
-                  onChange={e => update(s.id, 'notes', e.target.value)}
-                  placeholder="Optional note…"
-                  className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
-                />
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <button
-                onClick={() => handleSave(s)}
-                disabled={isSaving}
-                className="bg-wood text-white font-bold font-quick px-5 py-2 rounded-full text-sm hover:brightness-95 transition disabled:opacity-60">
-                {isSaving ? 'Saving…' : 'Save'}
-              </button>
-              <button
-                onClick={() => handleAdvance(s)}
-                disabled={isSaving || !entry.currentLesson.trim()}
-                title="Save current lesson to history and start a new one"
-                className="border border-sage-400 text-sage-700 font-bold font-quick px-5 py-2 rounded-full text-sm hover:bg-sage-50 transition disabled:opacity-40">
-                Advance →
-              </button>
-              {isSaved && <span className="text-sm text-sage-600 font-quick font-semibold">Saved!</span>}
-              {entry.history.length > 0 && (
-                <button
-                  onClick={() => setShowHistory(prev => ({ ...prev, [s.id]: !historyOpen }))}
-                  className="ml-auto text-xs font-quick text-stone-400 hover:text-stone-600 transition">
-                  {historyOpen ? 'Hide history' : `History (${entry.history.length})`}
-                </button>
-              )}
-            </div>
-
-            {/* History */}
-            {historyOpen && entry.history.length > 0 && (
-              <div className="mt-4 border-t border-stone-100 pt-4 space-y-2">
-                {entry.history.map((h, i) => (
-                  <div key={i} className="flex items-start gap-3 text-xs font-quick">
-                    <div className="flex-1">
-                      <span className="font-semibold text-stone-700">{h.lesson}</span>
-                      {h.notes && <span className="text-stone-400"> · {h.notes}</span>}
-                    </div>
-                    <span className={`px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${FLUENCY_COLORS[h.fluency as QaidahFluency]}`}>
-                      {FLUENCY_LABELS[h.fluency as QaidahFluency]}
-                    </span>
-                    <span className="text-stone-300 flex-shrink-0">
-                      {new Date(h.recordedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </span>
+            {/* Expanded edit panel */}
+            {isOpen && (
+              <div className="px-5 pb-5 border-t border-stone-100 bg-stone-50/40">
+                <div className="pt-4 space-y-3 mb-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Current Lesson</label>
+                    <input
+                      value={entry.currentLesson}
+                      onChange={e => update(s.id, 'currentLesson', e.target.value)}
+                      placeholder="e.g. Noorani Qa'idah Page 18 — Compound Letters"
+                      className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
+                    />
                   </div>
-                ))}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Fluency</label>
+                      <select
+                        value={entry.fluency}
+                        onChange={e => update(s.id, 'fluency', e.target.value as QaidahFluency)}
+                        className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm">
+                        <option value="needs_practice">Needs Practice</option>
+                        <option value="improving">Improving</option>
+                        <option value="fluent">Fluent</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Teacher Note</label>
+                      <input
+                        value={entry.notes}
+                        onChange={e => update(s.id, 'notes', e.target.value)}
+                        placeholder="Optional note…"
+                        className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button onClick={() => handleSave(s)} disabled={isSaving}
+                    className="bg-wood text-white font-bold font-quick px-5 py-2 rounded-full text-sm hover:brightness-95 transition disabled:opacity-60">
+                    {isSaving ? 'Saving…' : 'Save'}
+                  </button>
+                  <button onClick={() => handleAdvance(s)} disabled={isSaving || !entry.currentLesson.trim()}
+                    title="Save current lesson to history and start a new one"
+                    className="border border-sage-400 text-sage-700 font-bold font-quick px-5 py-2 rounded-full text-sm hover:bg-sage-50 transition disabled:opacity-40">
+                    Advance →
+                  </button>
+                  {isSaved && <span className="text-sm text-sage-600 font-quick font-semibold">Saved!</span>}
+                  {entry.history.length > 0 && (
+                    <button
+                      onClick={() => setShowHistory(prev => ({ ...prev, [s.id]: !historyOpen }))}
+                      className="ml-auto text-xs font-quick text-stone-400 hover:text-stone-600 transition">
+                      {historyOpen ? 'Hide history' : `History (${entry.history.length})`}
+                    </button>
+                  )}
+                </div>
+
+                {historyOpen && entry.history.length > 0 && (
+                  <div className="mt-4 border-t border-stone-100 pt-4 space-y-2">
+                    {entry.history.map((h, i) => (
+                      <div key={i} className="flex items-start gap-3 text-xs font-quick">
+                        <div className="flex-1">
+                          <span className="font-semibold text-stone-700">{h.lesson}</span>
+                          {h.notes && <span className="text-stone-400"> · {h.notes}</span>}
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${FLUENCY_COLORS[h.fluency as QaidahFluency]}`}>
+                          {FLUENCY_LABELS[h.fluency as QaidahFluency]}
+                        </span>
+                        <span className="text-stone-300 flex-shrink-0">
+                          {new Date(h.recordedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
