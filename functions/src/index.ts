@@ -548,6 +548,98 @@ export const sendPaymentReminders = onCall(
   }
 )
 
+// ── Attendance reminders ──────────────────────────────────────────────────────
+
+/** Send attendance reminder emails to teachers who haven't submitted for the current week. */
+export const sendAttendanceReminders = onCall(
+  { secrets: [gmailUser, gmailPass] },
+  async (request) => {
+    if (request.auth?.token?.role !== 'admin') {
+      throw new HttpsError('permission-denied', 'Only admins can send attendance reminders.')
+    }
+    const { classIds } = request.data as { classIds?: string[] }
+
+    // Current week Monday–Sunday (ISO)
+    const now = new Date()
+    const day = now.getDay()
+    const diff = day === 0 ? -6 : 1 - day
+    const monday = new Date(now)
+    monday.setDate(now.getDate() + diff)
+    monday.setHours(0, 0, 0, 0)
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
+    const mondayStr = monday.toISOString().split('T')[0]
+    const sundayStr = sunday.toISOString().split('T')[0]
+    const weekLabel = monday.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+
+    const db = getFirestore()
+
+    // Load classes (all or filtered)
+    let classSnap
+    if (classIds && classIds.length > 0) {
+      const docs = await Promise.all(classIds.map(id => db.collection('classes').doc(id).get()))
+      classSnap = { docs: docs.filter(d => d.exists) }
+    } else {
+      classSnap = await db.collection('classes').get()
+    }
+
+    // Group incomplete classes by teacherUid
+    const byTeacher = new Map<string, { teacherName: string; classNames: string[] }>()
+
+    await Promise.all(classSnap.docs.map(async classDoc => {
+      const cls = classDoc.data() as { name: string; teacherUid: string; teacherName: string }
+      if (!cls.teacherUid) return
+
+      // Check if attendance was submitted this week
+      const attSnap = await db.collection('attendance')
+        .where('classId', '==', classDoc.id)
+        .where('date', '>=', mondayStr)
+        .where('date', '<=', sundayStr)
+        .get()
+
+      if (!attSnap.empty) return // already submitted
+
+      if (!byTeacher.has(cls.teacherUid)) {
+        byTeacher.set(cls.teacherUid, { teacherName: cls.teacherName, classNames: [] })
+      }
+      byTeacher.get(cls.teacherUid)!.classNames.push(cls.name)
+    }))
+
+    // Look up teacher emails and send
+    let emailsSent = 0
+    for (const [teacherUid, { teacherName, classNames }] of byTeacher) {
+      const userDoc = await db.collection('users').doc(teacherUid).get()
+      const teacherEmail = userDoc.data()?.email as string | undefined
+      if (!teacherEmail) continue
+
+      const classList = classNames.map(n => `<li><strong>${n}</strong></li>`).join('\n')
+      const greeting = teacherName ? `Ustadh/Ustadha ${teacherName}` : 'Teacher'
+
+      try {
+        await sendEmail({
+          user: gmailUser.value(),
+          pass: gmailPass.value(),
+          to: teacherEmail,
+          subject: `Attendance Reminder — Week of ${weekLabel}`,
+          html: `
+            <p>As-salamu alaykum <strong>${greeting}</strong>,</p>
+            <p>This is a friendly reminder that attendance has not yet been submitted for the week of <strong>${weekLabel}</strong> for the following class(es):</p>
+            <ul>${classList}</ul>
+            <p>Please log in to the Teacher Portal to submit attendance:</p>
+            <p><a href="https://aimava.org/portal/teacher">Teacher Portal →</a></p>
+            <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br>Anas Ibn Malik Academy</p>
+          `,
+        })
+        emailsSent++
+      } catch (err) {
+        console.error(`Failed to email ${teacherEmail}:`, err)
+      }
+    }
+
+    return { success: true, emailsSent, teachersReminded: byTeacher.size }
+  }
+)
+
 // ── Announcement notifications ────────────────────────────────────────────────
 
 /** Email all parents in a class when a teacher posts an announcement. */

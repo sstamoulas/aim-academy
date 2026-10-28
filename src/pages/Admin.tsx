@@ -3122,6 +3122,25 @@ interface AttendanceAdminSession {
   createdAt: string
 }
 
+const sendAttendanceRemindersFn = httpsCallable(functions, 'sendAttendanceReminders')
+
+function currentWeekRange() {
+  const now = new Date()
+  const day = now.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  const monday = new Date(now)
+  monday.setDate(now.getDate() + diff)
+  monday.setHours(0, 0, 0, 0)
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  const fmt = (d: Date) => d.toISOString().split('T')[0]
+  return {
+    monday: fmt(monday),
+    sunday: fmt(sunday),
+    label: monday.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+  }
+}
+
 function AttendanceAdminTab() {
   const [classes, setClasses] = useState<AcademyClass[]>([])
   const [selectedClassId, setSelectedClassId] = useState('')
@@ -3130,15 +3149,60 @@ function AttendanceAdminTab() {
   const [loadingSessions, setLoadingSessions] = useState(false)
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null)
 
+  // Weekly status
+  const [weekStatus, setWeekStatus] = useState<{ cls: AcademyClass; submitted: boolean }[]>([])
+  const [loadingWeek, setLoadingWeek] = useState(true)
+  const [reminding, setReminding] = useState<string | null>(null) // classId or 'all'
+  const [reminderMsg, setReminderMsg] = useState('')
+
   useEffect(() => {
     async function loadClasses() {
       setLoadingClasses(true)
       const snap = await getDocs(query(collection(db, 'classes'), orderBy('createdAt', 'desc')))
-      setClasses(snap.docs.map(d => ({ id: d.id, ...d.data() } as AcademyClass)))
+      const loaded = snap.docs.map(d => ({ id: d.id, ...d.data() } as AcademyClass))
+      setClasses(loaded)
       setLoadingClasses(false)
+
+      // Load this week's submission status for all classes
+      setLoadingWeek(true)
+      const { monday, sunday } = currentWeekRange()
+      const statuses = await Promise.all(loaded.map(async cls => {
+        const attSnap = await getDocs(
+          query(collection(db, 'attendance'),
+            where('classId', '==', cls.id),
+            where('date', '>=', monday),
+            where('date', '<=', sunday),
+          )
+        )
+        return { cls, submitted: !attSnap.empty }
+      }))
+      setWeekStatus(statuses)
+      setLoadingWeek(false)
     }
     loadClasses()
   }, [])
+
+  async function remindClass(classId: string) {
+    setReminding(classId)
+    try {
+      const result = await sendAttendanceRemindersFn({ classIds: [classId] })
+      const data = result.data as { emailsSent: number }
+      setReminderMsg(data.emailsSent > 0 ? 'Reminder sent!' : 'No teacher email found.')
+    } catch { setReminderMsg('Failed to send.') }
+    setReminding(null)
+    setTimeout(() => setReminderMsg(''), 4000)
+  }
+
+  async function remindAll() {
+    setReminding('all')
+    try {
+      const result = await sendAttendanceRemindersFn({})
+      const data = result.data as { emailsSent: number; teachersReminded: number }
+      setReminderMsg(`Reminders sent to ${data.teachersReminded} teacher(s).`)
+    } catch { setReminderMsg('Failed to send reminders.') }
+    setReminding(null)
+    setTimeout(() => setReminderMsg(''), 4000)
+  }
 
   useEffect(() => {
     if (!selectedClassId) { setSessions([]); return }
@@ -3173,6 +3237,57 @@ function AttendanceAdminTab() {
     <div>
       <h2 className="font-kids text-3xl text-wood-dark mb-6">Attendance</h2>
 
+      {/* This Week Overview */}
+      <div className="bg-white rounded-2xl border border-stone-200/70 p-6 mb-8">
+        <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
+          <div>
+            <h3 className="font-semibold text-stone-800 font-quick">This Week</h3>
+            <p className="text-xs text-stone-400 font-quick">Week of {currentWeekRange().label}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {reminderMsg && <span className="text-sm font-quick text-sage-600 font-semibold">{reminderMsg}</span>}
+            <button
+              onClick={remindAll}
+              disabled={reminding !== null || weekStatus.every(w => w.submitted)}
+              className="bg-wood text-white font-bold font-quick px-4 py-2 rounded-full text-sm hover:brightness-95 transition disabled:opacity-50">
+              {reminding === 'all' ? 'Sending…' : 'Remind All Incomplete'}
+            </button>
+          </div>
+        </div>
+
+        {loadingWeek ? (
+          <div className="flex justify-center py-6"><div className="w-6 h-6 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+        ) : weekStatus.length === 0 ? (
+          <p className="text-stone-400 font-quick text-sm">No classes found.</p>
+        ) : (
+          <div className="space-y-2">
+            {weekStatus.map(({ cls, submitted }) => (
+              <div key={cls.id} className={`flex items-center gap-4 rounded-xl px-4 py-3 border ${submitted ? 'bg-sage-50 border-sage-200' : 'bg-amber-50 border-amber-200'}`}>
+                <span className={`text-sm font-bold flex-shrink-0 ${submitted ? 'text-sage-600' : 'text-amber-600'}`}>
+                  {submitted ? '✓' : '!'}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-quick text-sm font-semibold text-stone-800">{cls.name}</div>
+                  <div className="text-xs text-stone-400 font-quick">{cls.teacherName || 'No teacher assigned'}</div>
+                </div>
+                <span className={`text-xs font-bold font-quick px-2.5 py-1 rounded-full ${submitted ? 'bg-sage-100 text-sage-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {submitted ? 'Submitted' : 'Missing'}
+                </span>
+                {!submitted && cls.teacherUid && (
+                  <button
+                    onClick={() => remindClass(cls.id)}
+                    disabled={reminding !== null}
+                    className="text-xs font-bold font-quick text-wood border border-wood/30 px-3 py-1 rounded-full hover:bg-wood/5 transition disabled:opacity-50 flex-shrink-0">
+                    {reminding === cls.id ? 'Sending…' : 'Remind'}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Session History */}
       <div className="mb-6">
         <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Select Class</label>
         {loadingClasses ? (
