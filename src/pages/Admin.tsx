@@ -3123,6 +3123,85 @@ interface AttendanceAdminSession {
 }
 
 const sendAttendanceRemindersFn = httpsCallable(functions, 'sendAttendanceReminders')
+const seedDatabaseFn   = httpsCallable(functions, 'seedDatabase')
+const clearSeedDataFn  = httpsCallable(functions, 'clearSeedData')
+
+// ── Dev Tools Tab ─────────────────────────────────────────────────────────────
+
+function DevToolsTab() {
+  const [seeding, setSeeding]   = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const [msg, setMsg]           = useState<{ text: string; ok: boolean } | null>(null)
+
+  async function handleSeed() {
+    if (!confirm('This will write seed data (classes, students, attendance, etc.) with "seed_" prefixed IDs. Continue?')) return
+    setSeeding(true); setMsg(null)
+    try {
+      const result = await seedDatabaseFn({})
+      const counts = (result.data as { counts: Record<string, number> }).counts
+      setMsg({ text: `Seeded: ${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ')}`, ok: true })
+    } catch (e: unknown) {
+      setMsg({ text: `Error: ${e instanceof Error ? e.message : 'Unknown error'}`, ok: false })
+    }
+    setSeeding(false)
+  }
+
+  async function handleClear() {
+    if (!confirm('This will permanently delete all documents whose ID starts with "seed_". Continue?')) return
+    setClearing(true); setMsg(null)
+    try {
+      const result = await clearSeedDataFn({})
+      const deleted = (result.data as { deleted: number }).deleted
+      setMsg({ text: `Cleared ${deleted} seed document(s).`, ok: true })
+    } catch (e: unknown) {
+      setMsg({ text: `Error: ${e instanceof Error ? e.message : 'Unknown error'}`, ok: false })
+    }
+    setClearing(false)
+  }
+
+  return (
+    <div className="max-w-lg">
+      <h2 className="font-kids text-3xl text-wood-dark mb-2">Dev Tools</h2>
+      <p className="text-stone-400 font-quick text-sm mb-8">Seed and clear test data in this environment. Safe to run in any environment — all seed documents use <code className="bg-stone-100 px-1 rounded text-xs">seed_</code> prefixed IDs.</p>
+
+      <div className="bg-white rounded-2xl border border-stone-200/70 p-6 space-y-4">
+        <div className="flex items-start gap-4">
+          <div className="flex-1">
+            <div className="font-semibold text-stone-800 font-quick text-sm">Seed Database</div>
+            <div className="text-xs text-stone-400 font-quick mt-0.5">Writes 4 classes, 17 students, 12 attendance sessions, progress records, homework, quiz results, and announcements.</div>
+          </div>
+          <button
+            onClick={handleSeed}
+            disabled={seeding || clearing}
+            className="flex-shrink-0 bg-sage-600 text-white font-bold font-quick px-4 py-2 rounded-full text-sm hover:brightness-95 transition disabled:opacity-50">
+            {seeding ? 'Seeding…' : 'Seed'}
+          </button>
+        </div>
+
+        <div className="border-t border-stone-100" />
+
+        <div className="flex items-start gap-4">
+          <div className="flex-1">
+            <div className="font-semibold text-stone-800 font-quick text-sm">Clear Seed Data</div>
+            <div className="text-xs text-stone-400 font-quick mt-0.5">Deletes all documents with IDs starting with <code className="bg-stone-100 px-1 rounded text-xs">seed_</code>. Does not touch real data.</div>
+          </div>
+          <button
+            onClick={handleClear}
+            disabled={seeding || clearing}
+            className="flex-shrink-0 bg-red-500 text-white font-bold font-quick px-4 py-2 rounded-full text-sm hover:brightness-95 transition disabled:opacity-50">
+            {clearing ? 'Clearing…' : 'Clear'}
+          </button>
+        </div>
+      </div>
+
+      {msg && (
+        <div className={`mt-4 rounded-xl px-4 py-3 text-sm font-quick font-semibold ${msg.ok ? 'bg-sage-50 text-sage-700 border border-sage-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+          {msg.text}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function currentWeekRange() {
   const now = new Date()
@@ -3589,7 +3668,7 @@ export default function Admin() {
   const [user, setUser] = useState<User | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'events' | 'classes' | 'users' | 'registrations' | 'content' | 'contact' | 'payments' | 'attendance'>('events')
+  const [activeTab, setActiveTab] = useState<'events' | 'classes' | 'users' | 'registrations' | 'content' | 'contact' | 'payments' | 'attendance' | 'devtools'>('events')
   const [pendingCount, setPendingCount] = useState(0)
   const [events, setEvents] = useState<AcademyEvent[]>([])
   const [editing, setEditing] = useState<Partial<AcademyEvent> | null>(null)
@@ -3693,7 +3772,7 @@ export default function Admin() {
         </div>
         {/* Tab bar */}
         <div className="max-w-4xl mx-auto px-6 flex gap-1 -mb-px overflow-x-auto scrollbar-none">
-          {(['events', 'classes', 'registrations', 'users', 'attendance', 'content', 'contact', 'payments'] as const).map(tab => (
+          {(['events', 'classes', 'registrations', 'users', 'attendance', 'content', 'contact', 'payments', 'devtools'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => { setActiveTab(tab); setEditing(null) }}
@@ -3703,7 +3782,7 @@ export default function Admin() {
                   : 'border-transparent text-stone-400 hover:text-stone-600'
               }`}
             >
-              {tab === 'events' ? 'Events' : tab === 'classes' ? 'Classes' : tab === 'users' ? 'Users' : tab === 'registrations' ? 'Registrations' : tab === 'attendance' ? 'Attendance' : tab === 'content' ? 'Content' : tab === 'contact' ? 'Contact' : 'Payments'}
+              {tab === 'events' ? 'Events' : tab === 'classes' ? 'Classes' : tab === 'users' ? 'Users' : tab === 'registrations' ? 'Registrations' : tab === 'attendance' ? 'Attendance' : tab === 'content' ? 'Content' : tab === 'contact' ? 'Contact' : tab === 'payments' ? 'Payments' : 'Dev Tools'}
               {tab === 'registrations' && pendingCount > 0 && (
                 <span className="bg-amber-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
                   {pendingCount}
@@ -3744,6 +3823,8 @@ export default function Admin() {
           <UsersTab />
         ) : activeTab === 'attendance' ? (
           <AttendanceAdminTab />
+        ) : activeTab === 'devtools' ? (
+          <DevToolsTab />
         ) : activeTab === 'contact' ? (
           <ContactSubmissionsTab />
         ) : activeTab === 'payments' ? (
