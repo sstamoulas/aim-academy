@@ -591,6 +591,7 @@ function QuizTab({ cls, students, teacherUid }: { cls: AcademyClass; students: S
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [expanded, setExpanded] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -640,22 +641,46 @@ function QuizTab({ cls, students, teacherUid }: { cls: AcademyClass; students: S
             <input type="number" value={maxScore} onChange={e => setMaxScore(Number(e.target.value))} min={1}
               className="w-24 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
           </div>
-          <div className="space-y-2 mb-5">
-            {students.map(s => {
+          <div className="rounded-2xl border border-stone-200/70 overflow-hidden mb-5">
+            {students.map((s, idx) => {
               const score = scores[s.id] ?? ''
               const pct = score !== '' && !isNaN(Number(score)) ? Math.round((Number(score) / maxScore) * 100) : null
+              const isOpen = expanded === s.id
               return (
-                <div key={s.id} className="flex items-center gap-4 bg-white rounded-2xl border border-stone-200/70 px-5 py-3">
-                  <span className="font-quick text-sm text-stone-800 flex-1">{s.firstName} {s.lastName}</span>
-                  <div className="flex items-center gap-2">
-                    <input type="number" value={score} onChange={e => setScores(prev => ({ ...prev, [s.id]: e.target.value }))}
-                      placeholder="—" min={0} max={maxScore}
-                      className="w-20 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm text-center" />
-                    <span className="text-stone-400 font-quick text-sm">/ {maxScore}</span>
-                    {pct !== null && (
-                      <span className={`text-xs font-bold font-quick w-10 text-right ${pct >= 70 ? 'text-sage-600' : 'text-rose-500'}`}>{pct}%</span>
+                <div key={s.id} className={idx > 0 ? 'border-t border-stone-200/70' : ''}>
+                  <button
+                    onClick={() => setExpanded(isOpen ? null : s.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 bg-white hover:bg-stone-50 transition text-left"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-xs flex-shrink-0">
+                      {s.firstName[0]}{s.lastName[0]}
+                    </div>
+                    <span className="font-quick text-sm text-stone-800 flex-1">{s.firstName} {s.lastName}</span>
+                    {pct !== null ? (
+                      <span className={`text-xs font-bold font-quick px-2 py-0.5 rounded-full ${pct >= 70 ? 'bg-sage-100 text-sage-700' : 'bg-rose-100 text-rose-600'}`}>
+                        {score}/{maxScore} · {pct}%
+                      </span>
+                    ) : (
+                      <span className="text-xs text-stone-300 font-quick">no score</span>
                     )}
-                  </div>
+                    <svg className={`w-4 h-4 text-stone-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {isOpen && (
+                    <div className="px-4 pb-4 pt-2 bg-stone-50/60 border-t border-stone-100">
+                      <div className="flex items-center gap-3">
+                        <label className="text-xs font-semibold text-stone-500 font-quick">Score</label>
+                        <input type="number" value={score} onChange={e => setScores(prev => ({ ...prev, [s.id]: e.target.value }))}
+                          placeholder="—" min={0} max={maxScore}
+                          className="w-24 rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm text-center" />
+                        <span className="text-stone-400 font-quick text-sm">/ {maxScore}</span>
+                        {pct !== null && (
+                          <span className={`text-xs font-bold font-quick ${pct >= 70 ? 'text-sage-600' : 'text-rose-500'}`}>{pct}%</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}
