@@ -1273,48 +1273,82 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
     ['students', `Students (${students.length})`],
   ]
 
+  const TAB_ICONS: Record<DetailTab, React.ReactElement> = {
+    attendance: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>,
+    progress:   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
+    qaidah:     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>,
+    homework:   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>,
+    quiz:       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>,
+    missedWork: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>,
+    announcements: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>,
+    students:   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+  }
+
+  const loadingSpinner = <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+
   return (
     <div>
       <button onClick={onBack} className="text-sm font-quick font-semibold text-stone-500 hover:text-sage-700 transition mb-5">← My Classes</button>
       <h2 className="font-kids text-3xl text-wood-dark mb-1">{cls.name}</h2>
       {cls.schedule && <p className="text-stone-400 text-sm font-quick mb-5">{cls.schedule}</p>}
 
-      <div className="flex gap-1 border-b border-stone-200 mb-6 overflow-x-auto">
-        {TABS.map(([t, label]) => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-2.5 text-sm font-semibold font-quick border-b-2 -mb-px transition whitespace-nowrap ${tab === t ? 'border-sage-600 text-sage-700' : 'border-transparent text-stone-400 hover:text-stone-600'}`}>
-            {label}
-          </button>
-        ))}
+      {/* Mobile: dropdown selector */}
+      <div className="md:hidden mb-4">
+        <select
+          value={tab}
+          onChange={e => setTab(e.target.value as DetailTab)}
+          className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-stone-800 font-quick text-sm focus:outline-none focus:ring-2 focus:ring-sage-400"
+        >
+          {TABS.map(([t, label]) => (
+            <option key={t} value={t}>{label}</option>
+          ))}
+        </select>
       </div>
 
-      {tab === 'students' && (
-        loadingStudents ? (
-          <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
-        ) : students.length === 0 ? (
-          <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">No students enrolled in this class yet.</div>
-        ) : (
-          <div className="space-y-2">
-            {students.map(s => (
-              <div key={s.id} className="bg-white rounded-2xl border border-stone-200/70 px-5 py-4 flex items-center gap-4">
-                <div className="w-9 h-9 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-sm flex-shrink-0">{s.firstName[0]}{s.lastName[0]}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-stone-800 font-quick text-sm">{s.firstName} {s.lastName}</div>
-                  {s.parentName && <div className="text-xs text-stone-400 font-quick">Parent: {s.parentName}{s.parentPhone ? ` · ${s.parentPhone}` : ''}</div>}
-                </div>
-              </div>
-            ))}
-          </div>
-        )
-      )}
+      <div className="flex gap-6 items-start">
+        {/* Desktop: vertical sidebar */}
+        <aside className="hidden md:flex flex-col gap-0.5 w-44 flex-shrink-0">
+          {TABS.map(([t, label]) => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold font-quick text-left transition w-full ${
+                tab === t
+                  ? 'bg-sage-100 text-sage-800'
+                  : 'text-stone-400 hover:bg-stone-100 hover:text-stone-700'
+              }`}>
+              <span className={tab === t ? 'text-sage-600' : 'text-stone-400'}>{TAB_ICONS[t]}</span>
+              {label}
+            </button>
+          ))}
+        </aside>
 
-      {tab === 'attendance' && <AttendanceTab cls={cls} teacherUid={teacherUid} />}
-      {tab === 'progress' && (loadingStudents ? <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div> : <ProgressTab cls={cls} students={students} teacherUid={teacherUid} />)}
-      {tab === 'homework' && (loadingStudents ? <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div> : <HomeworkTab cls={cls} students={students} teacherUid={teacherUid} teacherName={teacherName} />)}
-      {tab === 'quiz' && (loadingStudents ? <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div> : <QuizTab cls={cls} students={students} teacherUid={teacherUid} />)}
-      {tab === 'missedWork' && <MissedWorkTab cls={cls} teacherUid={teacherUid} />}
-      {tab === 'announcements' && <AnnouncementsTab cls={cls} teacherUid={teacherUid} teacherName={teacherName} />}
-      {tab === 'qaidah' && (loadingStudents ? <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div> : <QaidahTab cls={cls} students={students} teacherUid={teacherUid} />)}
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          {tab === 'students' && (
+            loadingStudents ? loadingSpinner : students.length === 0 ? (
+              <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">No students enrolled in this class yet.</div>
+            ) : (
+              <div className="rounded-2xl border border-stone-200/70 overflow-hidden">
+                {students.map((s, idx) => (
+                  <div key={s.id} className={`bg-white px-4 py-3 flex items-center gap-3 ${idx > 0 ? 'border-t border-stone-200/70' : ''}`}>
+                    <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-xs flex-shrink-0">{s.firstName[0]}{s.lastName[0]}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-stone-800 font-quick text-sm">{s.firstName} {s.lastName}</div>
+                      {s.parentName && <div className="text-xs text-stone-400 font-quick">Parent: {s.parentName}{s.parentPhone ? ` · ${s.parentPhone}` : ''}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+          {tab === 'attendance' && <AttendanceTab cls={cls} teacherUid={teacherUid} />}
+          {tab === 'progress' && (loadingStudents ? loadingSpinner : <ProgressTab cls={cls} students={students} teacherUid={teacherUid} />)}
+          {tab === 'homework' && (loadingStudents ? loadingSpinner : <HomeworkTab cls={cls} students={students} teacherUid={teacherUid} teacherName={teacherName} />)}
+          {tab === 'quiz' && (loadingStudents ? loadingSpinner : <QuizTab cls={cls} students={students} teacherUid={teacherUid} />)}
+          {tab === 'missedWork' && <MissedWorkTab cls={cls} teacherUid={teacherUid} />}
+          {tab === 'announcements' && <AnnouncementsTab cls={cls} teacherUid={teacherUid} teacherName={teacherName} />}
+          {tab === 'qaidah' && (loadingStudents ? loadingSpinner : <QaidahTab cls={cls} students={students} teacherUid={teacherUid} />)}
+        </div>
+      </div>
     </div>
   )
 }
