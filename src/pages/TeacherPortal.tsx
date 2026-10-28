@@ -3,11 +3,11 @@ import {
   signOut, onAuthStateChanged, type User,
 } from 'firebase/auth'
 import {
-  collection, doc, getDoc, getDocs, setDoc, query, where, orderBy,
+  collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, orderBy,
 } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { auth, db } from '../firebase'
-import type { AcademyClass, Student, AttendanceSession, Announcement } from '../types/portal'
+import type { AcademyClass, Student, AttendanceSession, AttendanceStatus, MissedWork, Announcement } from '../types/portal'
 import ImpersonationBanner, { getImpersonation, type ImpersonationState } from '../components/ImpersonationBanner'
 
 const functions = getFunctions()
@@ -71,6 +71,22 @@ interface ProgData { quranPosition: string; qaidahPosition: string; islamicStudi
 interface HwData { completed: Record<string, boolean>; updatedAt?: string }
 interface QuizData { maxScore: number; scores: Record<string, number>; updatedAt?: string }
 
+// ── Status badge helper ───────────────────────────────────────────────────────
+
+const STATUS_COLORS: Record<AttendanceStatus, string> = {
+  present: 'bg-sage-100 text-sage-700',
+  late: 'bg-amber-100 text-amber-700',
+  excused: 'bg-stone-100 text-stone-600',
+  absent: 'bg-rose-100 text-rose-600',
+}
+
+const STATUS_LABELS: Record<AttendanceStatus, string> = {
+  present: 'Present',
+  late: 'Late',
+  excused: 'Excused',
+  absent: 'Absent',
+}
+
 // ── Attendance ────────────────────────────────────────────────────────────────
 
 function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: string }) {
@@ -79,7 +95,7 @@ function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: str
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<'take' | 'history'>('take')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
-  const [records, setRecords] = useState<Record<string, boolean>>({})
+  const [records, setRecords] = useState<Record<string, AttendanceStatus>>({})
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [selectedSession, setSelectedSession] = useState<AttendanceSession | null>(null)
@@ -93,8 +109,8 @@ function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: str
     const studs = studSnap.docs.map(d => ({ id: d.id, ...d.data() } as Student))
     setStudents(studs)
     setSessions(sessSnap.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceSession)))
-    const init: Record<string, boolean> = {}
-    studs.forEach(s => { init[s.id] = false })
+    const init: Record<string, AttendanceStatus> = {}
+    studs.forEach(s => { init[s.id] = 'absent' })
     setRecords(init)
     setLoading(false)
   }
@@ -104,12 +120,14 @@ function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: str
   useEffect(() => {
     const existing = sessions.find(s => s.date === date)
     if (existing) {
-      const map: Record<string, boolean> = {}
-      existing.records.forEach(r => { map[r.studentId] = r.present })
+      const map: Record<string, AttendanceStatus> = {}
+      existing.records.forEach(r => {
+        map[r.studentId] = r.status ?? ((r as unknown as { present?: boolean }).present ? 'present' : 'absent')
+      })
       setRecords(map)
     } else {
-      const init: Record<string, boolean> = {}
-      students.forEach(s => { init[s.id] = false })
+      const init: Record<string, AttendanceStatus> = {}
+      students.forEach(s => { init[s.id] = 'absent' })
       setRecords(init)
     }
     setSaved(false)
@@ -121,17 +139,48 @@ function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: str
     await setDoc(doc(db, 'attendance', sessionId), {
       classId: cls.id,
       date,
-      records: students.map(s => ({ studentId: s.id, studentName: `${s.firstName} ${s.lastName}`, present: records[s.id] ?? false })),
+      records: students.map(s => ({
+        studentId: s.id,
+        studentName: `${s.firstName} ${s.lastName}`,
+        status: records[s.id] ?? 'absent',
+        present: records[s.id] === 'present' || records[s.id] === 'late',
+      })),
       createdBy: teacherUid,
       createdAt: new Date().toISOString(),
     })
+
+    // Handle missedWork docs
+    await Promise.all(students.map(async s => {
+      const missedDocId = `${cls.id}_${date}_${s.id}`
+      const status = records[s.id] ?? 'absent'
+      if (status === 'absent') {
+        await setDoc(doc(db, 'missedWork', missedDocId), {
+          classId: cls.id,
+          className: cls.name,
+          studentId: s.id,
+          studentName: `${s.firstName} ${s.lastName}`,
+          date,
+          missedWorkNotes: '',
+          resolved: false,
+          createdAt: new Date().toISOString(),
+        }, { merge: true })
+      } else {
+        try {
+          await deleteDoc(doc(db, 'missedWork', missedDocId))
+        } catch {
+          // doc may not exist — ignore
+        }
+      }
+    }))
+
     await load()
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
   }
 
-  const presentCount = Object.values(records).filter(Boolean).length
+  const statusCounts = { present: 0, late: 0, excused: 0, absent: 0 }
+  Object.values(records).forEach(s => statusCounts[s]++)
 
   if (loading) return <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
 
@@ -148,13 +197,15 @@ function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: str
 
       {view === 'take' && (
         <div>
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
             <div className="flex items-center gap-3">
               <label className="text-sm font-semibold text-stone-700 font-quick">Date</label>
               <input type="date" value={date} onChange={e => setDate(e.target.value)}
                 className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
             </div>
-            <span className="text-sm text-stone-400 font-quick">{presentCount}/{students.length} present</span>
+            <span className="text-xs text-stone-400 font-quick">
+              {statusCounts.present} present · {statusCounts.late} late · {statusCounts.excused} excused · {statusCounts.absent} absent
+            </span>
           </div>
           {students.length === 0 ? (
             <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">No students enrolled in this class yet.</div>
@@ -162,18 +213,37 @@ function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: str
             <>
               <div className="space-y-2 mb-6">
                 {students.map(s => {
-                  const present = records[s.id] ?? false
+                  const status = records[s.id] ?? 'absent'
                   return (
-                    <button key={s.id} type="button" onClick={() => setRecords(r => ({ ...r, [s.id]: !present }))}
-                      className={`w-full flex items-center gap-4 rounded-2xl border-2 px-5 py-3.5 text-left transition ${present ? 'border-sage-400 bg-sage-50' : 'border-rose-200 bg-rose-50'}`}>
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${present ? 'bg-sage-500 text-white' : 'bg-rose-200 text-rose-600'}`}>
-                        {present ? '✓' : '✗'}
+                    <div key={s.id}
+                      className={`w-full flex items-center gap-4 rounded-2xl border-2 px-5 py-3.5 transition ${
+                        status === 'present' ? 'border-sage-400 bg-sage-50' :
+                        status === 'late' ? 'border-amber-300 bg-amber-50' :
+                        status === 'excused' ? 'border-stone-300 bg-stone-50' :
+                        'border-rose-200 bg-rose-50'
+                      }`}>
+                      <div className={`font-semibold font-quick text-sm flex-1 ${status === 'absent' ? 'text-stone-500' : 'text-stone-800'}`}>
+                        {s.firstName} {s.lastName}
                       </div>
-                      <div className="flex-1">
-                        <div className={`font-semibold font-quick text-sm ${present ? 'text-stone-800' : 'text-stone-500'}`}>{s.firstName} {s.lastName}</div>
+                      <div className="flex gap-1 flex-shrink-0">
+                        {(['present', 'late', 'excused', 'absent'] as AttendanceStatus[]).map(st => (
+                          <button
+                            key={st}
+                            type="button"
+                            onClick={() => setRecords(r => ({ ...r, [s.id]: st }))}
+                            className={`px-2.5 py-1 rounded-full text-xs font-bold font-quick transition border ${
+                              status === st
+                                ? st === 'present' ? 'bg-sage-500 text-white border-sage-500' :
+                                  st === 'late' ? 'bg-amber-500 text-white border-amber-500' :
+                                  st === 'excused' ? 'bg-stone-500 text-white border-stone-500' :
+                                  'bg-rose-500 text-white border-rose-500'
+                                : 'bg-white text-stone-400 border-stone-200 hover:border-stone-300'
+                            }`}>
+                            {st === 'present' ? 'P' : st === 'late' ? 'L' : st === 'excused' ? 'E' : 'A'}
+                          </button>
+                        ))}
                       </div>
-                      <div className={`text-xs font-bold font-quick ${present ? 'text-sage-600' : 'text-rose-400'}`}>{present ? 'Present' : 'Absent'}</div>
-                    </button>
+                    </div>
                   )
                 })}
               </div>
@@ -196,28 +266,43 @@ function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: str
           ) : selectedSession ? (
             <div>
               <button onClick={() => setSelectedSession(null)} className="text-sm font-quick font-semibold text-stone-500 hover:text-sage-700 transition mb-4">← Back to history</button>
-              <h4 className="font-semibold text-stone-700 font-quick mb-4">{selectedSession.date} — {selectedSession.records.filter(r => r.present).length}/{selectedSession.records.length} present</h4>
+              <h4 className="font-semibold text-stone-700 font-quick mb-4">{selectedSession.date}</h4>
               <div className="space-y-2">
-                {selectedSession.records.map(r => (
-                  <div key={r.studentId} className={`flex items-center gap-4 rounded-2xl px-5 py-3 ${r.present ? 'bg-sage-50 border border-sage-200' : 'bg-rose-50 border border-rose-200'}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${r.present ? 'bg-sage-500 text-white' : 'bg-rose-200 text-rose-600'}`}>{r.present ? '✓' : '✗'}</div>
-                    <span className="font-quick text-sm text-stone-700 flex-1">{r.studentName}</span>
-                    <span className={`text-xs font-bold font-quick ${r.present ? 'text-sage-600' : 'text-rose-400'}`}>{r.present ? 'Present' : 'Absent'}</span>
-                  </div>
-                ))}
+                {selectedSession.records.map(r => {
+                  const status: AttendanceStatus = r.status ?? ((r as unknown as { present?: boolean }).present ? 'present' : 'absent')
+                  return (
+                    <div key={r.studentId} className={`flex items-center gap-4 rounded-2xl px-5 py-3 border ${
+                      status === 'present' ? 'bg-sage-50 border-sage-200' :
+                      status === 'late' ? 'bg-amber-50 border-amber-200' :
+                      status === 'excused' ? 'bg-stone-50 border-stone-200' :
+                      'bg-rose-50 border-rose-200'
+                    }`}>
+                      <span className="font-quick text-sm text-stone-700 flex-1">{r.studentName}</span>
+                      <span className={`text-xs font-bold font-quick px-2.5 py-0.5 rounded-full ${STATUS_COLORS[status]}`}>
+                        {STATUS_LABELS[status]}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           ) : (
             <div className="space-y-2">
               {sessions.map(sess => {
-                const pn = sess.records.filter(r => r.present).length
+                const counts = { present: 0, late: 0, excused: 0, absent: 0 }
+                sess.records.forEach(r => {
+                  const st: AttendanceStatus = r.status ?? ((r as unknown as { present?: boolean }).present ? 'present' : 'absent')
+                  counts[st]++
+                })
                 return (
                   <button key={sess.id} onClick={() => setSelectedSession(sess)}
                     className="w-full bg-white rounded-2xl border border-stone-200/70 px-5 py-4 flex items-center gap-4 hover:border-sage-300 hover:bg-sage-50/30 transition text-left">
                     <div className="text-2xl flex-shrink-0">📋</div>
                     <div className="flex-1">
                       <div className="font-semibold text-stone-800 font-quick text-sm">{sess.date}</div>
-                      <div className="text-xs text-stone-400 font-quick">{pn}/{sess.records.length} present</div>
+                      <div className="text-xs text-stone-400 font-quick">
+                        {counts.present} present · {counts.late} late · {counts.excused} excused · {counts.absent} absent
+                      </div>
                     </div>
                     <span className="text-xs text-stone-400 font-quick">View →</span>
                   </button>
@@ -593,9 +678,126 @@ function AnnouncementsTab({ cls, teacherUid, teacherName }: { cls: AcademyClass;
   )
 }
 
+// ── Missed Work Tab ───────────────────────────────────────────────────────────
+
+function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; teacherUid: string }) {
+  const [items, setItems] = useState<MissedWork[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showResolved, setShowResolved] = useState(false)
+  const [notes, setNotes] = useState<Record<string, string>>({})
+  const [savingNotes, setSavingNotes] = useState<Record<string, boolean>>({})
+  const [resolvingId, setResolvingId] = useState<string | null>(null)
+
+  async function load() {
+    setLoading(true)
+    const q = query(
+      collection(db, 'missedWork'),
+      where('classId', '==', cls.id),
+      where('resolved', '==', showResolved),
+      orderBy('date', 'desc'),
+    )
+    const snap = await getDocs(q)
+    const loaded = snap.docs.map(d => ({ id: d.id, ...d.data() } as MissedWork))
+    setItems(loaded)
+    const noteMap: Record<string, string> = {}
+    loaded.forEach(item => { noteMap[item.id] = item.missedWorkNotes ?? '' })
+    setNotes(noteMap)
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [cls.id, showResolved])
+
+  async function saveNotes(itemId: string) {
+    setSavingNotes(prev => ({ ...prev, [itemId]: true }))
+    await setDoc(doc(db, 'missedWork', itemId), { missedWorkNotes: notes[itemId] ?? '' }, { merge: true })
+    setSavingNotes(prev => ({ ...prev, [itemId]: false }))
+  }
+
+  async function markResolved(itemId: string) {
+    setResolvingId(itemId)
+    await setDoc(doc(db, 'missedWork', itemId), { resolved: true, resolvedAt: new Date().toISOString() }, { merge: true })
+    setResolvingId(null)
+    await load()
+  }
+
+  if (loading) return <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="font-semibold text-stone-700 font-quick text-sm">
+          {showResolved ? 'Resolved missed work' : 'Unresolved missed work'}
+        </h3>
+        <button
+          onClick={() => setShowResolved(v => !v)}
+          className="text-xs font-semibold font-quick text-stone-500 hover:text-sage-700 border border-stone-200 px-3 py-1.5 rounded-full transition">
+          {showResolved ? 'Show Unresolved' : 'Show Resolved'}
+        </button>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="bg-stone-50 rounded-2xl border border-stone-200 p-10 text-center">
+          <div className="text-3xl mb-3">✅</div>
+          <p className="font-quick text-sm text-stone-500 font-semibold">No missed work flagged</p>
+          <p className="font-quick text-xs text-stone-400 mt-1">
+            {showResolved ? 'No resolved items for this class.' : 'All students are caught up!'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {items.map(item => (
+            <div key={item.id} className="bg-white rounded-2xl border border-stone-200/70 p-5">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <div className="font-semibold text-stone-800 font-quick text-sm">{item.studentName}</div>
+                  <div className="text-xs text-stone-400 font-quick mt-0.5">
+                    Absent on {new Date(item.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  </div>
+                </div>
+                {item.resolvedAt && (
+                  <span className="text-xs font-quick text-sage-600 bg-sage-50 border border-sage-200 px-2.5 py-0.5 rounded-full flex-shrink-0">
+                    Resolved {new Date(item.resolvedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </span>
+                )}
+              </div>
+              <div className="mb-3">
+                <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Missed work notes</label>
+                <textarea
+                  value={notes[item.id] ?? ''}
+                  onChange={e => setNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
+                  rows={3}
+                  placeholder="Describe what the student missed…"
+                  disabled={showResolved}
+                  className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm resize-none disabled:opacity-60"
+                />
+              </div>
+              {!showResolved && (
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => saveNotes(item.id)}
+                    disabled={savingNotes[item.id]}
+                    className="bg-stone-100 text-stone-700 font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-stone-200 transition disabled:opacity-60">
+                    {savingNotes[item.id] ? 'Saving…' : 'Save Notes'}
+                  </button>
+                  <button
+                    onClick={() => markResolved(item.id)}
+                    disabled={resolvingId === item.id}
+                    className="bg-sage-100 text-sage-700 font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-sage-200 transition disabled:opacity-60">
+                    {resolvingId === item.id ? 'Resolving…' : 'Mark Resolved'}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Class Detail ──────────────────────────────────────────────────────────────
 
-type DetailTab = 'attendance' | 'progress' | 'homework' | 'quiz' | 'announcements' | 'students'
+type DetailTab = 'attendance' | 'progress' | 'homework' | 'quiz' | 'missedWork' | 'announcements' | 'students'
 
 function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
   cls: AcademyClass; teacherUid: string; teacherName: string; onBack: () => void; initialTab?: DetailTab
@@ -619,6 +821,7 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
     ['progress', 'Progress'],
     ['homework', 'Homework'],
     ['quiz', 'Quiz'],
+    ['missedWork', 'Missed Work'],
     ['announcements', 'Announcements'],
     ['students', `Students (${students.length})`],
   ]
@@ -662,6 +865,7 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
       {tab === 'progress' && (loadingStudents ? <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div> : <ProgressTab cls={cls} students={students} teacherUid={teacherUid} />)}
       {tab === 'homework' && (loadingStudents ? <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div> : <HomeworkTab cls={cls} students={students} teacherUid={teacherUid} />)}
       {tab === 'quiz' && (loadingStudents ? <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div> : <QuizTab cls={cls} students={students} teacherUid={teacherUid} />)}
+      {tab === 'missedWork' && <MissedWorkTab cls={cls} teacherUid={teacherUid} />}
       {tab === 'announcements' && <AnnouncementsTab cls={cls} teacherUid={teacherUid} teacherName={teacherName} />}
     </div>
   )

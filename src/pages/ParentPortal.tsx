@@ -6,7 +6,7 @@ import {
   collection, doc, getDoc, getDocs, addDoc, query, where,
 } from 'firebase/firestore'
 import { auth, db } from '../firebase'
-import type { AcademyClass, Student, AttendanceSession, Announcement, ChildRequest } from '../types/portal'
+import type { AcademyClass, Student, AttendanceSession, AttendanceRecord, Announcement, ChildRequest } from '../types/portal'
 import ImpersonationBanner, { getImpersonation, clearImpersonation, type ImpersonationState } from '../components/ImpersonationBanner'
 
 // ── Child Detail ──────────────────────────────────────────────────────────────
@@ -65,9 +65,9 @@ function ChildDetail({ data, onBack }: {
     if (!record) return null
     const cls = classes.find(c => c.id === sess.classId)
     return { sess, record, className: cls?.name ?? '' }
-  }).filter(Boolean) as { sess: AttendanceSession; record: { present: boolean }; className: string }[]
+  }).filter(Boolean) as { sess: AttendanceSession; record: AttendanceRecord; className: string }[]
 
-  const presentCount = studentSessions.filter(s => s.record.present).length
+  const presentCount = studentSessions.filter(s => s.record.status === 'present' || s.record.status === 'late' || (s.record as unknown as { present?: boolean }).present === true).length
   const totalCount = studentSessions.length
 
   return (
@@ -134,27 +134,35 @@ function ChildDetail({ data, onBack }: {
           </div>
         ) : (
           <div className="space-y-2">
-            {studentSessions.map(({ sess, record, className }) => (
-              <div key={sess.id}
-                className={`flex items-center gap-4 rounded-2xl px-5 py-3.5 border ${
-                  record.present
-                    ? 'bg-sage-50 border-sage-200'
-                    : 'bg-rose-50 border-rose-200'
-                }`}>
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
-                  record.present ? 'bg-sage-500 text-white' : 'bg-rose-200 text-rose-600'
-                }`}>
-                  {record.present ? '✓' : '✗'}
+            {studentSessions.map(({ sess, record, className }) => {
+              const status = record.status ?? ((record as unknown as { present?: boolean }).present ? 'present' : 'absent')
+              const isPresent = status === 'present' || status === 'late'
+              const statusLabel = status === 'present' ? 'Present' : status === 'late' ? 'Late' : status === 'excused' ? 'Excused' : 'Absent'
+              return (
+                <div key={sess.id}
+                  className={`flex items-center gap-4 rounded-2xl px-5 py-3.5 border ${
+                    status === 'present' ? 'bg-sage-50 border-sage-200' :
+                    status === 'late' ? 'bg-amber-50 border-amber-200' :
+                    status === 'excused' ? 'bg-stone-50 border-stone-200' :
+                    'bg-rose-50 border-rose-200'
+                  }`}>
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                    isPresent ? 'bg-sage-500 text-white' : status === 'excused' ? 'bg-stone-300 text-stone-600' : 'bg-rose-200 text-rose-600'
+                  }`}>
+                    {isPresent ? '✓' : status === 'excused' ? 'E' : '✗'}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-quick text-sm font-semibold text-stone-700">{sess.date}</div>
+                    {classes.length > 1 && <div className="text-xs text-stone-400 font-quick">{className}</div>}
+                  </div>
+                  <span className={`text-xs font-bold font-quick ${
+                    status === 'present' ? 'text-sage-600' : status === 'late' ? 'text-amber-600' : status === 'excused' ? 'text-stone-500' : 'text-rose-400'
+                  }`}>
+                    {statusLabel}
+                  </span>
                 </div>
-                <div className="flex-1">
-                  <div className="font-quick text-sm font-semibold text-stone-700">{sess.date}</div>
-                  {classes.length > 1 && <div className="text-xs text-stone-400 font-quick">{className}</div>}
-                </div>
-                <span className={`text-xs font-bold font-quick ${record.present ? 'text-sage-600' : 'text-rose-400'}`}>
-                  {record.present ? 'Present' : 'Absent'}
-                </span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )
       ) : (

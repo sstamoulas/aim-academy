@@ -106,5 +106,10 @@ service cloud.firestore {
     match /quizResults/{docId} {
       allow read, write: if isStaff();
     }
+
+    // Missed work flags — staff read/write
+    match /missedWork/{docId} {
+      allow read, write: if isStaff();
+    }
   }
 }

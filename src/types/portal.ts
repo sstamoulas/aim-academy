@@ -23,10 +23,12 @@ export interface Student {
   createdAt: string
 }
 
+export type AttendanceStatus = 'present' | 'late' | 'excused' | 'absent'
+
 export interface AttendanceRecord {
   studentId: string
   studentName: string
-  present: boolean
+  status: AttendanceStatus
   notes?: string
 }
 
@@ -108,4 +110,17 @@ export interface MonthlyQuiz {
   maxScore: number
   scores: Record<string, number>
   updatedAt?: string
+}
+
+export interface MissedWork {
+  id: string
+  classId: string
+  className: string
+  studentId: string
+  studentName: string
+  date: string // YYYY-MM-DD
+  missedWorkNotes: string
+  resolved: boolean
+  resolvedAt?: string
+  createdAt: string
 }

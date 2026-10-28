@@ -3105,6 +3105,171 @@ interface PaymentRecord {
   markedByUid: string
 }
 
+// ── Attendance Admin Tab ──────────────────────────────────────────────────────
+
+const ATT_STATUS_COLORS: Record<string, string> = {
+  present: 'bg-sage-100 text-sage-700',
+  late: 'bg-amber-100 text-amber-700',
+  excused: 'bg-stone-100 text-stone-600',
+  absent: 'bg-rose-100 text-rose-600',
+}
+
+interface AttendanceAdminSession {
+  id: string
+  classId: string
+  date: string
+  records: Array<{ studentId: string; studentName: string; status?: string; present?: boolean }>
+  createdAt: string
+}
+
+function AttendanceAdminTab() {
+  const [classes, setClasses] = useState<AcademyClass[]>([])
+  const [selectedClassId, setSelectedClassId] = useState('')
+  const [sessions, setSessions] = useState<AttendanceAdminSession[]>([])
+  const [loadingClasses, setLoadingClasses] = useState(true)
+  const [loadingSessions, setLoadingSessions] = useState(false)
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function loadClasses() {
+      setLoadingClasses(true)
+      const snap = await getDocs(query(collection(db, 'classes'), orderBy('createdAt', 'desc')))
+      setClasses(snap.docs.map(d => ({ id: d.id, ...d.data() } as AcademyClass)))
+      setLoadingClasses(false)
+    }
+    loadClasses()
+  }, [])
+
+  useEffect(() => {
+    if (!selectedClassId) { setSessions([]); return }
+    async function loadSessions() {
+      setLoadingSessions(true)
+      const snap = await getDocs(
+        query(collection(db, 'attendance'), where('classId', '==', selectedClassId), orderBy('date', 'desc'))
+      )
+      setSessions(snap.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceAdminSession)))
+      setLoadingSessions(false)
+    }
+    loadSessions()
+  }, [selectedClassId])
+
+  function resolveStatus(r: { status?: string; present?: boolean }): string {
+    return r.status ?? (r.present ? 'present' : 'absent')
+  }
+
+  const totalSessions = sessions.length
+  const avgAttendanceRate = totalSessions === 0 ? null : (() => {
+    const total = sessions.reduce((sum, sess) => {
+      const presentCount = sess.records.filter(r => {
+        const st = resolveStatus(r)
+        return st === 'present' || st === 'late'
+      }).length
+      return sum + (sess.records.length > 0 ? presentCount / sess.records.length : 0)
+    }, 0)
+    return Math.round((total / totalSessions) * 100)
+  })()
+
+  return (
+    <div>
+      <h2 className="font-kids text-3xl text-wood-dark mb-6">Attendance</h2>
+
+      <div className="mb-6">
+        <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Select Class</label>
+        {loadingClasses ? (
+          <div className="w-5 h-5 border-2 border-sage-200 border-t-sage-600 rounded-full animate-spin" />
+        ) : (
+          <select
+            value={selectedClassId}
+            onChange={e => { setSelectedClassId(e.target.value); setExpandedSessionId(null) }}
+            className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm font-quick w-full max-w-sm">
+            <option value="">— Choose a class —</option>
+            {classes.map(cls => (
+              <option key={cls.id} value={cls.id}>{cls.name}</option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {selectedClassId && (
+        <>
+          {loadingSessions ? (
+            <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+          ) : sessions.length === 0 ? (
+            <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">No attendance sessions recorded for this class yet.</div>
+          ) : (
+            <>
+              {/* Stats */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="bg-white rounded-2xl border border-stone-200/70 px-5 py-4">
+                  <div className="text-xs font-semibold text-stone-400 font-quick mb-1">Total Sessions</div>
+                  <div className="text-2xl font-bold text-stone-800 font-quick">{totalSessions}</div>
+                </div>
+                <div className="bg-white rounded-2xl border border-stone-200/70 px-5 py-4">
+                  <div className="text-xs font-semibold text-stone-400 font-quick mb-1">Avg Attendance Rate</div>
+                  <div className={`text-2xl font-bold font-quick ${avgAttendanceRate !== null && avgAttendanceRate >= 70 ? 'text-sage-700' : 'text-rose-600'}`}>
+                    {avgAttendanceRate !== null ? `${avgAttendanceRate}%` : '—'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Session list */}
+              <div className="space-y-3">
+                {sessions.map(sess => {
+                  const counts = { present: 0, late: 0, excused: 0, absent: 0 } as Record<string, number>
+                  sess.records.forEach(r => {
+                    const st = resolveStatus(r)
+                    counts[st] = (counts[st] ?? 0) + 1
+                  })
+                  const isExpanded = expandedSessionId === sess.id
+
+                  return (
+                    <div key={sess.id} className="bg-white rounded-2xl border border-stone-200/70 overflow-hidden">
+                      <button
+                        onClick={() => setExpandedSessionId(isExpanded ? null : sess.id)}
+                        className="w-full px-5 py-4 flex items-center gap-4 hover:bg-stone-50/50 transition text-left">
+                        <div className="text-xl flex-shrink-0">📋</div>
+                        <div className="flex-1">
+                          <div className="font-semibold text-stone-800 font-quick text-sm">{sess.date}</div>
+                          <div className="text-xs text-stone-400 font-quick mt-0.5">
+                            {counts.present ?? 0} present · {counts.late ?? 0} late · {counts.excused ?? 0} excused · {counts.absent ?? 0} absent
+                          </div>
+                        </div>
+                        <span className="text-xs text-stone-400 font-quick flex-shrink-0">{isExpanded ? '▲' : '▼'}</span>
+                      </button>
+                      {isExpanded && (
+                        <div className="px-5 pb-4 border-t border-stone-100">
+                          <div className="space-y-2 mt-3">
+                            {sess.records.map(r => {
+                              const status = resolveStatus(r)
+                              return (
+                                <div key={r.studentId} className={`flex items-center gap-3 rounded-xl px-4 py-2.5 border ${
+                                  status === 'present' ? 'bg-sage-50 border-sage-200' :
+                                  status === 'late' ? 'bg-amber-50 border-amber-200' :
+                                  status === 'excused' ? 'bg-stone-50 border-stone-200' :
+                                  'bg-rose-50 border-rose-200'
+                                }`}>
+                                  <span className="font-quick text-sm text-stone-700 flex-1">{r.studentName}</span>
+                                  <span className={`text-xs font-bold font-quick px-2.5 py-0.5 rounded-full ${ATT_STATUS_COLORS[status] ?? 'bg-stone-100 text-stone-600'}`}>
+                                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 function PaymentsTab() {
   const today = new Date()
   const defaultMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
@@ -3309,7 +3474,7 @@ export default function Admin() {
   const [user, setUser] = useState<User | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'events' | 'classes' | 'users' | 'registrations' | 'content' | 'contact' | 'payments'>('events')
+  const [activeTab, setActiveTab] = useState<'events' | 'classes' | 'users' | 'registrations' | 'content' | 'contact' | 'payments' | 'attendance'>('events')
   const [pendingCount, setPendingCount] = useState(0)
   const [events, setEvents] = useState<AcademyEvent[]>([])
   const [editing, setEditing] = useState<Partial<AcademyEvent> | null>(null)
@@ -3413,7 +3578,7 @@ export default function Admin() {
         </div>
         {/* Tab bar */}
         <div className="max-w-4xl mx-auto px-6 flex gap-1 -mb-px overflow-x-auto scrollbar-none">
-          {(['events', 'classes', 'registrations', 'users', 'content', 'contact', 'payments'] as const).map(tab => (
+          {(['events', 'classes', 'registrations', 'users', 'attendance', 'content', 'contact', 'payments'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => { setActiveTab(tab); setEditing(null) }}
@@ -3423,7 +3588,7 @@ export default function Admin() {
                   : 'border-transparent text-stone-400 hover:text-stone-600'
               }`}
             >
-              {tab === 'events' ? 'Events' : tab === 'classes' ? 'Classes' : tab === 'users' ? 'Users' : tab === 'registrations' ? 'Registrations' : tab === 'content' ? 'Content' : tab === 'contact' ? 'Contact' : 'Payments'}
+              {tab === 'events' ? 'Events' : tab === 'classes' ? 'Classes' : tab === 'users' ? 'Users' : tab === 'registrations' ? 'Registrations' : tab === 'attendance' ? 'Attendance' : tab === 'content' ? 'Content' : tab === 'contact' ? 'Contact' : 'Payments'}
               {tab === 'registrations' && pendingCount > 0 && (
                 <span className="bg-amber-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
                   {pendingCount}
@@ -3462,6 +3627,8 @@ export default function Admin() {
           <RegistrationsTab />
         ) : activeTab === 'users' ? (
           <UsersTab />
+        ) : activeTab === 'attendance' ? (
+          <AttendanceAdminTab />
         ) : activeTab === 'contact' ? (
           <ContactSubmissionsTab />
         ) : activeTab === 'payments' ? (
