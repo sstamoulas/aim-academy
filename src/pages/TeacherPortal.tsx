@@ -611,7 +611,7 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
                   <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center font-bold font-quick text-sage-700 text-xs flex-shrink-0">
                     {s.firstName[0]}{s.lastName[0]}
                   </div>
-                  <span className="font-quick text-sm text-stone-800 flex-1">{s.firstName} {s.lastName}</span>
+                  <span className="font-quick text-sm text-stone-800 flex-1 min-w-0 truncate">{s.firstName} {s.lastName}</span>
                   <div className="flex gap-1 flex-shrink-0">
                     {IS_HW_OPTIONS.map(opt => (
                       <button key={opt.value} type="button"
