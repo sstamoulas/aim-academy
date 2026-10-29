@@ -607,26 +607,27 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
             {students.map((s, idx) => {
               const status: ISHomeworkStatus = completed[s.id] ?? 'not_complete'
               return (
-                <div key={s.id} className={`flex items-center gap-3 px-4 py-3 ${idx > 0 ? 'border-t border-stone-200/70' : ''} bg-white`}>
-                  <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center font-bold font-quick text-sage-700 text-xs flex-shrink-0">
-                    {s.firstName[0]}{s.lastName[0]}
+                <div key={s.id} className={`px-4 py-3 ${idx > 0 ? 'border-t border-stone-200/70' : ''} bg-white`}>
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-7 h-7 rounded-full bg-sage-100 flex items-center justify-center font-bold font-quick text-sage-700 text-xs flex-shrink-0">
+                      {s.firstName[0]}{s.lastName[0]}
+                    </div>
+                    <span className="font-quick text-sm font-semibold text-stone-800">{s.firstName} {s.lastName}</span>
+                    <span className={`ml-auto text-xs font-bold font-quick px-2 py-0.5 rounded-full ${IS_HW_BADGE[status]}`}>
+                      {IS_HW_OPTIONS.find(o => o.value === status)?.label}
+                    </span>
                   </div>
-                  <span className="font-quick text-sm text-stone-800 flex-1 min-w-0 truncate">{s.firstName} {s.lastName}</span>
-                  <div className="flex gap-1 flex-shrink-0">
-                    {IS_HW_OPTIONS.map(opt => (
+                  <div className="flex rounded-xl overflow-hidden border border-stone-200">
+                    {IS_HW_OPTIONS.map((opt, i) => (
                       <button key={opt.value} type="button"
                         onClick={() => setCompleted(prev => ({ ...prev, [s.id]: opt.value }))}
-                        title={opt.label}
-                        className={`px-2.5 py-1 rounded-full text-xs font-bold font-quick transition border ${
-                          status === opt.value ? isHwActiveClass(opt.value) : 'bg-white text-stone-400 border-stone-200 hover:border-stone-300'
+                        className={`flex-1 py-1.5 text-xs font-bold font-quick transition ${i > 0 ? 'border-l border-stone-200' : ''} ${
+                          status === opt.value ? isHwActiveClass(opt.value) : 'bg-white text-stone-400 hover:bg-stone-50'
                         }`}>
-                        {opt.short}
+                        {opt.label}
                       </button>
                     ))}
                   </div>
-                  <span className={`text-xs font-bold font-quick px-2 py-0.5 rounded-full flex-shrink-0 ${IS_HW_BADGE[status]}`}>
-                    {IS_HW_OPTIONS.find(o => o.value === status)?.label}
-                  </span>
                 </div>
               )
             })}
