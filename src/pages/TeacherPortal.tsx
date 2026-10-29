@@ -481,6 +481,7 @@ function ProgressTab({ cls, students, teacherUid }: { cls: AcademyClass; student
 function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyClass; students: Student[]; teacherUid: string; teacherName: string }) {
   const [week, setWeek] = useState(currentWeek())
   const [completed, setCompleted] = useState<Record<string, ISHomeworkStatus>>({})
+  const [expanded, setExpanded] = useState<string | null>(null)
   const [assignment, setAssignment] = useState<ISHomeworkAssignment | null>(null)
   const [assignmentForm, setAssignmentForm] = useState({ title: '', description: '' })
   const [loading, setLoading] = useState(true)
@@ -606,28 +607,39 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
           <div className="rounded-2xl border border-stone-200/70 overflow-hidden mb-5">
             {students.map((s, idx) => {
               const status: ISHomeworkStatus = completed[s.id] ?? 'not_complete'
+              const isOpen = expanded === s.id
               return (
-                <div key={s.id} className={`px-4 py-3 ${idx > 0 ? 'border-t border-stone-200/70' : ''} bg-white`}>
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-7 h-7 rounded-full bg-sage-100 flex items-center justify-center font-bold font-quick text-sage-700 text-xs flex-shrink-0">
+                <div key={s.id} className={`${idx > 0 ? 'border-t border-stone-200/70' : ''} bg-white`}>
+                  {/* Collapsed row */}
+                  <button type="button" onClick={() => setExpanded(isOpen ? null : s.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-stone-50 transition text-left">
+                    <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center font-bold font-quick text-sage-700 text-xs flex-shrink-0">
                       {s.firstName[0]}{s.lastName[0]}
                     </div>
-                    <span className="font-quick text-sm font-semibold text-stone-800">{s.firstName} {s.lastName}</span>
-                    <span className={`ml-auto text-xs font-bold font-quick px-2 py-0.5 rounded-full ${IS_HW_BADGE[status]}`}>
+                    <span className="font-quick text-sm font-semibold text-stone-800 flex-1 min-w-0 truncate">{s.firstName} {s.lastName}</span>
+                    <span className={`text-xs font-bold font-quick px-2 py-0.5 rounded-full flex-shrink-0 ${IS_HW_BADGE[status]}`}>
                       {IS_HW_OPTIONS.find(o => o.value === status)?.label}
                     </span>
-                  </div>
-                  <div className="flex rounded-xl overflow-hidden border border-stone-200">
-                    {IS_HW_OPTIONS.map((opt, i) => (
-                      <button key={opt.value} type="button"
-                        onClick={() => setCompleted(prev => ({ ...prev, [s.id]: opt.value }))}
-                        className={`flex-1 py-1.5 text-xs font-bold font-quick transition ${i > 0 ? 'border-l border-stone-200' : ''} ${
-                          status === opt.value ? isHwActiveClass(opt.value) : 'bg-white text-stone-400 hover:bg-stone-50'
-                        }`}>
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
+                    <svg className={`w-4 h-4 text-stone-300 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {/* Expanded segmented control */}
+                  {isOpen && (
+                    <div className="px-4 pb-3 border-t border-stone-100 bg-stone-50/60 pt-2">
+                      <div className="flex rounded-xl overflow-hidden border border-stone-200">
+                        {IS_HW_OPTIONS.map((opt, i) => (
+                          <button key={opt.value} type="button"
+                            onClick={() => { setCompleted(prev => ({ ...prev, [s.id]: opt.value })); setExpanded(null) }}
+                            className={`flex-1 py-2 text-xs font-bold font-quick transition ${i > 0 ? 'border-l border-stone-200' : ''} ${
+                              status === opt.value ? isHwActiveClass(opt.value) : 'bg-white text-stone-400 hover:bg-stone-50'
+                            }`}>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}
