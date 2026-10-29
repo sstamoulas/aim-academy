@@ -128,5 +128,10 @@ service cloud.firestore {
     match /quranProgress/{docId} {
       allow read, write: if isStaff();
     }
+
+    // IS quiz progress — staff read/write
+    match /isQuizProgress/{docId} {
+      allow read, write: if isStaff();
+    }
   }
 }

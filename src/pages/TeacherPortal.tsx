@@ -89,7 +89,6 @@ const IS_HW_BADGE: Record<ISHomeworkStatus, string> = {
   no_homework:        'bg-stone-100 text-stone-500',
 }
 interface HwData { completed: Record<string, ISHomeworkStatus | boolean>; updatedAt?: string }
-interface QuizData { maxScore: number; scores: Record<string, number>; updatedAt?: string }
 
 // ── Status badge helper ───────────────────────────────────────────────────────
 
@@ -659,46 +658,87 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
 
 // ── Quiz ──────────────────────────────────────────────────────────────────────
 
+type ISQuizGrade = 'excellent' | 'good' | 'developing' | 'needs_review'
+
+const QUIZ_GRADES: { value: ISQuizGrade; label: string }[] = [
+  { value: 'excellent',    label: 'Excellent' },
+  { value: 'good',         label: 'Good' },
+  { value: 'developing',   label: 'Developing' },
+  { value: 'needs_review', label: 'Needs Review' },
+]
+
+function quizGradeBadge(grade: ISQuizGrade): string {
+  if (grade === 'excellent')    return 'bg-green-100 text-green-700'
+  if (grade === 'good')         return 'bg-sage-100 text-sage-700'
+  if (grade === 'developing')   return 'bg-amber-100 text-amber-700'
+  return 'bg-rose-100 text-rose-600'
+}
+
+function quizGradeActive(grade: ISQuizGrade): string {
+  if (grade === 'excellent')    return 'bg-green-500 text-white border-green-500'
+  if (grade === 'good')         return 'bg-sage-600 text-white border-sage-600'
+  if (grade === 'developing')   return 'bg-amber-400 text-white border-amber-400'
+  return 'bg-rose-500 text-white border-rose-500'
+}
+
+interface ISQuizEntry { grade: ISQuizGrade; score: string; comment: string }
+
 function QuizTab({ cls, students, teacherUid }: { cls: AcademyClass; students: Student[]; teacherUid: string }) {
   const [month, setMonth] = useState(currentMonth())
-  const [maxScore, setMaxScore] = useState(100)
-  const [scores, setScores] = useState<Record<string, string>>({})
+  const [entries, setEntries] = useState<Record<string, ISQuizEntry>>({})
+  const [history, setHistory] = useState<Record<string, { month: string; grade: ISQuizGrade; score: string; comment: string; recordedAt: string }[]>>({})
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState<Record<string, boolean>>({})
+  const [saved, setSaved] = useState<Record<string, boolean>>({})
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [showHistory, setShowHistory] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const snap = await getDoc(doc(db, 'quizResults', `${cls.id}__${month}`))
-      if (snap.exists()) {
-        const data = snap.data() as QuizData
-        setMaxScore(data.maxScore ?? 100)
-        const strScores: Record<string, string> = {}
-        Object.entries(data.scores ?? {}).forEach(([k, v]) => { strScores[k] = String(v) })
-        setScores(strScores)
-      } else {
-        setMaxScore(100); setScores({})
-      }
+      const docs = await Promise.all(students.map(s => getDoc(doc(db, 'isQuizProgress', `${cls.id}__${s.id}`))))
+      const entryMap: Record<string, ISQuizEntry> = {}
+      const histMap: Record<string, typeof history[string]> = {}
+      students.forEach((s, i) => {
+        const d = docs[i]
+        const results: { month: string; grade: ISQuizGrade; score: string; comment: string; recordedAt: string }[] = d.exists() ? (d.data().results ?? []) : []
+        histMap[s.id] = results
+        const thisMonth = results.find(r => r.month === month)
+        entryMap[s.id] = thisMonth
+          ? { grade: thisMonth.grade, score: thisMonth.score, comment: thisMonth.comment }
+          : { grade: 'good', score: '', comment: '' }
+      })
+      setEntries(entryMap)
+      setHistory(histMap)
       setLoading(false)
     }
-    load()
-  }, [cls.id, month])
+    if (students.length > 0) load(); else setLoading(false)
+  }, [cls.id, month, students.map(s => s.id).join(',')])
 
-  async function handleSave() {
-    setSaving(true)
-    const numericScores: Record<string, number> = {}
-    Object.entries(scores).forEach(([k, v]) => { const n = Number(v); if (!isNaN(n) && v !== '') numericScores[k] = n })
-    await setDoc(doc(db, 'quizResults', `${cls.id}__${month}`), {
-      classId: cls.id, month, maxScore, scores: numericScores,
-      updatedAt: new Date().toISOString(), updatedBy: teacherUid,
+  function update(studentId: string, field: keyof ISQuizEntry, value: string) {
+    setEntries(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: value } }))
+  }
+
+  async function handleSave(s: Student) {
+    setSaving(prev => ({ ...prev, [s.id]: true }))
+    const entry = entries[s.id]
+    const existing = history[s.id] ?? []
+    const newResult = { month, grade: entry.grade, score: entry.score, comment: entry.comment, recordedAt: new Date().toISOString(), recordedBy: teacherUid }
+    const results = existing.find(r => r.month === month)
+      ? existing.map(r => r.month === month ? newResult : r)
+      : [newResult, ...existing].sort((a, b) => b.month.localeCompare(a.month))
+    await setDoc(doc(db, 'isQuizProgress', `${cls.id}__${s.id}`), {
+      classId: cls.id, studentId: s.id, studentName: `${s.firstName} ${s.lastName}`,
+      results, updatedAt: new Date().toISOString(), updatedBy: teacherUid,
     })
-    setSaving(false); setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+    setHistory(prev => ({ ...prev, [s.id]: results }))
+    setSaving(prev => ({ ...prev, [s.id]: false }))
+    setSaved(prev => ({ ...prev, [s.id]: true }))
+    setTimeout(() => setSaved(prev => ({ ...prev, [s.id]: false })), 3000)
   }
 
   if (loading) return <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+  if (students.length === 0) return <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">No students enrolled in this class yet.</div>
 
   return (
     <div>
@@ -707,68 +747,103 @@ function QuizTab({ cls, students, teacherUid }: { cls: AcademyClass; students: S
         <span className="font-quick text-sm font-semibold text-stone-700 flex-1 text-center">{monthLabel(month)}</span>
         <button onClick={() => setMonth(m => shiftMonth(m, 1))} className="w-8 h-8 rounded-full border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-stone-50 transition">›</button>
       </div>
-      {students.length === 0 ? (
-        <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">No students enrolled in this class yet.</div>
-      ) : (
-        <>
-          <div className="flex items-center gap-3 mb-4">
-            <label className="text-sm font-semibold text-stone-600 font-quick">Max Score</label>
-            <input type="number" value={maxScore} onChange={e => setMaxScore(Number(e.target.value))} min={1}
-              className="w-24 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
-          </div>
-          <div className="rounded-2xl border border-stone-200/70 overflow-hidden mb-5">
-            {students.map((s, idx) => {
-              const score = scores[s.id] ?? ''
-              const pct = score !== '' && !isNaN(Number(score)) ? Math.round((Number(score) / maxScore) * 100) : null
-              const isOpen = expanded === s.id
-              return (
-                <div key={s.id} className={idx > 0 ? 'border-t border-stone-200/70' : ''}>
-                  <button
-                    onClick={() => setExpanded(isOpen ? null : s.id)}
-                    className="w-full flex items-center gap-3 px-4 py-3 bg-white hover:bg-stone-50 transition text-left"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-xs flex-shrink-0">
-                      {s.firstName[0]}{s.lastName[0]}
+
+      <div className="rounded-2xl border border-stone-200/70 overflow-hidden">
+        {students.map((s, idx) => {
+          const entry = entries[s.id] ?? { grade: 'good' as ISQuizGrade, score: '', comment: '' }
+          const isOpen = expanded === s.id
+          const pastResults = (history[s.id] ?? []).filter(r => r.month !== month)
+          const hasThisMonth = (history[s.id] ?? []).some(r => r.month === month)
+          const histOpen = showHistory[s.id] ?? false
+
+          return (
+            <div key={s.id} className={`bg-white ${idx > 0 ? 'border-t border-stone-100' : ''}`}>
+              <button type="button" onClick={() => setExpanded(isOpen ? null : s.id)}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-stone-50 transition text-left">
+                <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-xs flex-shrink-0">
+                  {s.firstName[0]}{s.lastName[0]}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-stone-800 font-quick text-sm">{s.firstName} {s.lastName}</div>
+                  {entry.score && <div className="text-xs text-stone-400 font-quick mt-0.5">Score: {entry.score}</div>}
+                </div>
+                {hasThisMonth ? (
+                  <span className={`text-xs font-bold font-quick px-2.5 py-0.5 rounded-full flex-shrink-0 ${quizGradeBadge(entry.grade)}`}>
+                    {QUIZ_GRADES.find(g => g.value === entry.grade)?.label}
+                  </span>
+                ) : (
+                  <span className="text-xs text-stone-300 font-quick flex-shrink-0">not graded</span>
+                )}
+                <svg className={`w-4 h-4 text-stone-300 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {isOpen && (
+                <div className="px-4 pb-4 pt-2 bg-stone-50/60 border-t border-stone-100 space-y-3">
+                  {/* Grade selector */}
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-500 font-quick mb-1.5">Grade</label>
+                    <div className="flex rounded-xl overflow-hidden border border-stone-200">
+                      {QUIZ_GRADES.map((g, i) => (
+                        <button key={g.value} type="button"
+                          onClick={() => update(s.id, 'grade', g.value)}
+                          className={`flex-1 py-2 text-xs font-bold font-quick transition ${i > 0 ? 'border-l border-stone-200' : ''} ${
+                            entry.grade === g.value ? quizGradeActive(g.value) : 'bg-white text-stone-400 hover:bg-stone-50'
+                          }`}>
+                          {g.label}
+                        </button>
+                      ))}
                     </div>
-                    <span className="font-quick text-sm text-stone-800 flex-1">{s.firstName} {s.lastName}</span>
-                    {pct !== null ? (
-                      <span className={`text-xs font-bold font-quick px-2 py-0.5 rounded-full ${pct >= 70 ? 'bg-sage-100 text-sage-700' : 'bg-rose-100 text-rose-600'}`}>
-                        {score}/{maxScore} · {pct}%
-                      </span>
-                    ) : (
-                      <span className="text-xs text-stone-300 font-quick">no score</span>
+                  </div>
+                  {/* Optional score */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Score (optional)</label>
+                      <input value={entry.score} onChange={e => update(s.id, 'score', e.target.value)}
+                        placeholder="e.g. 8/10"
+                        className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Comment (optional)</label>
+                      <input value={entry.comment} onChange={e => update(s.id, 'comment', e.target.value)}
+                        placeholder="e.g. Great effort!"
+                        className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => handleSave(s)} disabled={saving[s.id]}
+                      className="bg-wood text-white font-bold font-quick px-5 py-2 rounded-full text-sm hover:brightness-95 transition disabled:opacity-60">
+                      {saving[s.id] ? 'Saving…' : 'Save'}
+                    </button>
+                    {saved[s.id] && <span className="text-sm text-sage-600 font-quick font-semibold">Saved!</span>}
+                    {pastResults.length > 0 && (
+                      <button onClick={() => setShowHistory(prev => ({ ...prev, [s.id]: !histOpen }))}
+                        className="ml-auto text-xs font-quick text-stone-400 hover:text-stone-600 transition">
+                        {histOpen ? 'Hide history' : `History (${pastResults.length})`}
+                      </button>
                     )}
-                    <svg className={`w-4 h-4 text-stone-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  {isOpen && (
-                    <div className="px-4 pb-4 pt-2 bg-stone-50/60 border-t border-stone-100">
-                      <div className="flex items-center gap-3">
-                        <label className="text-xs font-semibold text-stone-500 font-quick">Score</label>
-                        <input type="number" value={score} onChange={e => setScores(prev => ({ ...prev, [s.id]: e.target.value }))}
-                          placeholder="—" min={0} max={maxScore}
-                          className="w-24 rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm text-center" />
-                        <span className="text-stone-400 font-quick text-sm">/ {maxScore}</span>
-                        {pct !== null && (
-                          <span className={`text-xs font-bold font-quick ${pct >= 70 ? 'text-sage-600' : 'text-rose-500'}`}>{pct}%</span>
-                        )}
-                      </div>
+                  </div>
+                  {histOpen && pastResults.length > 0 && (
+                    <div className="border-t border-stone-100 pt-3 space-y-2">
+                      {pastResults.map((r, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs font-quick">
+                          <span className="text-stone-400 w-16 flex-shrink-0">{r.month}</span>
+                          <span className={`px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${quizGradeBadge(r.grade)}`}>
+                            {QUIZ_GRADES.find(g => g.value === r.grade)?.label}
+                          </span>
+                          {r.score && <span className="text-stone-400">{r.score}</span>}
+                          {r.comment && <span className="text-stone-400 truncate">{r.comment}</span>}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
-              )
-            })}
-          </div>
-          <div className="flex items-center gap-3">
-            <button onClick={handleSave} disabled={saving}
-              className="bg-wood text-white font-bold font-quick px-8 py-3 rounded-full shadow-md hover:brightness-95 transition disabled:opacity-60">
-              {saving ? 'Saving…' : 'Save Results'}
-            </button>
-            {saved && <span className="text-sm text-sage-600 font-quick font-semibold">Saved!</span>}
-          </div>
-        </>
-      )}
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

@@ -103,6 +103,27 @@ export interface StudentProgress {
 
 export type ISHomeworkStatus = 'complete' | 'partially_complete' | 'not_complete' | 'no_homework'
 
+export type ISQuizGrade = 'excellent' | 'good' | 'developing' | 'needs_review'
+
+export interface ISQuizEntry {
+  month: string // YYYY-MM
+  grade: ISQuizGrade
+  score: string  // optional e.g. "8/10"
+  comment: string
+  recordedAt: string
+  recordedBy: string
+}
+
+export interface ISQuizProgress {
+  id: string // classId__studentId
+  classId: string
+  studentId: string
+  studentName: string
+  results: ISQuizEntry[]
+  updatedAt: string
+  updatedBy: string
+}
+
 export interface WeeklyHomework {
   completed: Record<string, ISHomeworkStatus>
   updatedAt?: string
