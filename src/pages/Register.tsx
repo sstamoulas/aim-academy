@@ -69,19 +69,19 @@ function AuthStep({ onDone }: { onDone: () => void }) {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-stone-700 font-quick mb-2">Email</label>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
+          <label htmlFor="reg-email" className="block text-sm font-semibold text-stone-700 font-quick mb-2">Email</label>
+          <input id="reg-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required
             className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 transition text-sm" />
         </div>
         <div>
-          <label className="block text-sm font-semibold text-stone-700 font-quick mb-2">Password</label>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6}
+          <label htmlFor="reg-password" className="block text-sm font-semibold text-stone-700 font-quick mb-2">Password</label>
+          <input id="reg-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required
             className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 transition text-sm" />
         </div>
         {mode === 'signup' && (
           <div>
-            <label className="block text-sm font-semibold text-stone-700 font-quick mb-2">Confirm Password</label>
-            <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required
+            <label htmlFor="reg-confirm" className="block text-sm font-semibold text-stone-700 font-quick mb-2">Confirm Password</label>
+            <input id="reg-confirm" type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required
               className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 transition text-sm" />
           </div>
         )}

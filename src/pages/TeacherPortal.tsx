@@ -3,11 +3,11 @@ import {
   signOut, onAuthStateChanged, type User,
 } from 'firebase/auth'
 import {
-  collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, orderBy,
+  collection, doc, getDoc, getDocs, setDoc, addDoc, deleteDoc, query, where, orderBy, limit,
 } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { auth, db } from '../firebase'
-import type { AcademyClass, Student, AttendanceSession, AttendanceStatus, MissedWork, Announcement, ISHomeworkAssignment, QaidahFluency, QaidahProgress, QaidahHistoryEntry, QuranStatus, QuranProgress, QuranHistoryEntry } from '../types/portal'
+import type { AcademyClass, Student, AttendanceSession, AttendanceStatus, MissedWork, Announcement, ISHomeworkAssignment, QaidahFluency, QaidahProgress, QaidahHistoryEntry, QuranStatus, QuranProgress, QuranHistoryEntry, ProgressReport, QuarterlyReport, ReportStatus } from '../types/portal'
 import ImpersonationBanner, { getImpersonation, type ImpersonationState } from '../components/ImpersonationBanner'
 
 const functions = getFunctions()
@@ -58,6 +58,17 @@ function shiftWeek(w: string, delta: number): string {
   const mon = weekMonday(w)
   mon.setDate(mon.getDate() + delta * 7)
   return isoWeek(mon)
+}
+
+function currentQuarter(): string {
+  const now = new Date()
+  const q = Math.floor(now.getMonth() / 3) + 1
+  return `${now.getFullYear()}-Q${q}`
+}
+
+function quarterLabel(q: string): string {
+  const [yr, qStr] = q.split('-')
+  return `${qStr} ${yr}`
 }
 
 function shiftMonth(m: string, delta: number): string {
@@ -1667,6 +1678,666 @@ function QuranTab({ cls, students, teacherUid }: { cls: AcademyClass; students: 
   )
 }
 
+// ── Student Profile ───────────────────────────────────────────────────────────
+
+// ── Quarterly Report Editor ───────────────────────────────────────────────────
+
+const REPORT_STATUS_LABEL: Record<ReportStatus, string> = {
+  not_started: 'Not Started',
+  in_progress: 'In Progress',
+  submitted: 'Submitted',
+}
+const REPORT_STATUS_COLOR: Record<ReportStatus, string> = {
+  not_started: 'bg-stone-100 text-stone-500',
+  in_progress: 'bg-amber-100 text-amber-700',
+  submitted: 'bg-green-100 text-green-700',
+}
+
+interface QuarterlyReportSnapshot {
+  attendanceRate: number | null
+  attendanceSessions: number
+  hwSummary: { week: string; status: string }[]
+  qaidahLesson: string
+  qaidahFluency: string
+  quranSurah: string
+  quranAyah: string
+  quranStatus: string
+  quranNextAssignment: string
+  quranRevisionSurahs: string
+  quizSummary: { month: string; grade: string; score: string; comment: string }[]
+}
+
+function QuarterlyReportEditor({
+  cls, student, report, snapshot, onBack, onSaved,
+}: {
+  cls: AcademyClass
+  student: Student
+  report: QuarterlyReport | null
+  snapshot: QuarterlyReportSnapshot
+  onBack: () => void
+  onSaved: (r: QuarterlyReport) => void
+}) {
+  const quarter = report?.quarter ?? currentQuarter()
+  const [strengths, setStrengths]         = useState(report?.strengths ?? '')
+  const [areasToImprove, setAreasToImprove] = useState(report?.areasToImprove ?? '')
+  const [generalComment, setGeneralComment] = useState(report?.generalComment ?? '')
+  const [status, setStatus]               = useState<ReportStatus>(report?.status ?? 'not_started')
+  const [saving, setSaving]               = useState(false)
+  const [saved, setSaved]                 = useState(false)
+
+  const QUIZ_LABEL: Record<string, string> = { excellent: 'Excellent', good: 'Good', developing: 'Developing', needs_review: 'Needs Review' }
+  const QUIZ_COLOR: Record<string, string> = { excellent: 'bg-green-100 text-green-700', good: 'bg-sage-100 text-sage-700', developing: 'bg-amber-100 text-amber-700', needs_review: 'bg-rose-100 text-rose-600' }
+  const IS_HW_LABEL: Record<string, string> = { complete: 'C', partially_complete: 'P', not_complete: 'NC', no_homework: 'NH' }
+  const IS_HW_COLOR: Record<string, string> = { complete: 'bg-green-100 text-green-700', partially_complete: 'bg-amber-100 text-amber-700', not_complete: 'bg-rose-100 text-rose-600', no_homework: 'bg-stone-100 text-stone-400' }
+
+  const hwCompletionRate = snapshot.hwSummary.length > 0
+    ? Math.round((snapshot.hwSummary.filter(h => h.status === 'complete').length / snapshot.hwSummary.length) * 100)
+    : null
+
+  async function save(newStatus: ReportStatus) {
+    setSaving(true)
+    const user = auth.currentUser
+    const now = new Date().toISOString()
+    const data: Omit<QuarterlyReport, 'id'> = {
+      classId: cls.id,
+      className: cls.name,
+      studentId: student.id,
+      studentName: `${student.firstName} ${student.lastName}`,
+      quarter,
+      status: newStatus,
+      ...snapshot,
+      strengths,
+      areasToImprove,
+      generalComment,
+      createdAt: report?.createdAt ?? now,
+      updatedAt: now,
+      updatedBy: user?.uid ?? '',
+      ...(newStatus === 'submitted' && !report?.submittedAt ? { submittedAt: now } : {}),
+    }
+    let saved: QuarterlyReport
+    if (report) {
+      await setDoc(doc(db, 'quarterlyReports', report.id), data)
+      saved = { id: report.id, ...data }
+    } else {
+      const ref = await addDoc(collection(db, 'quarterlyReports'), data)
+      saved = { id: ref.id, ...data }
+    }
+    setStatus(newStatus)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+    setSaving(false)
+    onSaved(saved)
+  }
+
+  const inputCls = 'w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm font-quick text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 resize-none'
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div>
+        <button onClick={onBack} className="text-sm font-quick font-semibold text-stone-500 hover:text-sage-700 transition">← Student Profile</button>
+      </div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-kids text-2xl text-wood-dark">{quarterLabel(quarter)} Progress Report</h3>
+          <p className="text-xs text-stone-400 font-quick mt-0.5">{student.firstName} {student.lastName} · {cls.name}</p>
+        </div>
+        <span className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-bold font-quick ${REPORT_STATUS_COLOR[status]}`}>
+          {REPORT_STATUS_LABEL[status]}
+        </span>
+      </div>
+
+      {/* Auto-pulled data reference */}
+      <div className="bg-stone-50 rounded-2xl border border-stone-200/70 p-4 space-y-4">
+        <p className="text-xs font-quick font-semibold text-stone-400 uppercase tracking-wide">Auto-Pulled Summary</p>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs font-quick">
+          {snapshot.attendanceRate !== null && (
+            <div className="bg-white rounded-xl border border-stone-200/70 px-3 py-2.5">
+              <div className="text-stone-400 mb-0.5">Attendance</div>
+              <div className="font-bold text-stone-800 text-sm">{snapshot.attendanceRate}%</div>
+              <div className="text-stone-300">{snapshot.attendanceSessions} sessions</div>
+            </div>
+          )}
+          {hwCompletionRate !== null && (
+            <div className="bg-white rounded-xl border border-stone-200/70 px-3 py-2.5">
+              <div className="text-stone-400 mb-0.5">HW Completion</div>
+              <div className="font-bold text-stone-800 text-sm">{hwCompletionRate}%</div>
+              <div className="text-stone-300">{snapshot.hwSummary.length} weeks</div>
+            </div>
+          )}
+          {snapshot.quranSurah && (
+            <div className="bg-white rounded-xl border border-stone-200/70 px-3 py-2.5">
+              <div className="text-stone-400 mb-0.5">Qur'an</div>
+              <div className="font-bold text-stone-800 text-sm">{snapshot.quranSurah}</div>
+              {snapshot.quranAyah && <div className="text-stone-300">Ayah {snapshot.quranAyah}</div>}
+            </div>
+          )}
+          {snapshot.qaidahLesson && (
+            <div className="bg-white rounded-xl border border-stone-200/70 px-3 py-2.5">
+              <div className="text-stone-400 mb-0.5">Qa'idah</div>
+              <div className="font-bold text-stone-800 text-sm truncate">{snapshot.qaidahLesson}</div>
+              {snapshot.qaidahFluency && <div className="text-stone-300 capitalize">{snapshot.qaidahFluency.replace('_', ' ')}</div>}
+            </div>
+          )}
+          {snapshot.quizSummary[0] && (
+            <div className="bg-white rounded-xl border border-stone-200/70 px-3 py-2.5">
+              <div className="text-stone-400 mb-0.5">Latest IS Quiz</div>
+              <span className={`inline-block px-2 py-0.5 rounded-full font-bold text-xs ${QUIZ_COLOR[snapshot.quizSummary[0].grade] ?? 'bg-stone-100 text-stone-500'}`}>
+                {QUIZ_LABEL[snapshot.quizSummary[0].grade] ?? snapshot.quizSummary[0].grade}
+              </span>
+              {snapshot.quizSummary[0].score && <div className="text-stone-300 mt-0.5">{snapshot.quizSummary[0].score}</div>}
+            </div>
+          )}
+        </div>
+
+        {/* Quiz history */}
+        {snapshot.quizSummary.length > 1 && (
+          <div>
+            <div className="text-xs text-stone-400 font-quick font-semibold mb-1.5">IS Quiz History</div>
+            <div className="flex flex-wrap gap-1.5">
+              {snapshot.quizSummary.map((q, i) => (
+                <span key={i} className={`px-2 py-0.5 rounded-full text-xs font-bold font-quick ${QUIZ_COLOR[q.grade] ?? 'bg-stone-100 text-stone-500'}`}>
+                  {q.month} · {QUIZ_LABEL[q.grade] ?? q.grade}{q.score ? ` (${q.score})` : ''}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* HW history dots */}
+        {snapshot.hwSummary.length > 0 && (
+          <div>
+            <div className="text-xs text-stone-400 font-quick font-semibold mb-1.5">Homework History</div>
+            <div className="flex flex-wrap gap-1">
+              {snapshot.hwSummary.map((h, i) => (
+                <span key={i} className={`px-1.5 py-0.5 rounded text-xs font-bold font-quick ${IS_HW_COLOR[h.status] ?? 'bg-stone-100 text-stone-400'}`}>
+                  {IS_HW_LABEL[h.status] ?? h.status}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Qur'an details */}
+        {(snapshot.quranNextAssignment || snapshot.quranRevisionSurahs) && (
+          <div className="text-xs font-quick space-y-0.5">
+            {snapshot.quranNextAssignment && <div><span className="text-stone-400">Next: </span><span className="text-stone-600">{snapshot.quranNextAssignment}</span></div>}
+            {snapshot.quranRevisionSurahs && <div><span className="text-stone-400">Revision: </span><span className="text-stone-600">{snapshot.quranRevisionSurahs}</span></div>}
+          </div>
+        )}
+      </div>
+
+      {/* Teacher-entered sections */}
+      <div className="space-y-4">
+        <div>
+          <label htmlFor="report-strengths" className="block text-xs font-semibold font-quick text-stone-600 mb-1.5">Student Strengths</label>
+          <textarea
+            id="report-strengths"
+            value={strengths}
+            onChange={e => setStrengths(e.target.value)}
+            rows={3}
+            placeholder="What is this student doing well?"
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <label htmlFor="report-areas" className="block text-xs font-semibold font-quick text-stone-600 mb-1.5">Areas to Continue Working On</label>
+          <textarea
+            id="report-areas"
+            value={areasToImprove}
+            onChange={e => setAreasToImprove(e.target.value)}
+            rows={3}
+            placeholder="What should the student focus on going forward?"
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <label htmlFor="report-comment" className="block text-xs font-semibold font-quick text-stone-600 mb-1.5">General Comment</label>
+          <textarea
+            id="report-comment"
+            value={generalComment}
+            onChange={e => setGeneralComment(e.target.value)}
+            rows={4}
+            placeholder="Overall observations, behavior, effort, or anything else to share with parents..."
+            className={inputCls}
+          />
+        </div>
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex gap-3 pt-1">
+        <button
+          onClick={() => save('in_progress')}
+          disabled={saving}
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-stone-200 bg-white text-stone-700 text-sm font-semibold font-quick hover:bg-stone-50 transition disabled:opacity-60"
+        >
+          {saving ? <div className="w-3.5 h-3.5 border-2 border-stone-300 border-t-stone-600 rounded-full animate-spin" /> : null}
+          {saved ? 'Saved!' : 'Save Draft'}
+        </button>
+        {status !== 'submitted' && (
+          <button
+            onClick={() => save('submitted')}
+            disabled={saving}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-sage-600 hover:bg-sage-700 text-white text-sm font-semibold font-quick transition disabled:opacity-60"
+          >
+            Submit Report
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Student Profile ───────────────────────────────────────────────────────────
+
+function StudentProfile({ cls, student, onBack }: { cls: AcademyClass; student: Student; onBack: () => void }) {
+  const [loading, setLoading] = useState(true)
+  const [progress, setProgress]     = useState<Record<string, string>>({})
+  const [qaidah, setQaidah]         = useState<{ currentLesson: string; fluency: string; notes: string; history: QaidahHistoryEntry[] } | null>(null)
+  const [quran, setQuran]           = useState<{ currentSurah: string; currentAyah: string; status: string; nextAssignment: string; revisionSurahs: string; notes: string; history: { surah: string; ayah: string; status: string; recordedAt: string }[] } | null>(null)
+  const [quizResults, setQuizResults] = useState<{ month: string; grade: string; score: string; comment: string }[]>([])
+  const [missedItems, setMissedItems] = useState<MissedWork[]>([])
+  const [attendance, setAttendance] = useState<{ date: string; status: AttendanceStatus }[]>([])
+  const [hwHistory, setHwHistory]   = useState<{ week: string; status: string }[]>([])
+  const [reports, setReports]           = useState<ProgressReport[]>([])
+  const [savingReport, setSavingReport]   = useState(false)
+  const [reportSaved, setReportSaved]     = useState(false)
+  const [showReports, setShowReports]     = useState(false)
+  const [quarterlyReports, setQuarterlyReports] = useState<QuarterlyReport[]>([])
+  const [editingQReport, setEditingQReport]     = useState<QuarterlyReport | null | 'new'>(null)
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      const [progSnap, qaidahSnap, quranSnap, quizSnap, missedSnap, attSnap, hwSnaps, reportsSnap, qReportsSnap] = await Promise.all([
+        getDoc(doc(db, 'studentProgress', `${cls.id}__${student.id}`)),
+        getDoc(doc(db, 'qaidahProgress', `${cls.id}__${student.id}`)),
+        getDoc(doc(db, 'quranProgress', `${cls.id}__${student.id}`)),
+        getDoc(doc(db, 'isQuizProgress', `${cls.id}__${student.id}`)),
+        getDocs(query(collection(db, 'missedWork'), where('classId', '==', cls.id), where('studentId', '==', student.id), where('resolved', '==', false), orderBy('date', 'desc'))).catch(() => null),
+        getDocs(query(collection(db, 'attendance'), where('classId', '==', cls.id), orderBy('date', 'desc'), limit(12))).catch(() => null),
+        getDocs(query(collection(db, 'weeklyHomework'), where('classId', '==', cls.id), orderBy('week', 'desc'), limit(8))).catch(() => null),
+        getDocs(query(collection(db, 'progressReports'), where('classId', '==', cls.id), where('studentId', '==', student.id), orderBy('generatedAt', 'desc'), limit(10))).catch(() => null),
+        getDocs(query(collection(db, 'quarterlyReports'), where('classId', '==', cls.id), where('studentId', '==', student.id), orderBy('createdAt', 'desc'), limit(10))).catch(() => null),
+      ])
+
+      if (progSnap.exists()) setProgress(progSnap.data() as Record<string, string>)
+      if (qaidahSnap.exists()) setQaidah(qaidahSnap.data() as typeof qaidah & {})
+      if (quranSnap.exists()) setQuran(quranSnap.data() as typeof quran & {})
+      if (quizSnap.exists()) setQuizResults((quizSnap.data().results ?? []).slice(0, 6))
+      if (missedSnap) setMissedItems(missedSnap.docs.map(d => ({ id: d.id, ...d.data() } as MissedWork)))
+      if (reportsSnap) setReports(reportsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ProgressReport)))
+      if (qReportsSnap) setQuarterlyReports(qReportsSnap.docs.map(d => ({ id: d.id, ...d.data() } as QuarterlyReport)))
+
+      // Extract this student's status from each attendance session
+      const attRows: { date: string; status: AttendanceStatus }[] = []
+      attSnap?.docs.forEach(d => {
+        const sess = d.data() as AttendanceSession
+        const rec = sess.records.find(r => r.studentId === student.id)
+        if (rec) attRows.push({ date: sess.date, status: rec.status ?? ((rec as unknown as { present?: boolean }).present ? 'present' : 'absent') })
+      })
+      setAttendance(attRows)
+
+      // Extract this student's homework status from each week
+      const hwRows: { week: string; status: string }[] = []
+      hwSnaps?.docs.forEach(d => {
+        const data = d.data()
+        const raw = data.completed?.[student.id]
+        if (raw !== undefined) {
+          const status = typeof raw === 'boolean' ? (raw ? 'complete' : 'not_complete') : raw as string
+          hwRows.push({ week: data.week, status })
+        }
+      })
+      setHwHistory(hwRows)
+
+      setLoading(false)
+    }
+    load()
+  }, [cls.id, student.id])
+
+  const attPresent = attendance.filter(a => a.status === 'present' || a.status === 'late').length
+  const attRate = attendance.length > 0 ? Math.round((attPresent / attendance.length) * 100) : null
+
+  const IS_HW_LABEL: Record<string, string> = { complete: 'Complete', partially_complete: 'Partial', not_complete: 'Not Complete', no_homework: 'No HW' }
+  const IS_HW_COLOR: Record<string, string> = { complete: 'bg-green-100 text-green-700', partially_complete: 'bg-amber-100 text-amber-700', not_complete: 'bg-rose-100 text-rose-600', no_homework: 'bg-stone-100 text-stone-400' }
+  const QUIZ_LABEL: Record<string, string> = { excellent: 'Excellent', good: 'Good', developing: 'Developing', needs_review: 'Needs Review' }
+  const QUIZ_COLOR: Record<string, string> = { excellent: 'bg-green-100 text-green-700', good: 'bg-sage-100 text-sage-700', developing: 'bg-amber-100 text-amber-700', needs_review: 'bg-rose-100 text-rose-600' }
+  const ATT_COLOR: Record<string, string> = { present: 'bg-sage-500 text-white', late: 'bg-amber-400 text-white', excused: 'bg-stone-300 text-white', absent: 'bg-rose-400 text-white' }
+  const ATT_LABEL: Record<string, string> = { present: 'P', late: 'L', excused: 'E', absent: 'A' }
+
+  async function saveReport() {
+    setSavingReport(true)
+    const user = auth.currentUser
+    const report: Omit<ProgressReport, 'id'> = {
+      classId: cls.id,
+      className: cls.name,
+      studentId: student.id,
+      studentName: `${student.firstName} ${student.lastName}`,
+      generatedAt: new Date().toISOString(),
+      generatedBy: user?.uid ?? '',
+      quranSurah: quran?.currentSurah ?? '',
+      quranAyah: quran?.currentAyah ?? '',
+      quranStatus: quran?.status ?? '',
+      quranNextAssignment: quran?.nextAssignment ?? '',
+      quranRevisionSurahs: quran?.revisionSurahs ?? '',
+      qaidahLesson: qaidah?.currentLesson ?? '',
+      qaidahFluency: qaidah?.fluency ?? '',
+      islamicStudiesLevel: progress.islamicStudiesLevel ?? '',
+      latestQuizGrade: quizResults[0]?.grade ?? '',
+      latestQuizMonth: quizResults[0]?.month ?? '',
+      attendanceRate: attRate,
+      attendanceSessions: attendance.length,
+      notes: progress.notes ?? '',
+    }
+    const ref = await addDoc(collection(db, 'progressReports'), report)
+    setReports(prev => [{ id: ref.id, ...report }, ...prev])
+    setReportSaved(true)
+    setTimeout(() => setReportSaved(false), 3000)
+    setSavingReport(false)
+  }
+
+  if (loading) return <div className="flex justify-center py-16"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+
+  const snapshot: QuarterlyReportSnapshot = {
+    attendanceRate: attRate,
+    attendanceSessions: attendance.length,
+    hwSummary: hwHistory,
+    qaidahLesson: qaidah?.currentLesson ?? '',
+    qaidahFluency: qaidah?.fluency ?? '',
+    quranSurah: quran?.currentSurah ?? '',
+    quranAyah: quran?.currentAyah ?? '',
+    quranStatus: quran?.status ?? '',
+    quranNextAssignment: quran?.nextAssignment ?? '',
+    quranRevisionSurahs: quran?.revisionSurahs ?? '',
+    quizSummary: quizResults,
+  }
+
+  if (editingQReport !== null) {
+    return (
+      <QuarterlyReportEditor
+        cls={cls}
+        student={student}
+        report={editingQReport === 'new' ? null : editingQReport}
+        snapshot={snapshot}
+        onBack={() => setEditingQReport(null)}
+        onSaved={saved => {
+          setQuarterlyReports(prev => {
+            const idx = prev.findIndex(r => r.id === saved.id)
+            if (idx >= 0) { const next = [...prev]; next[idx] = saved; return next }
+            return [saved, ...prev]
+          })
+          setEditingQReport(saved)
+        }}
+      />
+    )
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <button onClick={onBack} className="text-sm font-quick font-semibold text-stone-500 hover:text-sage-700 transition">← Students</button>
+      </div>
+      <div className="flex items-start gap-4">
+        <div className="w-12 h-12 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-lg flex-shrink-0">
+          {student.firstName[0]}{student.lastName[0]}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-kids text-2xl text-wood-dark">{student.firstName} {student.lastName}</h3>
+          <p className="text-xs text-stone-400 font-quick">{cls.name}{student.parentName ? ` · Parent: ${student.parentName}` : ''}</p>
+        </div>
+        <button
+          onClick={saveReport}
+          disabled={savingReport}
+          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sage-600 hover:bg-sage-700 text-white text-xs font-semibold font-quick transition disabled:opacity-60"
+        >
+          {savingReport ? (
+            <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+          ) : reportSaved ? (
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+          ) : (
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+          )}
+          {reportSaved ? 'Saved!' : 'Save Report'}
+        </button>
+      </div>
+
+      {/* Quick stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: 'Attendance', value: attRate !== null ? `${attRate}%` : '—', sub: `${attendance.length} sessions` },
+          { label: "Qur'an", value: quran?.currentSurah || '—', sub: quran?.currentAyah ? `Ayah ${quran.currentAyah}` : '' },
+          { label: "Qa'idah", value: qaidah?.currentLesson ? qaidah.currentLesson.split(' ').slice(0,3).join(' ') : '—', sub: qaidah?.fluency?.replace('_', ' ') ?? '' },
+          { label: 'IS Quiz', value: quizResults[0] ? QUIZ_LABEL[quizResults[0].grade] : '—', sub: quizResults[0]?.month ?? '' },
+        ].map(stat => (
+          <div key={stat.label} className="bg-white rounded-2xl border border-stone-200/70 px-4 py-3">
+            <div className="text-xs text-stone-400 font-quick mb-1">{stat.label}</div>
+            <div className="font-semibold text-stone-800 font-quick text-sm truncate">{stat.value}</div>
+            {stat.sub && <div className="text-xs text-stone-300 font-quick capitalize truncate">{stat.sub}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Attendance history */}
+      {attendance.length > 0 && (
+        <div className="bg-white rounded-2xl border border-stone-200/70 p-4">
+          <h4 className="font-semibold text-stone-700 font-quick text-sm mb-3">Attendance (last {attendance.length} sessions)</h4>
+          <div className="flex flex-wrap gap-1.5">
+            {attendance.map(a => (
+              <div key={a.date} className="text-center">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold font-quick ${ATT_COLOR[a.status]}`}>
+                  {ATT_LABEL[a.status]}
+                </div>
+                <div className="text-[10px] text-stone-300 font-quick mt-0.5">{a.date.slice(5)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Qur'an */}
+      {quran && (
+        <div className="bg-white rounded-2xl border border-stone-200/70 p-4">
+          <h4 className="font-semibold text-stone-700 font-quick text-sm mb-3">Qur'an Progress</h4>
+          <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+            <div><span className="text-xs text-stone-400 font-quick block">Current Surah</span><span className="font-semibold text-stone-800 font-quick">{quran.currentSurah || '—'}</span></div>
+            <div><span className="text-xs text-stone-400 font-quick block">Ayah / Range</span><span className="font-semibold text-stone-800 font-quick">{quran.currentAyah || '—'}</span></div>
+            <div><span className="text-xs text-stone-400 font-quick block">Status</span><span className="font-semibold text-stone-800 font-quick capitalize">{quran.status?.replace('_', ' ') || '—'}</span></div>
+            <div><span className="text-xs text-stone-400 font-quick block">Next Assignment</span><span className="font-semibold text-stone-800 font-quick">{quran.nextAssignment || '—'}</span></div>
+          </div>
+          {quran.revisionSurahs && <div className="text-xs text-stone-500 font-quick mb-2">Revision: {quran.revisionSurahs}</div>}
+          {quran.notes && <div className="text-xs text-stone-400 font-quick italic">{quran.notes}</div>}
+          {quran.history?.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-stone-100 space-y-1">
+              <div className="text-xs text-stone-400 font-quick font-semibold mb-1.5">History</div>
+              {quran.history.slice(0, 5).map((h, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs font-quick">
+                  <span className="text-stone-300 w-14 flex-shrink-0">{new Date(h.recordedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                  <span className="text-stone-700 font-semibold">{h.surah}</span>
+                  {h.ayah && <span className="text-stone-400">· Ayah {h.ayah}</span>}
+                  <span className={`ml-auto px-2 py-0.5 rounded-full font-bold ${QUIZ_COLOR[h.status] ?? 'bg-stone-100 text-stone-500'}`}>{h.status?.replace('_', ' ')}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Qa'idah */}
+      {qaidah && (
+        <div className="bg-white rounded-2xl border border-stone-200/70 p-4">
+          <h4 className="font-semibold text-stone-700 font-quick text-sm mb-3">Qa'idah Progress</h4>
+          <div className="grid grid-cols-2 gap-3 text-sm mb-2">
+            <div><span className="text-xs text-stone-400 font-quick block">Current Lesson</span><span className="font-semibold text-stone-800 font-quick">{qaidah.currentLesson || '—'}</span></div>
+            <div><span className="text-xs text-stone-400 font-quick block">Fluency</span><span className="font-semibold text-stone-800 font-quick capitalize">{qaidah.fluency?.replace('_', ' ') || '—'}</span></div>
+          </div>
+          {qaidah.notes && <div className="text-xs text-stone-400 font-quick italic mb-2">{qaidah.notes}</div>}
+          {qaidah.history?.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-stone-100 space-y-1">
+              <div className="text-xs text-stone-400 font-quick font-semibold mb-1.5">History</div>
+              {qaidah.history.slice(0, 5).map((h, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs font-quick">
+                  <span className="text-stone-300 w-14 flex-shrink-0">{new Date(h.recordedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                  <span className="text-stone-700 flex-1 truncate">{h.lesson}</span>
+                  <span className={`px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${FLUENCY_COLORS[h.fluency as QaidahFluency] ?? 'bg-stone-100 text-stone-500'}`}>{FLUENCY_LABELS[h.fluency as QaidahFluency] ?? h.fluency}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* IS Homework history */}
+      {hwHistory.length > 0 && (
+        <div className="bg-white rounded-2xl border border-stone-200/70 p-4">
+          <h4 className="font-semibold text-stone-700 font-quick text-sm mb-3">IS Homework (last {hwHistory.length} weeks)</h4>
+          <div className="space-y-1.5">
+            {hwHistory.map((h, i) => (
+              <div key={i} className="flex items-center gap-3 text-xs font-quick">
+                <span className="text-stone-400 w-20 flex-shrink-0">{h.week}</span>
+                <span className={`px-2 py-0.5 rounded-full font-bold ${IS_HW_COLOR[h.status] ?? 'bg-stone-100 text-stone-400'}`}>
+                  {IS_HW_LABEL[h.status] ?? h.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* IS Quiz results */}
+      {quizResults.length > 0 && (
+        <div className="bg-white rounded-2xl border border-stone-200/70 p-4">
+          <h4 className="font-semibold text-stone-700 font-quick text-sm mb-3">IS Quiz Results</h4>
+          <div className="space-y-1.5">
+            {quizResults.map((r, i) => (
+              <div key={i} className="flex items-center gap-3 text-xs font-quick">
+                <span className="text-stone-400 w-16 flex-shrink-0">{r.month}</span>
+                <span className={`px-2 py-0.5 rounded-full font-bold ${QUIZ_COLOR[r.grade] ?? 'bg-stone-100 text-stone-400'}`}>
+                  {QUIZ_LABEL[r.grade] ?? r.grade}
+                </span>
+                {r.score && <span className="text-stone-500">{r.score}</span>}
+                {r.comment && <span className="text-stone-400 truncate">{r.comment}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Missed work */}
+      {missedItems.length > 0 && (
+        <div className="bg-white rounded-2xl border border-stone-200/70 p-4">
+          <h4 className="font-semibold text-stone-700 font-quick text-sm mb-3">Unresolved Missed Work ({missedItems.length})</h4>
+          <div className="space-y-2">
+            {missedItems.map(item => (
+              <div key={item.id} className="flex items-start gap-3 text-xs font-quick">
+                <span className="text-stone-400 w-20 flex-shrink-0">{item.date}</span>
+                <div className="flex-1 min-w-0">
+                  {item.missedLesson && <span className="mr-1 px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600 font-bold">IS Lesson</span>}
+                  {item.missedHomework && <span className="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600 font-bold">IS Homework</span>}
+                  {item.missedWorkNotes && <div className="text-stone-400 mt-0.5 truncate">{item.missedWorkNotes}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Teacher notes from general progress */}
+      {(progress as Record<string, string>).notes && (
+        <div className="bg-white rounded-2xl border border-stone-200/70 p-4">
+          <h4 className="font-semibold text-stone-700 font-quick text-sm mb-2">Teacher Notes</h4>
+          <p className="text-sm text-stone-600 font-quick">{(progress as Record<string, string>).notes}</p>
+        </div>
+      )}
+
+      {/* Quarterly Reports */}
+      <div className="bg-white rounded-2xl border border-stone-200/70 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100">
+          <span className="font-semibold text-stone-700 font-quick text-sm">
+            Quarterly Reports {quarterlyReports.length > 0 && <span className="text-stone-400 font-normal">({quarterlyReports.length})</span>}
+          </span>
+          <button
+            onClick={() => setEditingQReport('new')}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sage-600 hover:bg-sage-700 text-white text-xs font-semibold font-quick transition"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+            New Report
+          </button>
+        </div>
+        {quarterlyReports.length === 0 ? (
+          <div className="px-4 py-4 text-sm text-stone-400 font-quick">No quarterly reports yet.</div>
+        ) : (
+          <div className="divide-y divide-stone-100">
+            {quarterlyReports.map(r => (
+              <button
+                key={r.id}
+                onClick={() => setEditingQReport(r)}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-stone-50 transition text-left"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-stone-800 font-quick text-sm">{quarterLabel(r.quarter)} Progress Report</div>
+                  <div className="text-xs text-stone-400 font-quick">
+                    {new Date(r.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </div>
+                </div>
+                <span className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-bold font-quick ${REPORT_STATUS_COLOR[r.status]}`}>
+                  {REPORT_STATUS_LABEL[r.status]}
+                </span>
+                <svg className="w-4 h-4 text-stone-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Previous progress reports */}
+      <div className="bg-white rounded-2xl border border-stone-200/70 overflow-hidden">
+        <button
+          onClick={() => setShowReports(v => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-stone-50 transition"
+        >
+          <span className="font-semibold text-stone-700 font-quick text-sm">
+            Previous Progress Reports {reports.length > 0 && <span className="text-stone-400 font-normal">({reports.length})</span>}
+          </span>
+          <svg className={`w-4 h-4 text-stone-400 transition-transform ${showReports ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+        </button>
+        {showReports && (
+          reports.length === 0 ? (
+            <div className="px-4 pb-4 text-sm text-stone-400 font-quick">No reports saved yet. Use "Save Report" to snapshot the current progress.</div>
+          ) : (
+            <div className="divide-y divide-stone-100">
+              {reports.map(r => (
+                <div key={r.id} className="px-4 py-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-stone-600 font-quick">
+                      {new Date(r.generatedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </span>
+                    <span className="text-xs text-stone-400 font-quick">
+                      {new Date(r.generatedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs font-quick">
+                    {r.quranSurah && <div><span className="text-stone-400">Qur'an: </span><span className="text-stone-700 font-semibold">{r.quranSurah}{r.quranAyah ? ` · ${r.quranAyah}` : ''}</span></div>}
+                    {r.qaidahLesson && <div><span className="text-stone-400">Qa'idah: </span><span className="text-stone-700 font-semibold">{r.qaidahLesson}</span></div>}
+                    {r.qaidahFluency && <div><span className="text-stone-400">Fluency: </span><span className="text-stone-700 font-semibold capitalize">{r.qaidahFluency.replace('_', ' ')}</span></div>}
+                    {r.islamicStudiesLevel && <div><span className="text-stone-400">IS Level: </span><span className="text-stone-700 font-semibold">{r.islamicStudiesLevel}</span></div>}
+                    {r.latestQuizGrade && <div><span className="text-stone-400">IS Quiz: </span><span className={`font-bold px-1.5 py-0.5 rounded-full ${QUIZ_COLOR[r.latestQuizGrade] ?? 'bg-stone-100 text-stone-500'}`}>{QUIZ_LABEL[r.latestQuizGrade] ?? r.latestQuizGrade}</span></div>}
+                    {r.attendanceRate !== null && <div><span className="text-stone-400">Attendance: </span><span className="text-stone-700 font-semibold">{r.attendanceRate}% <span className="font-normal text-stone-400">({r.attendanceSessions} sessions)</span></span></div>}
+                  </div>
+                  {r.quranNextAssignment && <div className="text-xs font-quick text-stone-500">Next: {r.quranNextAssignment}</div>}
+                  {r.quranRevisionSurahs && <div className="text-xs font-quick text-stone-400">Revision: {r.quranRevisionSurahs}</div>}
+                  {r.notes && <div className="text-xs font-quick text-stone-400 italic">{r.notes}</div>}
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Class Detail ──────────────────────────────────────────────────────────────
 
 type DetailTab = 'attendance' | 'progress' | 'quran' | 'qaidah' | 'homework' | 'quiz' | 'missedWork' | 'announcements' | 'students'
@@ -1677,6 +2348,7 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
   const [tab, setTab] = useState<DetailTab>(initialTab ?? 'attendance')
   const [students, setStudents] = useState<Student[]>([])
   const [loadingStudents, setLoadingStudents] = useState(true)
+  const [profileStudent, setProfileStudent] = useState<Student | null>(null)
 
   useEffect(() => {
     async function loadStudents() {
@@ -1713,6 +2385,10 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
   }
 
   const loadingSpinner = <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+
+  if (profileStudent) {
+    return <StudentProfile cls={cls} student={profileStudent} onBack={() => setProfileStudent(null)} />
+  }
 
   return (
     <div>
@@ -1757,13 +2433,15 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
             ) : (
               <div className="rounded-2xl border border-stone-200/70 overflow-hidden">
                 {students.map((s, idx) => (
-                  <div key={s.id} className={`bg-white px-4 py-3 flex items-center gap-3 ${idx > 0 ? 'border-t border-stone-200/70' : ''}`}>
+                  <button key={s.id} onClick={() => setProfileStudent(s)}
+                    className={`w-full bg-white px-4 py-3 flex items-center gap-3 text-left hover:bg-sage-50 transition ${idx > 0 ? 'border-t border-stone-200/70' : ''}`}>
                     <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-xs flex-shrink-0">{s.firstName[0]}{s.lastName[0]}</div>
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-stone-800 font-quick text-sm">{s.firstName} {s.lastName}</div>
                       {s.parentName && <div className="text-xs text-stone-400 font-quick">Parent: {s.parentName}{s.parentPhone ? ` · ${s.parentPhone}` : ''}</div>}
                     </div>
-                  </div>
+                    <svg className="w-4 h-4 text-stone-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  </button>
                 ))}
               </div>
             )
@@ -1861,8 +2539,6 @@ function Dashboard({ classes, onSelect }: { classes: AcademyClass[]; onSelect: (
               if (daysLeft < 0) return null // past
               const label = dl.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
               const urgent = daysLeft <= 3
-              const soon = daysLeft <= 14
-              if (!soon) return null
               return { label, daysLeft, urgent }
             })()
 

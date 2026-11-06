@@ -65,13 +65,13 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="bg-white rounded-[28px] shadow-sm border border-stone-200/70 p-8 space-y-5">
             <div>
-              <label className="block text-sm font-semibold text-stone-700 font-quick mb-2">Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
+              <label htmlFor="login-email" className="block text-sm font-semibold text-stone-700 font-quick mb-2">Email</label>
+              <input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required
                 className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 transition" />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-stone-700 font-quick mb-2">Password</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
+              <label htmlFor="login-password" className="block text-sm font-semibold text-stone-700 font-quick mb-2">Password</label>
+              <input id="login-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required
                 className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 transition" />
             </div>
             {error && <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">{error}</p>}
