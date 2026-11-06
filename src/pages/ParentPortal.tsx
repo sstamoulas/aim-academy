@@ -3,10 +3,10 @@ import {
   signOut, onAuthStateChanged, type User,
 } from 'firebase/auth'
 import {
-  collection, doc, getDoc, getDocs, addDoc, query, where, orderBy, limit,
+  collection, doc, getDoc, getDocs, addDoc, query, where, orderBy, limit, documentId,
 } from 'firebase/firestore'
 import { auth, db } from '../firebase'
-import type { AcademyClass, Student, AttendanceSession, AttendanceRecord, Announcement, ChildRequest, MissedWork, ISHomeworkAssignment } from '../types/portal'
+import type { AcademyClass, Student, AttendanceSession, AttendanceRecord, Announcement, ChildRequest, MissedWork, ISHomeworkAssignment, TeacherProfile } from '../types/portal'
 import ImpersonationBanner, { getImpersonation, clearImpersonation, type ImpersonationState } from '../components/ImpersonationBanner'
 
 // ── Child Detail ──────────────────────────────────────────────────────────────
@@ -26,6 +26,7 @@ function ChildDetail({ data, onBack }: {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [missedWorkItems, setMissedWorkItems] = useState<MissedWork[]>([])
   const [homeworkAssignments, setHomeworkAssignments] = useState<ISHomeworkAssignment[]>([])
+  const [teacherProfiles, setTeacherProfiles] = useState<TeacherProfile[]>([])
   const [loading, setLoading] = useState(true)
 
   async function load() {
@@ -78,6 +79,17 @@ function ChildDetail({ data, onBack }: {
     }))
     hwAssignments.sort((a, b) => b.week.localeCompare(a.week))
     setHomeworkAssignments(hwAssignments)
+
+    // Load teacher profiles (visible to parents/public) for teachers in this student's classes
+    const teacherUids = [...new Set(classes.map(c => c.teacherUid).filter(Boolean))]
+    if (teacherUids.length > 0) {
+      const profilesSnap = await getDocs(query(
+        collection(db, 'teacherProfiles'),
+        where(documentId(), 'in', teacherUids),
+        where('visibility', 'in', ['parents', 'public']),
+      ))
+      setTeacherProfiles(profilesSnap.docs.map(d => ({ id: d.id, ...d.data() } as TeacherProfile)))
+    }
 
     setLoading(false)
   }
@@ -132,6 +144,32 @@ function ChildDetail({ data, onBack }: {
           <div className="text-stone-800 font-quick font-bold">${(student.tuitionAmount / 100).toFixed(2)}<span className="text-stone-400 font-normal text-xs">/mo</span></div>
         </div>
       ) : null}
+
+      {/* Teacher profiles */}
+      {teacherProfiles.length > 0 && (
+        <div className="mb-4 space-y-3">
+          {teacherProfiles.map(profile => {
+            const cls = classes.find(c => c.teacherUid === profile.uid)
+            return (
+              <div key={profile.uid} className="bg-white border border-stone-200/70 rounded-2xl px-5 py-4 flex gap-4 items-start">
+                <div className="w-10 h-10 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-base flex-shrink-0">
+                  {profile.displayName[0].toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-stone-800 font-quick text-sm">{profile.displayName}</div>
+                  {cls && <div className="text-xs text-stone-400 font-quick">{cls.name}</div>}
+                  {profile.bio && <p className="text-sm text-stone-600 font-quick mt-1 leading-relaxed">{profile.bio}</p>}
+                  {profile.schoolEmail && (
+                    <a href={`mailto:${profile.schoolEmail}`} className="text-xs font-quick font-semibold text-sage-600 hover:text-sage-800 mt-1 inline-block transition">
+                      {profile.schoolEmail}
+                    </a>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-stone-200 mb-6">

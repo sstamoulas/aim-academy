@@ -10,7 +10,7 @@ import { httpsCallable } from 'firebase/functions'
 import { auth, db, storage, functions } from '../firebase'
 import type { AcademyEvent, EventDetail, EventSection, EventMedia, SectionType, PricingTier, PricingModel } from '../types/event'
 import { PRICING_MODEL_LABELS, categorizeEvent } from '../types/event'
-import type { AcademyClass, Student, Registration, ChildRequest } from '../types/portal'
+import type { AcademyClass, Student, Registration, ChildRequest, TeacherProfile } from '../types/portal'
 import type { Program, ProgramMedia, Achievement, Review } from '../types/site'
 
 // ── User management types ─────────────────────────────────────────────────────
@@ -2490,7 +2490,7 @@ function ContactSubmissionsTab() {
 }
 
 function ContentTab() {
-  const [section, setSection] = useState<'programs' | 'achievements' | 'reviews' | 'about'>('programs')
+  const [section, setSection] = useState<'programs' | 'achievements' | 'reviews' | 'about' | 'profiles'>('programs')
 
   // ── Programs ──
   const [programs, setPrograms] = useState<Program[]>([])
@@ -2529,10 +2529,20 @@ function ContentTab() {
   const [aboutLoading, setAboutLoading] = useState(true)
   const [savingAbout, setSavingAbout] = useState(false)
 
+  // ── Teacher Profiles ──
+  const [teachers, setTeachers] = useState<UserRecord[]>([])
+  const [teacherClasses, setTeacherClasses] = useState<AcademyClass[]>([])
+  const [profiles, setProfiles] = useState<TeacherProfile[]>([])
+  const [profilesLoading, setProfilesLoading] = useState(true)
+  const [editingProfile, setEditingProfile] = useState<UserRecord | null>(null)
+  const [profileForm, setProfileForm] = useState({ bio: '', schoolEmail: '', visibility: 'internal' as TeacherProfile['visibility'] })
+  const [savingProfile, setSavingProfile] = useState(false)
+
   useEffect(() => { loadPrograms() }, [])
   useEffect(() => { loadAchievements() }, [])
   useEffect(() => { loadReviews() }, [])
   useEffect(() => { loadAbout() }, [])
+  useEffect(() => { loadProfiles() }, [])
 
   async function loadPrograms() {
     setProgLoading(true)
@@ -2684,6 +2694,54 @@ function ContentTab() {
     setSavingAbout(false)
   }
 
+  async function loadProfiles() {
+    setProfilesLoading(true)
+    const [usersSnap, classesSnap, profilesSnap] = await Promise.all([
+      getDocs(query(collection(db, 'users'), where('role', '==', 'teacher'))),
+      getDocs(collection(db, 'classes')),
+      getDocs(collection(db, 'teacherProfiles')),
+    ])
+    setTeachers(usersSnap.docs.map(d => ({ uid: d.id, ...d.data() } as UserRecord)))
+    setTeacherClasses(classesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AcademyClass)))
+    setProfiles(profilesSnap.docs.map(d => ({ id: d.id, ...d.data() } as TeacherProfile)))
+    setProfilesLoading(false)
+  }
+
+  async function saveProfile() {
+    if (!editingProfile) return
+    setSavingProfile(true)
+    const now = new Date().toISOString()
+    const existing = profiles.find(p => p.uid === editingProfile.uid)
+    const data: Omit<TeacherProfile, 'id'> = {
+      uid: editingProfile.uid,
+      displayName: editingProfile.displayName,
+      bio: profileForm.bio,
+      schoolEmail: profileForm.schoolEmail,
+      visibility: profileForm.visibility,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    }
+    await setDoc(doc(db, 'teacherProfiles', editingProfile.uid), data)
+    const saved: TeacherProfile = { id: editingProfile.uid, ...data }
+    setProfiles(prev => {
+      const idx = prev.findIndex(p => p.uid === editingProfile.uid)
+      if (idx >= 0) { const next = [...prev]; next[idx] = saved; return next }
+      return [...prev, saved]
+    })
+    setSavingProfile(false)
+    setEditingProfile(null)
+  }
+
+  function openProfileEditor(teacher: UserRecord) {
+    const existing = profiles.find(p => p.uid === teacher.uid)
+    setProfileForm({
+      bio: existing?.bio ?? '',
+      schoolEmail: existing?.schoolEmail ?? teacher.email,
+      visibility: existing?.visibility ?? 'internal',
+    })
+    setEditingProfile(teacher)
+  }
+
   const inputCls = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 transition'
   const labelCls = 'block text-sm font-semibold text-stone-700 font-quick mb-1.5'
 
@@ -2693,10 +2751,10 @@ function ContentTab() {
         <h2 className="font-kids text-3xl text-wood-dark">Site Content</h2>
         <p className="text-stone-500 text-sm font-quick mt-1 mb-4">Manage programs, achievements, and about us content.</p>
         <div className="flex gap-2 flex-wrap">
-          {(['programs', 'achievements', 'reviews', 'about'] as const).map(s => (
+          {(['programs', 'achievements', 'reviews', 'about', 'profiles'] as const).map(s => (
             <button key={s} onClick={() => setSection(s)}
               className={`font-quick text-sm font-semibold px-4 py-2 rounded-full transition whitespace-nowrap ${section === s ? 'bg-wood text-white shadow' : 'border border-stone-200 text-stone-600 hover:bg-stone-50'}`}>
-              {s === 'programs' ? 'Programs' : s === 'achievements' ? 'Achievements' : s === 'reviews' ? 'Reviews' : 'About Us'}
+              {s === 'programs' ? 'Programs' : s === 'achievements' ? 'Achievements' : s === 'reviews' ? 'Reviews' : s === 'about' ? 'About Us' : 'Teacher Profiles'}
             </button>
           ))}
         </div>
@@ -3085,6 +3143,111 @@ function ContentTab() {
                 {savingAbout ? 'Saving…' : 'Save About Us'}
               </button>
             </>
+          )}
+        </div>
+      )}
+
+      {/* ── Teacher Profiles ── */}
+      {section === 'profiles' && (
+        <div className="space-y-4">
+          {profilesLoading ? (
+            <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+          ) : editingProfile ? (
+            /* ── Profile editor ── */
+            <div className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm p-6 space-y-5">
+              <div className="flex items-center gap-3">
+                <button onClick={() => setEditingProfile(null)} className="text-sm font-quick font-semibold text-stone-500 hover:text-sage-700 transition">← Back</button>
+                <h3 className="font-kids text-xl text-wood-dark">{editingProfile.displayName}</h3>
+              </div>
+              <div className="text-sm text-stone-500 font-quick">
+                Assigned class: <span className="font-semibold text-stone-700">
+                  {teacherClasses.filter(c => c.teacherUid === editingProfile.uid).map(c => c.name).join(', ') || 'None'}
+                </span>
+              </div>
+              <div>
+                <label className={labelCls}>Bio</label>
+                <textarea
+                  rows={4}
+                  value={profileForm.bio}
+                  onChange={e => setProfileForm(f => ({ ...f, bio: e.target.value }))}
+                  placeholder="A short bio shown to parents and/or on the public website…"
+                  className={inputCls + ' resize-none'}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>School Contact Email</label>
+                <input
+                  type="email"
+                  value={profileForm.schoolEmail}
+                  onChange={e => setProfileForm(f => ({ ...f, schoolEmail: e.target.value }))}
+                  placeholder="e.g. teacher@aimacademy.com"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Visibility</label>
+                <select
+                  value={profileForm.visibility}
+                  onChange={e => setProfileForm(f => ({ ...f, visibility: e.target.value as TeacherProfile['visibility'] }))}
+                  className={inputCls}
+                >
+                  <option value="internal">Internal only (admin/staff)</option>
+                  <option value="parents">Parents can see this</option>
+                  <option value="public">Public website</option>
+                </select>
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button onClick={saveProfile} disabled={savingProfile}
+                  className="flex-1 bg-sage-600 hover:bg-sage-700 text-white font-bold font-quick py-3 rounded-full shadow transition disabled:opacity-60">
+                  {savingProfile ? 'Saving…' : 'Save Profile'}
+                </button>
+                <button onClick={() => setEditingProfile(null)}
+                  className="px-6 py-3 rounded-full border border-stone-200 text-stone-600 font-semibold font-quick text-sm hover:bg-stone-50 transition">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : teachers.length === 0 ? (
+            <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">
+              No teachers found. Add teachers in the Users tab first.
+            </div>
+          ) : (
+            /* ── Teacher list ── */
+            <div className="space-y-3">
+              {teachers.map(teacher => {
+                const profile = profiles.find(p => p.uid === teacher.uid)
+                const assignedClasses = teacherClasses.filter(c => c.teacherUid === teacher.uid)
+                const visibilityLabel = profile?.visibility === 'public' ? 'Public' : profile?.visibility === 'parents' ? 'Parents' : profile ? 'Internal' : null
+                const visibilityColor = profile?.visibility === 'public' ? 'bg-sage-100 text-sage-700' : profile?.visibility === 'parents' ? 'bg-sky-100 text-sky-700' : 'bg-stone-100 text-stone-500'
+                return (
+                  <div key={teacher.uid} className="bg-white rounded-[20px] border border-stone-200/70 shadow-sm px-5 py-4 flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-base flex-shrink-0">
+                      {(teacher.displayName || teacher.email)[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-stone-800 font-quick text-sm">{teacher.displayName || teacher.email}</div>
+                      <div className="text-xs text-stone-400 font-quick">
+                        {assignedClasses.length > 0 ? assignedClasses.map(c => c.name).join(', ') : 'No class assigned'}
+                      </div>
+                      {profile?.bio && (
+                        <div className="text-xs text-stone-500 font-quick mt-0.5 line-clamp-1">{profile.bio}</div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {visibilityLabel ? (
+                        <span className={`text-xs font-bold font-quick px-2.5 py-1 rounded-full ${visibilityColor}`}>{visibilityLabel}</span>
+                      ) : (
+                        <span className="text-xs text-stone-400 font-quick italic">No profile</span>
+                      )}
+                      <button onClick={() => openProfileEditor(teacher)}
+                        className="text-xs font-semibold font-quick text-sage-600 hover:text-sage-800 border border-sage-200 hover:border-sage-400 px-3 py-1.5 rounded-full transition">
+                        {profile ? 'Edit' : 'Create'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
       )}

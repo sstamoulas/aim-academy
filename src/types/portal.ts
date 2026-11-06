@@ -212,3 +212,77 @@ export interface QaidahProgress {
   updatedAt: string
   updatedBy: string
 }
+
+export type ReportStatus = 'not_started' | 'in_progress' | 'submitted'
+
+export interface QuarterlyReport {
+  id: string
+  classId: string
+  className: string
+  studentId: string
+  studentName: string
+  quarter: string // e.g. "2025-Q4"
+  status: ReportStatus
+  // Auto-pulled snapshot at creation time
+  attendanceRate: number | null
+  attendanceSessions: number
+  hwSummary: { week: string; status: string }[]
+  qaidahLesson: string
+  qaidahFluency: string
+  quranSurah: string
+  quranAyah: string
+  quranStatus: string
+  quranNextAssignment: string
+  quranRevisionSurahs: string
+  quizSummary: { month: string; grade: string; score: string; comment: string }[]
+  // Teacher-entered fields
+  strengths: string
+  areasToImprove: string
+  generalComment: string
+  // Meta
+  createdAt: string
+  updatedAt: string
+  updatedBy: string
+  submittedAt?: string
+}
+
+export type TeacherProfileVisibility = 'internal' | 'parents' | 'public'
+
+export interface TeacherProfile {
+  id: string           // Firestore doc ID — same as uid
+  uid: string
+  displayName: string  // denormalized from user record
+  bio: string
+  schoolEmail: string  // school-facing contact email
+  visibility: TeacherProfileVisibility
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ProgressReport {
+  id: string
+  classId: string
+  className: string
+  studentId: string
+  studentName: string
+  generatedAt: string
+  generatedBy: string
+  // Qur'an snapshot
+  quranSurah: string
+  quranAyah: string
+  quranStatus: string
+  quranNextAssignment: string
+  quranRevisionSurahs: string
+  // Qa'idah snapshot
+  qaidahLesson: string
+  qaidahFluency: string
+  // Islamic Studies snapshot
+  islamicStudiesLevel: string
+  latestQuizGrade: string
+  latestQuizMonth: string
+  // Attendance snapshot
+  attendanceRate: number | null
+  attendanceSessions: number
+  // Notes
+  notes: string
+}
