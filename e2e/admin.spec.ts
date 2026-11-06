@@ -16,8 +16,8 @@ test.describe.serial('Admin Portal', () => {
 
   // ── Header & tabs ────────────────────────────────────────────────────────────
 
-  test('renders all 9 admin tabs', async () => {
-    for (const name of ['Events', 'Classes', 'Registrations', 'Users', 'Attendance', 'Content', 'Contact', 'Payments', 'Dev Tools']) {
+  test('renders all 10 admin tabs', async () => {
+    for (const name of ['Events', 'Classes', 'Registrations', 'Users', 'Attendance', 'Overview', 'Content', 'Contact', 'Payments', 'Dev Tools']) {
       await expect(page.getByRole('button', { name })).toBeVisible()
     }
   })
@@ -87,6 +87,16 @@ test.describe.serial('Admin Portal', () => {
     expect(values).toContain('admin')
     expect(values).toContain('teacher')
     expect(values).toContain('parent')
+  })
+
+  // ── Overview ─────────────────────────────────────────────────────────────────
+
+  test('Overview tab: shows teacher task status for seeded class', async () => {
+    await page.getByRole('button', { name: 'Overview' }).click()
+    await expect(page.getByText('Teacher Task Overview')).toBeVisible()
+    await expect(page.getByText(TEST.CLASS_NAME)).toBeVisible()
+    // Should show task chips
+    await expect(page.getByText('Attendance').first()).toBeVisible()
   })
 
   // ── Attendance ────────────────────────────────────────────────────────────────

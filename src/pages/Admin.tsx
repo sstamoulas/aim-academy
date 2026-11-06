@@ -27,6 +27,36 @@ interface UserRecord {
   invitedBy: string | null
 }
 
+// ── Date helpers ─────────────────────────────────────────────────────────────
+
+function isoWeek(date: Date): string {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  const wk = Math.ceil(((d.valueOf() - yearStart.valueOf()) / 86400000 + 1) / 7)
+  return `${d.getUTCFullYear()}-W${String(wk).padStart(2, '0')}`
+}
+
+function weekMondaySunday(w: string): [string, string] {
+  const [yr, wkStr] = w.split('-W')
+  const jan1 = new Date(Number(yr), 0, 1)
+  const simple = new Date(jan1.getTime() + (Number(wkStr) - 1) * 7 * 86400000)
+  const dow = simple.getDay()
+  const mon = new Date(simple)
+  mon.setDate(simple.getDate() - (dow === 0 ? 6 : dow - 1))
+  mon.setHours(0, 0, 0, 0)
+  const sun = new Date(mon)
+  sun.setDate(mon.getDate() + 6)
+  const fmt = (d: Date) => d.toISOString().split('T')[0]
+  return [fmt(mon), fmt(sun)]
+}
+
+function currentQuarterStr(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-Q${Math.floor(now.getMonth() / 3) + 1}`
+}
+
 const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Admin',
   teacher: 'Teacher',
@@ -3825,13 +3855,147 @@ function PaymentsTab() {
   )
 }
 
+// ── Overview Tab ─────────────────────────────────────────────────────────────
+
+interface TaskStatus {
+  attendance: boolean
+  homework: boolean
+  quran: boolean
+  qaidah: boolean
+  quiz: boolean
+  reportsSubmitted: number
+  reportsTotal: number
+}
+
+function OverviewTab() {
+  const today = new Date()
+  const week = isoWeek(today)
+  const [weekStart, weekEnd] = weekMondaySunday(week)
+  const month = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  const quarter = currentQuarterStr()
+
+  const [classes, setClasses] = useState<AcademyClass[]>([])
+  const [taskMap, setTaskMap] = useState<Record<string, TaskStatus>>({})
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => { loadOverview() }, [])
+
+  async function loadOverview() {
+    setLoading(true)
+    const classesSnap = await getDocs(collection(db, 'classes'))
+    const allClasses = classesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AcademyClass))
+    setClasses(allClasses)
+    if (allClasses.length === 0) { setLoading(false); return }
+
+    const classIds = allClasses.map(c => c.id)
+    // Firestore 'in' supports up to 30 items; fine for a school's class count
+    const [studentsSnap, attendanceSnap, hwSnap, quranSnap, qaidahSnap, quizSnap, reportsSnap] =
+      await Promise.all([
+        getDocs(collection(db, 'students')),
+        getDocs(query(collection(db, 'attendance'), where('date', '>=', weekStart), where('date', '<=', weekEnd))),
+        getDocs(query(collection(db, 'isHomework'), where('week', '==', week))),
+        getDocs(query(collection(db, 'quranProgress'), where('classId', 'in', classIds))),
+        getDocs(query(collection(db, 'qaidahProgress'), where('classId', 'in', classIds))),
+        getDocs(query(collection(db, 'isQuizProgress'), where('classId', 'in', classIds))),
+        getDocs(query(collection(db, 'quarterlyReports'), where('quarter', '==', quarter))),
+      ])
+
+    const students = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Student))
+    const map: Record<string, TaskStatus> = {}
+
+    for (const cls of allClasses) {
+      const studentCount = students.filter(s => (s.classIds ?? []).includes(cls.id)).length
+
+      map[cls.id] = {
+        attendance: attendanceSnap.docs.some(d => d.data().classId === cls.id),
+        homework:   hwSnap.docs.some(d => d.data().classId === cls.id),
+        quran:      quranSnap.docs.some(d => d.data().classId === cls.id && (d.data().updatedAt ?? '') >= weekStart),
+        qaidah:     qaidahSnap.docs.some(d => d.data().classId === cls.id && (d.data().updatedAt ?? '') >= weekStart),
+        quiz:       quizSnap.docs.some(d =>
+          d.data().classId === cls.id &&
+          ((d.data().results ?? []) as { month: string }[]).some(r => r.month === month)
+        ),
+        reportsSubmitted: reportsSnap.docs.filter(d => d.data().classId === cls.id && d.data().status === 'submitted').length,
+        reportsTotal: studentCount,
+      }
+    }
+
+    setTaskMap(map)
+    setLoading(false)
+  }
+
+  const done = 'bg-sage-100 text-sage-700'
+  const pending = 'bg-rose-50 text-rose-500'
+  const neutral = 'bg-stone-100 text-stone-400'
+
+  function Chip({ ok, label, neutral: isNeutral }: { ok: boolean; label: string; neutral?: boolean }) {
+    return (
+      <span className={`inline-flex items-center gap-1 text-xs font-quick font-semibold px-2.5 py-1 rounded-full ${isNeutral ? neutral : ok ? done : pending}`}>
+        {isNeutral ? '—' : ok ? '✓' : '✗'} {label}
+      </span>
+    )
+  }
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h2 className="font-kids text-3xl text-wood-dark">Teacher Task Overview</h2>
+        <p className="text-stone-500 text-sm font-quick mt-1">
+          Week {week} · {month} · {quarter}
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <div className="w-8 h-8 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" />
+        </div>
+      ) : classes.length === 0 ? (
+        <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">
+          No classes found.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {classes.map(cls => {
+            const s = taskMap[cls.id]
+            if (!s) return null
+            const reportsAllSubmitted = s.reportsTotal > 0 && s.reportsSubmitted === s.reportsTotal
+            const reportsLabel = s.reportsTotal > 0 ? `Reports ${s.reportsSubmitted}/${s.reportsTotal}` : 'Reports'
+            return (
+              <div key={cls.id} className="bg-white rounded-[20px] border border-stone-200/70 shadow-sm px-5 py-4">
+                <div className="flex items-baseline gap-2 mb-3">
+                  <span className="font-semibold text-stone-800 font-quick text-sm">{cls.name}</span>
+                  <span className="text-xs text-stone-400 font-quick">{cls.teacherName}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Chip ok={s.attendance} label="Attendance" />
+                  <Chip ok={s.homework}   label="Homework" />
+                  <Chip ok={s.quran}      label="Qur'an" />
+                  <Chip ok={s.qaidah}     label="Qa'idah" />
+                  <Chip ok={s.quiz}       label="Quiz" />
+                  <Chip ok={reportsAllSubmitted} label={reportsLabel} neutral={s.reportsTotal === 0} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <div className="mt-6 flex flex-wrap gap-2 items-center text-xs font-quick text-stone-400">
+        <span className={`px-2.5 py-1 rounded-full font-semibold ${done}`}>✓ Done</span>
+        <span className={`px-2.5 py-1 rounded-full font-semibold ${pending}`}>✗ Pending</span>
+        <span className="ml-1">Attendance, Homework, Qur'an, Qa'idah refresh weekly · Quiz monthly · Reports per quarter</span>
+      </div>
+    </div>
+  )
+}
+
 // ── Admin Root ────────────────────────────────────────────────────────────────
 
 export default function Admin() {
   const [user, setUser] = useState<User | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'events' | 'classes' | 'users' | 'registrations' | 'content' | 'contact' | 'payments' | 'attendance' | 'devtools'>('events')
+  const [activeTab, setActiveTab] = useState<'events' | 'classes' | 'users' | 'registrations' | 'content' | 'contact' | 'payments' | 'attendance' | 'devtools' | 'overview'>('events')
   const [pendingCount, setPendingCount] = useState(0)
   const [events, setEvents] = useState<AcademyEvent[]>([])
   const [editing, setEditing] = useState<Partial<AcademyEvent> | null>(null)
@@ -3935,7 +4099,7 @@ export default function Admin() {
         </div>
         {/* Tab bar */}
         <div className="max-w-4xl mx-auto px-6 flex gap-1 -mb-px overflow-x-auto scrollbar-none">
-          {(['events', 'classes', 'registrations', 'users', 'attendance', 'content', 'contact', 'payments', 'devtools'] as const).map(tab => (
+          {(['events', 'classes', 'registrations', 'users', 'attendance', 'overview', 'content', 'contact', 'payments', 'devtools'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => { setActiveTab(tab); setEditing(null) }}
@@ -3945,7 +4109,7 @@ export default function Admin() {
                   : 'border-transparent text-stone-400 hover:text-stone-600'
               }`}
             >
-              {tab === 'events' ? 'Events' : tab === 'classes' ? 'Classes' : tab === 'users' ? 'Users' : tab === 'registrations' ? 'Registrations' : tab === 'attendance' ? 'Attendance' : tab === 'content' ? 'Content' : tab === 'contact' ? 'Contact' : tab === 'payments' ? 'Payments' : 'Dev Tools'}
+              {tab === 'events' ? 'Events' : tab === 'classes' ? 'Classes' : tab === 'users' ? 'Users' : tab === 'registrations' ? 'Registrations' : tab === 'attendance' ? 'Attendance' : tab === 'overview' ? 'Overview' : tab === 'content' ? 'Content' : tab === 'contact' ? 'Contact' : tab === 'payments' ? 'Payments' : 'Dev Tools'}
               {tab === 'registrations' && pendingCount > 0 && (
                 <span className="bg-amber-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
                   {pendingCount}
@@ -3992,6 +4156,8 @@ export default function Admin() {
           <ContactSubmissionsTab />
         ) : activeTab === 'payments' ? (
           <PaymentsTab />
+        ) : activeTab === 'overview' ? (
+          <OverviewTab />
         ) : (
           <ContentTab />
         )}

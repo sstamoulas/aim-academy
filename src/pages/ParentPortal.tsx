@@ -80,18 +80,26 @@ function ChildDetail({ data, onBack }: {
     hwAssignments.sort((a, b) => b.week.localeCompare(a.week))
     setHomeworkAssignments(hwAssignments)
 
+    setLoading(false)
+
     // Load teacher profiles (visible to parents/public) for teachers in this student's classes
+    // Done after setLoading so a failure here doesn't block the main view
     const teacherUids = [...new Set(classes.map(c => c.teacherUid).filter(Boolean))]
     if (teacherUids.length > 0) {
-      const profilesSnap = await getDocs(query(
-        collection(db, 'teacherProfiles'),
-        where(documentId(), 'in', teacherUids),
-        where('visibility', 'in', ['parents', 'public']),
-      ))
-      setTeacherProfiles(profilesSnap.docs.map(d => ({ id: d.id, ...d.data() } as TeacherProfile)))
+      try {
+        const profilesSnap = await getDocs(query(
+          collection(db, 'teacherProfiles'),
+          where(documentId(), 'in', teacherUids),
+        ))
+        setTeacherProfiles(
+          profilesSnap.docs
+            .map(d => ({ id: d.id, ...d.data() } as TeacherProfile))
+            .filter(p => p.visibility === 'parents' || p.visibility === 'public')
+        )
+      } catch {
+        // Teacher profiles are supplementary; don't surface errors to parents
+      }
     }
-
-    setLoading(false)
   }
 
   useEffect(() => { load() }, [student.id])
