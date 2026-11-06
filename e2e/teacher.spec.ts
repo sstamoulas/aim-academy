@@ -32,9 +32,10 @@ test.describe.serial('Teacher Portal', () => {
     await expect(page.getByText(/Progress reports due|Dec 31/i)).toBeVisible()
   })
 
-  test('dashboard task pills show pending items', async () => {
-    // Attendance was seeded but quiz results are daily — at least some tasks appear
-    await expect(page.getByText(/Attendance|Homework|Progress|Quiz/).first()).toBeVisible()
+  test('dashboard checklist shows task items', async () => {
+    // Checklist always shows weekly tasks regardless of completion
+    await expect(page.getByText(/This Week/i)).toBeVisible()
+    await expect(page.getByText(/Attendance/).first()).toBeVisible()
   })
 
   // ── Class Detail ─────────────────────────────────────────────────────────────

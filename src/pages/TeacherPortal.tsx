@@ -2462,14 +2462,22 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-interface ClassStatus { att: boolean; prog: boolean; hw: boolean; quiz: boolean }
+interface ClassStatus {
+  attendance: boolean
+  quranQaidah: boolean   // any quran or qaidah progress updated this week
+  isHw: boolean          // IS Homework assignment posted this week
+  hwCompletion: boolean  // Weekly homework completion entered
+  quiz: boolean          // IS Quiz result entered for current month
+  reports: { submitted: number; total: number } | null  // null = no deadline set
+}
 
 function Dashboard({ classes, onSelect }: { classes: AcademyClass[]; onSelect: (cls: AcademyClass, tab?: DetailTab) => void }) {
   const [statusMap, setStatusMap] = useState<Record<string, ClassStatus>>({})
   const [loading, setLoading] = useState(true)
 
-  const week = currentWeek()
+  const week  = currentWeek()
   const month = currentMonth()
+  const quarter = currentQuarter()
 
   useEffect(() => {
     async function loadStatus() {
@@ -2478,21 +2486,37 @@ function Dashboard({ classes, onSelect }: { classes: AcademyClass[]; onSelect: (
       const monStr = mon.toISOString().split('T')[0]
       const sun = new Date(mon); sun.setDate(mon.getDate() + 6)
       const sunStr = sun.toISOString().split('T')[0]
-      const twoWeeksAgo = new Date(); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
 
       const map: Record<string, ClassStatus> = {}
       await Promise.all(classes.map(async cls => {
-        const [attSnap, hwSnap, quizSnap, progSnap] = await Promise.all([
-          getDocs(query(collection(db, 'attendance'), where('classId', '==', cls.id), orderBy('date', 'desc'))),
+        const [attSnap, hwCompSnap, isHwSnap, quranSnap, qaidahSnap, quizSnap, reportsSnap] = await Promise.all([
+          getDocs(query(collection(db, 'attendance'), where('classId', '==', cls.id), where('date', '>=', monStr), where('date', '<=', sunStr))),
           getDoc(doc(db, 'weeklyHomework', `${cls.id}__${week}`)),
-          getDoc(doc(db, 'quizResults', `${cls.id}__${month}`)),
-          getDocs(query(collection(db, 'studentProgress'), where('classId', '==', cls.id))),
+          getDoc(doc(db, 'isHomework',     `${cls.id}__${week}`)),
+          getDocs(query(collection(db, 'quranProgress'),  where('classId', '==', cls.id))),
+          getDocs(query(collection(db, 'qaidahProgress'), where('classId', '==', cls.id))),
+          getDocs(query(collection(db, 'isQuizProgress'), where('classId', '==', cls.id))),
+          getDocs(query(collection(db, 'quarterlyReports'), where('classId', '==', cls.id), where('quarter', '==', quarter))),
         ])
+
+        const quranUpdated  = quranSnap.docs.some(d  => (d.data().updatedAt  ?? '') >= monStr)
+        const qaidahUpdated = qaidahSnap.docs.some(d => (d.data().updatedAt  ?? '') >= monStr)
+        const quizDone      = quizSnap.docs.some(d =>
+          ((d.data().results ?? []) as { month: string }[]).some(r => r.month === month)
+        )
+
+        // Reports: only show if the class has a deadline configured
+        const reports = cls.nextReportDeadline
+          ? { submitted: reportsSnap.docs.filter(d => d.data().status === 'submitted').length, total: reportsSnap.size }
+          : null
+
         map[cls.id] = {
-          att: attSnap.docs.some(d => { const dt = (d.data() as { date: string }).date; return dt >= monStr && dt <= sunStr }),
-          hw: hwSnap.exists(),
-          quiz: quizSnap.exists(),
-          prog: progSnap.docs.some(d => { const ua = (d.data() as { updatedAt?: string }).updatedAt; return !!ua && new Date(ua) >= twoWeeksAgo }),
+          attendance:   attSnap.size > 0,
+          quranQaidah:  quranUpdated || qaidahUpdated,
+          isHw:         isHwSnap.exists(),
+          hwCompletion: hwCompSnap.exists(),
+          quiz:         quizDone,
+          reports,
         }
       }))
       setStatusMap(map)
@@ -2519,62 +2543,110 @@ function Dashboard({ classes, onSelect }: { classes: AcademyClass[]; onSelect: (
           <p className="text-stone-400 text-xs mt-1">Contact the admin to get classes assigned to your account.</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {classes.map(cls => {
             const s = statusMap[cls.id]
-            const tasks: { label: string; done: boolean; tab: DetailTab }[] = s ? [
-              { label: 'Attendance', done: s.att, tab: 'attendance' },
-              { label: 'Progress', done: s.prog, tab: 'progress' },
-              { label: 'Homework', done: s.hw, tab: 'homework' },
-              { label: 'Quiz', done: s.quiz, tab: 'quiz' },
-            ] : []
-            const pending = tasks.filter(t => !t.done)
 
-            // Progress report deadline
+            const weeklyTasks: { label: string; done: boolean; tab: DetailTab }[] = s ? [
+              { label: 'Attendance',          done: s.attendance,   tab: 'attendance' },
+              { label: "Qur'an / Qa'idah",    done: s.quranQaidah,  tab: 'quran' },
+              { label: 'IS Homework',         done: s.isHw,         tab: 'homework' },
+              { label: 'Homework Completion', done: s.hwCompletion, tab: 'homework' },
+            ] : []
+
+            const applicableTasks: { label: string; done: boolean; tab: DetailTab }[] = s ? [
+              { label: 'Monthly Quiz', done: s.quiz, tab: 'quiz' },
+              ...(s.reports
+                ? [{ label: `Progress Reports (${s.reports.submitted}/${s.reports.total} submitted)`, done: s.reports.submitted === s.reports.total && s.reports.total > 0, tab: 'progress' as DetailTab }]
+                : []),
+            ] : []
+
+            const totalPending = [...weeklyTasks, ...applicableTasks].filter(t => !t.done).length
+
+            // Deadline banner
             const deadlineBanner = (() => {
               if (!cls.nextReportDeadline) return null
               const dl = new Date(cls.nextReportDeadline + 'T00:00:00')
-              const today = new Date(); today.setHours(0, 0, 0, 0)
-              const daysLeft = Math.round((dl.getTime() - today.getTime()) / 86400000)
-              if (daysLeft < 0) return null // past
-              const label = dl.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-              const urgent = daysLeft <= 3
-              return { label, daysLeft, urgent }
+              const now = new Date(); now.setHours(0, 0, 0, 0)
+              const daysLeft = Math.round((dl.getTime() - now.getTime()) / 86400000)
+              if (daysLeft < 0) return null
+              return { label: dl.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), daysLeft, urgent: daysLeft <= 3 }
             })()
 
             return (
-              <div key={cls.id} className="bg-white rounded-2xl border border-stone-200/70 p-5 hover:border-sage-300 hover:shadow-sm transition">
+              <div key={cls.id} className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm overflow-hidden">
                 {deadlineBanner && (
-                  <div className={`flex items-center gap-2 text-xs font-quick font-semibold mb-3 px-3 py-2 rounded-xl ${deadlineBanner.urgent ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>
+                  <div className={`flex items-center gap-2 text-xs font-quick font-semibold px-5 py-2.5 ${deadlineBanner.urgent ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>
                     <span>{deadlineBanner.urgent ? '🔴' : '📋'}</span>
-                    <span>
-                      Progress reports due {deadlineBanner.label} — {deadlineBanner.daysLeft === 0 ? 'due today!' : `${deadlineBanner.daysLeft} day${deadlineBanner.daysLeft === 1 ? '' : 's'} left`}
-                    </span>
+                    <span>Progress reports due {deadlineBanner.label} — {deadlineBanner.daysLeft === 0 ? 'due today!' : `${deadlineBanner.daysLeft} day${deadlineBanner.daysLeft === 1 ? '' : 's'} left`}</span>
                   </div>
                 )}
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-sage-100 flex items-center justify-center text-2xl flex-shrink-0">📚</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <button onClick={() => onSelect(cls)} className="font-semibold text-stone-800 font-quick hover:text-sage-700 transition text-left">{cls.name}</button>
-                      {s && (
-                        <span className={`text-xs font-bold font-quick px-2.5 py-0.5 rounded-full flex-shrink-0 ${pending.length === 0 ? 'bg-sage-100 text-sage-700' : 'bg-amber-100 text-amber-700'}`}>
-                          {pending.length === 0 ? 'All done' : `${pending.length} pending`}
-                        </span>
-                      )}
+
+                <div className="p-5">
+                  {/* Class header */}
+                  <div className="flex items-center justify-between gap-2 mb-4">
+                    <div>
+                      <button onClick={() => onSelect(cls)} className="font-semibold text-stone-800 font-quick hover:text-sage-700 transition text-left leading-tight">
+                        {cls.name}
+                      </button>
+                      {cls.schedule && <div className="text-xs text-stone-400 font-quick mt-0.5">{cls.schedule}</div>}
                     </div>
-                    {cls.schedule && <div className="text-xs text-stone-400 font-quick mb-3">{cls.schedule}</div>}
                     {s && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {tasks.map(t => (
-                          <button key={t.label} onClick={() => onSelect(cls, t.tab)}
-                            className={`text-xs font-quick px-2.5 py-1 rounded-full font-semibold transition ${t.done ? 'bg-sage-100 text-sage-700 hover:bg-sage-200' : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'}`}>
-                            {t.done ? '✓' : '!'} {t.label}
-                          </button>
-                        ))}
-                      </div>
+                      <span className={`text-xs font-bold font-quick px-2.5 py-1 rounded-full flex-shrink-0 ${totalPending === 0 ? 'bg-sage-100 text-sage-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {totalPending === 0 ? '✓ All done' : `${totalPending} pending`}
+                      </span>
                     )}
                   </div>
+
+                  {s && (
+                    <div className="space-y-4">
+                      {/* This Week */}
+                      <div>
+                        <div className="text-xs font-quick font-semibold text-stone-400 uppercase tracking-wide mb-2">This Week</div>
+                        <div className="space-y-1.5">
+                          {weeklyTasks.map(t => (
+                            <button key={t.label} onClick={() => onSelect(cls, t.tab)}
+                              className={`w-full flex items-center gap-3 text-sm font-quick px-3 py-2 rounded-xl transition text-left ${
+                                t.done
+                                  ? 'text-sage-700 hover:bg-sage-50'
+                                  : 'text-stone-700 hover:bg-stone-50'
+                              }`}>
+                              <span className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+                                t.done ? 'bg-sage-500 text-white' : 'border-2 border-stone-300'
+                              }`}>
+                                {t.done ? '✓' : ''}
+                              </span>
+                              <span className={t.done ? 'line-through text-stone-400' : 'font-semibold'}>{t.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* When Applicable */}
+                      {applicableTasks.length > 0 && (
+                        <div>
+                          <div className="text-xs font-quick font-semibold text-stone-400 uppercase tracking-wide mb-2">When Applicable</div>
+                          <div className="space-y-1.5">
+                            {applicableTasks.map(t => (
+                              <button key={t.label} onClick={() => onSelect(cls, t.tab)}
+                                className={`w-full flex items-center gap-3 text-sm font-quick px-3 py-2 rounded-xl transition text-left ${
+                                  t.done
+                                    ? 'text-sage-700 hover:bg-sage-50'
+                                    : 'text-stone-700 hover:bg-stone-50'
+                                }`}>
+                                <span className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+                                  t.done ? 'bg-sage-500 text-white' : 'border-2 border-stone-300'
+                                }`}>
+                                  {t.done ? '✓' : ''}
+                                </span>
+                                <span className={t.done ? 'line-through text-stone-400' : 'font-semibold'}>{t.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )
