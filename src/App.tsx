@@ -7,6 +7,7 @@ import ParentPortal from './pages/ParentPortal'
 import Register from './pages/Register'
 import Login from './pages/Login'
 import Staff from './pages/Staff'
+import Donate from './pages/Donate'
 
 export default function App() {
   const path = window.location.pathname
@@ -14,6 +15,7 @@ export default function App() {
   if (path === '/login') return <Login />
   if (path === '/admin') return <Admin />
   if (path === '/staff') return <Staff />
+  if (path === '/donate') return <Donate />
   if (path === '/portal/teacher') return <TeacherPortal />
   if (path === '/portal/parent') return <ParentPortal />
   if (path === '/portal/register') return <Register />

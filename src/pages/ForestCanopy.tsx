@@ -236,6 +236,9 @@ export default function ForestCanopy() {
                   <a href="/contact" className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
                     ✉️ Contact Us
                   </a>
+                  <a href="/donate" className="flex items-center gap-3 px-5 py-2.5 text-amber-200 font-kids text-sm hover:bg-white/10 transition">
+                    🤲 Donate
+                  </a>
 
                   <div className="border-t border-white/10 mx-5 my-2" />
 
@@ -716,6 +719,27 @@ export default function ForestCanopy() {
           </section>
           )}
 
+          {/* ── Donate ── */}
+          <section className="py-16 px-8 max-w-5xl mx-auto">
+            <div className="bg-gradient-to-br from-sage-700 to-sage-600 rounded-[32px] p-10 text-white text-center shadow-xl">
+              <div className="text-4xl mb-4">🤲</div>
+              <h2 className="font-kids text-3xl mb-3">Support Our Mission</h2>
+              <p className="text-sage-100 font-quick text-sm leading-relaxed max-w-lg mx-auto mb-7">
+                Your sadaqah helps keep the academy running — covering operations, sponsoring students, and providing books and Qur'an materials for every child.
+              </p>
+              <div className="flex flex-wrap justify-center gap-3 mb-7 text-xs font-quick font-semibold">
+                {['🏫 Utilities & Operations', '🌟 Sponsor a Student', '📚 Books & Curriculum', "📖 Qur'an"].map(label => (
+                  <span key={label} className="bg-white/15 border border-white/20 px-3 py-1.5 rounded-full">{label}</span>
+                ))}
+              </div>
+              <a href="/donate"
+                className="inline-block bg-white text-sage-700 font-bold font-quick px-9 py-3.5 rounded-full shadow-md hover:shadow-lg hover:brightness-95 transition text-base">
+                Donate Now →
+              </a>
+              <p className="text-sage-200 text-xs font-quick mt-3">100% goes to AIM Academy — no platform fees via Zeffy</p>
+            </div>
+          </section>
+
           <footer className="border-t border-stone-200/70 mt-4 px-8 py-10 max-w-5xl mx-auto w-full">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
               <div className="flex items-center gap-3">
@@ -733,6 +757,7 @@ export default function ForestCanopy() {
                   : <a href="/contact" className="hover:text-wood-dark transition">Events</a>
                 }
                 <a href="#dc-achievements" onClick={() => setActiveTab('safety')} className="hover:text-wood-dark transition">Achievements</a>
+                <a href="/donate" className="hover:text-wood-dark transition">Donate</a>
                 <a href="/contact" className="hover:text-wood-dark transition">Contact</a>
                 {currentUser
                   ? <a href={userRole === 'admin' ? '/admin' : userRole === 'teacher' ? '/portal/teacher' : '/portal/parent'} className="hover:text-wood-dark transition">My Portal</a>
