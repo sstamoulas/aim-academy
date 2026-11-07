@@ -4081,56 +4081,111 @@ export default function Admin() {
     )
   }
 
+  const TABS: { id: typeof activeTab; label: string; icon: string }[] = [
+    { id: 'events',        label: 'Events',        icon: '📅' },
+    { id: 'classes',       label: 'Classes',       icon: '🏫' },
+    { id: 'registrations', label: 'Registrations', icon: '📋' },
+    { id: 'users',         label: 'Users',         icon: '👥' },
+    { id: 'attendance',    label: 'Attendance',    icon: '✅' },
+    { id: 'overview',      label: 'Overview',      icon: '📊' },
+    { id: 'content',       label: 'Content',       icon: '✏️' },
+    { id: 'contact',       label: 'Contact',       icon: '✉️' },
+    { id: 'payments',      label: 'Payments',      icon: '💳' },
+    { id: 'devtools',      label: 'Dev Tools',     icon: '🛠️' },
+  ]
+
   return (
-    <div className="bg-cream min-h-screen font-body">
-      <header className="sticky top-0 z-50 bg-cream/95 backdrop-blur border-b border-stone-200/70">
-        <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="" className="w-8 h-8 rounded-lg object-contain bg-white p-0.5 shadow-sm" />
-            <span className="font-kids text-lg text-wood-dark">Admin</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <a href="/" className="text-sm font-quick font-semibold text-stone-500 hover:text-sage-700 transition">View Site</a>
-            <button onClick={() => signOut(auth)}
-              className="text-sm font-quick font-semibold text-stone-500 hover:text-rose-600 transition">
-              Sign Out
-            </button>
-          </div>
+    <div className="bg-cream min-h-screen font-body flex">
+
+      {/* ── Sidebar (desktop) ───────────────────────────────────────────── */}
+      <aside className="hidden sm:flex flex-col w-52 shrink-0 sticky top-0 h-screen border-r border-stone-200/70 bg-white/80 backdrop-blur z-40">
+        {/* Logo */}
+        <div className="px-5 h-16 flex items-center gap-3 border-b border-stone-100 shrink-0">
+          <img src="/logo.png" alt="" className="w-8 h-8 rounded-lg object-contain bg-white p-0.5 shadow-sm" />
+          <span className="font-kids text-lg text-wood-dark">Admin</span>
         </div>
-        {/* Tab bar */}
-        <div className="max-w-4xl mx-auto px-6 flex gap-1 -mb-px overflow-x-auto scrollbar-none">
-          {(['events', 'classes', 'registrations', 'users', 'attendance', 'overview', 'content', 'contact', 'payments', 'devtools'] as const).map(tab => (
+
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
+          {TABS.map(t => (
             <button
-              key={tab}
-              onClick={() => { setActiveTab(tab); setEditing(null) }}
-              className={`px-5 py-2.5 text-sm font-semibold font-quick border-b-2 transition flex items-center gap-1.5 flex-shrink-0 ${
-                activeTab === tab
-                  ? 'border-sage-600 text-sage-700'
-                  : 'border-transparent text-stone-400 hover:text-stone-600'
+              key={t.id}
+              onClick={() => { setActiveTab(t.id); setEditing(null) }}
+              className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold font-quick transition flex items-center gap-2.5 ${
+                activeTab === t.id
+                  ? 'bg-sage-50 text-sage-700'
+                  : 'text-stone-500 hover:bg-stone-100 hover:text-stone-700'
               }`}
             >
-              {tab === 'events' ? 'Events' : tab === 'classes' ? 'Classes' : tab === 'users' ? 'Users' : tab === 'registrations' ? 'Registrations' : tab === 'attendance' ? 'Attendance' : tab === 'overview' ? 'Overview' : tab === 'content' ? 'Content' : tab === 'contact' ? 'Contact' : tab === 'payments' ? 'Payments' : 'Dev Tools'}
-              {tab === 'registrations' && pendingCount > 0 && (
-                <span className="bg-amber-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
+              <span className="text-base leading-none">{t.icon}</span>
+              {t.label}
+              {t.id === 'registrations' && pendingCount > 0 && (
+                <span className="ml-auto bg-amber-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none shrink-0">
                   {pendingCount}
                 </span>
               )}
             </button>
           ))}
-        </div>
-      </header>
+        </nav>
 
-      <main className="max-w-4xl mx-auto px-6 py-10">
-        {activeTab === 'events' ? (
-          editing ? (
-            <div>
-              <button onClick={() => setEditing(null)}
-                className="text-sm font-quick font-semibold text-stone-500 hover:text-sage-700 transition mb-6">
-                ← Back to events
+        {/* Footer */}
+        <div className="px-3 py-4 border-t border-stone-100 space-y-0.5 shrink-0">
+          <a href="/" className="block px-3 py-2 text-sm font-quick font-semibold text-stone-400 hover:text-sage-700 rounded-xl hover:bg-stone-50 transition">
+            ← View Site
+          </a>
+          <button onClick={() => signOut(auth)}
+            className="w-full text-left px-3 py-2 text-sm font-quick font-semibold text-stone-400 hover:text-rose-600 rounded-xl hover:bg-stone-50 transition">
+            Sign Out
+          </button>
+        </div>
+      </aside>
+
+      {/* ── Right column ────────────────────────────────────────────────── */}
+      <div className="flex-1 min-w-0 flex flex-col">
+
+        {/* Mobile header */}
+        <header className="sm:hidden sticky top-0 z-50 bg-cream/95 backdrop-blur border-b border-stone-200/70 shrink-0">
+          <div className="px-4 h-14 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <img src="/logo.png" alt="" className="w-7 h-7 rounded-lg object-contain bg-white p-0.5 shadow-sm" />
+              <span className="font-kids text-base text-wood-dark">Admin</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <a href="/" className="text-xs font-quick font-semibold text-stone-500 hover:text-sage-700 transition">View Site</a>
+              <button onClick={() => signOut(auth)}
+                className="text-xs font-quick font-semibold text-stone-500 hover:text-rose-600 transition">
+                Sign Out
               </button>
-              <h2 className="font-kids text-3xl text-wood-dark mb-8">
-                {editing.id ? 'Edit Event' : 'New Event'}
-              </h2>
+            </div>
+          </div>
+          <div className="px-4 pb-3">
+            <select
+              value={activeTab}
+              onChange={e => { setActiveTab(e.target.value as typeof activeTab); setEditing(null) }}
+              className="w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold font-quick text-stone-700 focus:outline-none focus:ring-2 focus:ring-sage-400 appearance-none"
+              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center' }}
+              aria-label="Admin section"
+            >
+              {TABS.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.label}{t.id === 'registrations' && pendingCount > 0 ? ` (${pendingCount})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        </header>
+
+        <main className="flex-1 max-w-4xl w-full mx-auto px-6 py-10">
+          {activeTab === 'events' ? (
+            editing ? (
+              <div>
+                <button onClick={() => setEditing(null)}
+                  className="text-sm font-quick font-semibold text-stone-500 hover:text-sage-700 transition mb-6">
+                  ← Back to events
+                </button>
+                <h2 className="font-kids text-3xl text-wood-dark mb-8">
+                  {editing.id ? 'Edit Event' : 'New Event'}
+                </h2>
               <EventForm initial={editing} onSave={handleSave} onCancel={() => setEditing(null)} />
             </div>
           ) : (
@@ -4161,7 +4216,9 @@ export default function Admin() {
         ) : (
           <ContentTab />
         )}
-      </main>
+        </main>
+
+      </div>{/* end right column */}
 
       {deleting && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-6">
