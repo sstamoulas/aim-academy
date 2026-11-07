@@ -95,28 +95,21 @@ test.describe.serial('Admin Portal', () => {
     await page.getByRole('button', { name: 'Overview' }).click()
     await expect(page.getByText('Teacher Task Overview')).toBeVisible()
     await expect(page.getByText(TEST.CLASS_NAME)).toBeVisible()
-    // Should show task chips
-    await expect(page.getByText('Attendance').first()).toBeVisible()
+    // Chips show ✓/✗ prefix — target that pattern to avoid matching hidden <option>
+    await expect(page.getByText(/[✓✗] Attendance/).first()).toBeVisible()
   })
 
   // ── Attendance ────────────────────────────────────────────────────────────────
 
   test('Attendance tab: selecting the seeded class shows sessions', async () => {
     await page.getByRole('button', { name: 'Attendance' }).click()
-    // Select the test class
-    const classSelect = page.getByRole('combobox').or(
-      page.locator('select').or(page.getByText(TEST.CLASS_NAME))
-    ).first()
-    if (await classSelect.isVisible()) {
-      // If it's a select, choose the class
-      const tagName = await classSelect.evaluate(el => el.tagName.toLowerCase())
-      if (tagName === 'select') {
-        await classSelect.selectOption({ label: TEST.CLASS_NAME })
-      } else {
-        await classSelect.click()
-      }
-    }
-    await expect(page.getByText(/2026-10|Attendance|Sessions/i).first()).toBeVisible()
+    // Target the class selector by its unique placeholder option — avoids matching the mobile nav <select>
+    const classSelect = page.locator('select').filter({ hasText: '— Choose a class —' })
+    await classSelect.selectOption({ label: TEST.CLASS_NAME })
+    // After selecting, either session rows or "No attendance sessions" message should appear
+    await expect(
+      page.getByText(/No attendance sessions|Total Sessions/i).first()
+    ).toBeVisible({ timeout: 10_000 })
   })
 
   // ── Content ───────────────────────────────────────────────────────────────────
@@ -130,14 +123,14 @@ test.describe.serial('Admin Portal', () => {
 
   test('Contact tab: loads without error', async () => {
     await page.getByRole('button', { name: 'Contact' }).click()
-    await expect(page.getByText(/Contact|No submissions|Message/i).first()).toBeVisible()
+    await expect(page.getByText(/No contact submissions|No submissions|Message/i).first()).toBeVisible()
   })
 
   // ── Payments ─────────────────────────────────────────────────────────────────
 
   test('Payments tab: loads without error', async () => {
     await page.getByRole('button', { name: 'Payments' }).click()
-    await expect(page.getByText(/Payment|No payment/i).first()).toBeVisible()
+    await expect(page.getByRole('heading', { name: /Payments/i })).toBeVisible()
   })
 
   // ── Dev Tools ─────────────────────────────────────────────────────────────────
