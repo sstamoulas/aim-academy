@@ -438,36 +438,39 @@ export default function ForestCanopy() {
               )}
 
               {activeTab === 'teachers' && (
-                <section className="space-y-3">
-                  <div className="bg-white rounded-[24px] p-6 shadow-sm border border-stone-200/70">
-                    <h2 className="font-kids text-2xl text-stone-900">Meet our Teachers</h2>
-                    <p className="text-stone-500 text-sm leading-relaxed mt-2">Qualified instructors dedicated to guiding every child on their Islamic learning journey.</p>
+                <section className="wood-texture rounded-[24px] overflow-hidden shadow-xl p-6 space-y-4">
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-widest text-amber-200 font-quick">Our educators</div>
+                    <h2 className="font-kids text-2xl text-white mt-1">Meet our Teachers</h2>
+                    <p className="text-stone-300 text-sm leading-relaxed mt-1">Qualified instructors dedicated to guiding every child on their Islamic learning journey.</p>
                   </div>
                   {teacherProfiles.length === 0 ? (
-                    <div className="bg-stone-50 rounded-[24px] p-6 border border-stone-200/70 text-center text-stone-400 text-sm font-quick">
-                      Teacher profiles coming soon.
-                    </div>
-                  ) : teacherProfiles.map(t => {
-                    const initials = t.displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-                    return (
-                      <div key={t.id} className="bg-white rounded-[24px] p-5 shadow-sm border border-stone-200/70 flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-sage-100 flex items-center justify-center text-sage-700 font-bold text-base font-kids flex-shrink-0">
-                          {initials}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-kids text-lg text-wood-dark leading-tight">{t.displayName}</div>
-                          {t.classes.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1 mb-2">
-                              {t.classes.map(c => (
-                                <span key={c} className="text-xs font-quick font-semibold bg-sage-50 text-sage-700 px-2 py-0.5 rounded-full border border-sage-100">{c}</span>
-                              ))}
+                    <p className="text-stone-400 text-sm font-quick italic">Teacher profiles coming soon.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {teacherProfiles.map(t => {
+                        const initials = t.displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+                        return (
+                          <div key={t.id} className="bg-white/10 border border-white/15 rounded-2xl p-4 flex items-start gap-3">
+                            <div className="w-11 h-11 rounded-xl bg-amber-200/20 border border-amber-200/30 flex items-center justify-center text-amber-100 font-bold font-kids flex-shrink-0">
+                              {initials}
                             </div>
-                          )}
-                          {t.bio && <p className="text-stone-500 text-sm leading-relaxed">{t.bio}</p>}
-                        </div>
-                      </div>
-                    )
-                  })}
+                            <div className="min-w-0">
+                              <div className="font-kids text-base text-white leading-tight">{t.displayName}</div>
+                              {t.classes.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1 mb-1.5">
+                                  {t.classes.map(c => (
+                                    <span key={c} className="text-xs font-quick font-semibold bg-white/15 text-amber-100 px-2 py-0.5 rounded-full">{c}</span>
+                                  ))}
+                                </div>
+                              )}
+                              {t.bio && <p className="text-stone-300 text-sm leading-relaxed">{t.bio}</p>}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </section>
               )}
             </div>
@@ -753,42 +756,40 @@ export default function ForestCanopy() {
                 </div>
 
                 {/* Teachers card — always shown next to achievements */}
-                {(true) && (
-                  <div className="bg-white rounded-[32px] border border-stone-200/70 shadow-sm p-10 space-y-6">
-                    <div>
-                      <div className="text-xs font-bold uppercase tracking-widest text-wood font-quick">Our educators</div>
-                      <h2 className="text-2xl font-bold text-wood-dark mt-1">Meet our Teachers</h2>
-                      <p className="text-stone-500 text-sm leading-relaxed mt-2">Qualified instructors dedicated to guiding every child on their Islamic learning journey.</p>
-                    </div>
-                    {teacherProfiles.length === 0 ? (
-                      <p className="text-stone-400 text-sm font-quick">Teacher profiles coming soon.</p>
-                    ) : (
-                      <div className="space-y-4">
-                        {teacherProfiles.map(t => {
-                          const initials = t.displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-                          return (
-                            <div key={t.id} className="flex items-start gap-4">
-                              <div className="w-12 h-12 rounded-2xl bg-sage-100 flex items-center justify-center text-sage-700 font-bold text-base font-kids flex-shrink-0">
-                                {initials}
-                              </div>
-                              <div className="min-w-0">
-                                <div className="font-bold text-wood-dark">{t.displayName}</div>
-                                {t.classes.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 mt-1 mb-1.5">
-                                    {t.classes.map(c => (
-                                      <span key={c} className="text-xs font-quick font-semibold bg-sage-50 text-sage-700 px-2 py-0.5 rounded-full border border-sage-100">{c}</span>
-                                    ))}
-                                  </div>
-                                )}
-                                {t.bio && <p className="text-stone-500 text-sm leading-relaxed">{t.bio}</p>}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
+                <div className="wood-texture rounded-[32px] overflow-hidden shadow-2xl p-10 space-y-6">
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-widest text-amber-200 font-quick">Our educators</div>
+                    <h2 className="text-3xl font-bold text-white mt-1">Meet our Teachers</h2>
+                    <p className="text-stone-300 text-sm leading-relaxed mt-2">Qualified instructors dedicated to guiding every child on their Islamic learning journey.</p>
                   </div>
-                )}
+                  {teacherProfiles.length === 0 ? (
+                    <p className="text-stone-400 text-sm font-quick italic">Teacher profiles coming soon.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {teacherProfiles.map(t => {
+                        const initials = t.displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+                        return (
+                          <div key={t.id} className="bg-white/10 border border-white/15 rounded-2xl p-4 flex items-start gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-amber-200/20 border border-amber-200/30 flex items-center justify-center text-amber-100 font-bold text-base font-kids flex-shrink-0">
+                              {initials}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-bold text-white">{t.displayName}</div>
+                              {t.classes.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1 mb-1.5">
+                                  {t.classes.map(c => (
+                                    <span key={c} className="text-xs font-quick font-semibold bg-white/15 text-amber-100 px-2 py-0.5 rounded-full">{c}</span>
+                                  ))}
+                                </div>
+                              )}
+                              {t.bio && <p className="text-stone-300 text-sm leading-relaxed">{t.bio}</p>}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
 
               </div>
             </section>
