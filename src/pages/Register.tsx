@@ -207,20 +207,10 @@ function FamilyInfoStep({ user, onSubmitted }: { user: User; onSubmitted: (reg: 
                     className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Date of Birth <span className="text-stone-300">(optional)</span></label>
-                  <input type="date" value={child.dateOfBirth} onChange={e => updateChild(i, 'dateOfBirth', e.target.value)}
-                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Grade / Level <span className="text-stone-300">(optional)</span></label>
-                  <select value={child.grade} onChange={e => updateChild(i, 'grade', e.target.value)}
-                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm">
-                    <option value="">Select…</option>
-                    {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Date of Birth <span className="text-stone-300">(optional)</span></label>
+                <input type="date" value={child.dateOfBirth} onChange={e => updateChild(i, 'dateOfBirth', e.target.value)}
+                  className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
               </div>
             </div>
           ))}
