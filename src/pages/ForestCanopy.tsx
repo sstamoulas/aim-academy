@@ -738,52 +738,55 @@ export default function ForestCanopy() {
             </section>
           )}
 
-          {(achievements.length > 0 || teacherProfiles.length > 0) && (
-            <section id="dc-achievements" className={`py-20 px-8 mx-auto scroll-mt-24 ${achievements.length > 0 && teacherProfiles.length > 0 ? 'max-w-7xl' : 'max-w-5xl'}`}>
-              <div className={`grid gap-6 ${achievements.length > 0 && teacherProfiles.length > 0 ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
+          {achievements.length > 0 && (
+            <section id="dc-achievements" className="py-20 px-8 mx-auto scroll-mt-24 max-w-7xl">
+              <div className="grid gap-6 lg:grid-cols-2">
 
-                {achievements.length > 0 && (
-                  <div className="bg-gradient-to-br from-sage-700 to-sage-600 text-white rounded-[32px] overflow-hidden shadow-2xl p-10 space-y-5">
-                    <div className="text-xs font-bold uppercase tracking-widest text-emerald-200">Student achievements since 2023</div>
-                    <p className="text-sage-50 leading-relaxed">These accomplishments reflect the dedication of our students, the commitment of our teachers, and the blessing of Allah ﷻ.</p>
-                    <div className={`grid gap-3 text-sm ${achievements.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                      {achievements.map(a => (
-                        <div key={a.id} className="bg-white/12 rounded-2xl p-4">{a.text}</div>
-                      ))}
-                    </div>
+                <div className="bg-gradient-to-br from-sage-700 to-sage-600 text-white rounded-[32px] overflow-hidden shadow-2xl p-10 space-y-5">
+                  <div className="text-xs font-bold uppercase tracking-widest text-emerald-200">Student achievements since 2023</div>
+                  <p className="text-sage-50 leading-relaxed">These accomplishments reflect the dedication of our students, the commitment of our teachers, and the blessing of Allah ﷻ.</p>
+                  <div className={`grid gap-3 text-sm ${achievements.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                    {achievements.map(a => (
+                      <div key={a.id} className="bg-white/12 rounded-2xl p-4">{a.text}</div>
+                    ))}
                   </div>
-                )}
+                </div>
 
-                {teacherProfiles.length > 0 && (
+                {/* Teachers card — always shown next to achievements */}
+                {(true) && (
                   <div className="bg-white rounded-[32px] border border-stone-200/70 shadow-sm p-10 space-y-6">
                     <div>
                       <div className="text-xs font-bold uppercase tracking-widest text-wood font-quick">Our educators</div>
                       <h2 className="text-2xl font-bold text-wood-dark mt-1">Meet our Teachers</h2>
                       <p className="text-stone-500 text-sm leading-relaxed mt-2">Qualified instructors dedicated to guiding every child on their Islamic learning journey.</p>
                     </div>
-                    <div className="space-y-4">
-                      {teacherProfiles.map(t => {
-                        const initials = t.displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-                        return (
-                          <div key={t.id} className="flex items-start gap-4">
-                            <div className="w-12 h-12 rounded-2xl bg-sage-100 flex items-center justify-center text-sage-700 font-bold text-base font-kids flex-shrink-0">
-                              {initials}
+                    {teacherProfiles.length === 0 ? (
+                      <p className="text-stone-400 text-sm font-quick">Teacher profiles coming soon.</p>
+                    ) : (
+                      <div className="space-y-4">
+                        {teacherProfiles.map(t => {
+                          const initials = t.displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+                          return (
+                            <div key={t.id} className="flex items-start gap-4">
+                              <div className="w-12 h-12 rounded-2xl bg-sage-100 flex items-center justify-center text-sage-700 font-bold text-base font-kids flex-shrink-0">
+                                {initials}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-bold text-wood-dark">{t.displayName}</div>
+                                {t.classes.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1 mb-1.5">
+                                    {t.classes.map(c => (
+                                      <span key={c} className="text-xs font-quick font-semibold bg-sage-50 text-sage-700 px-2 py-0.5 rounded-full border border-sage-100">{c}</span>
+                                    ))}
+                                  </div>
+                                )}
+                                {t.bio && <p className="text-stone-500 text-sm leading-relaxed">{t.bio}</p>}
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <div className="font-bold text-wood-dark">{t.displayName}</div>
-                              {t.classes.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1 mb-1.5">
-                                  {t.classes.map(c => (
-                                    <span key={c} className="text-xs font-quick font-semibold bg-sage-50 text-sage-700 px-2 py-0.5 rounded-full border border-sage-100">{c}</span>
-                                  ))}
-                                </div>
-                              )}
-                              {t.bio && <p className="text-stone-500 text-sm leading-relaxed">{t.bio}</p>}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
 
