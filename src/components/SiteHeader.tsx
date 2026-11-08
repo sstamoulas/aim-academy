@@ -104,6 +104,9 @@ export default function SiteHeader({ hideAuth = false }: SiteHeaderProps) {
                 <a href="/#dc-achievements" className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
                   <span className="text-base">🏆</span> Achievements
                 </a>
+                <a href="/staff" className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-600 hover:bg-sage-50 hover:text-sage-700 transition-colors">
+                  <span className="text-base">👩‍🏫</span> Our Teachers
+                </a>
               </div>
             </div>
           </div>
@@ -260,6 +263,7 @@ export default function SiteHeader({ hideAuth = false }: SiteHeaderProps) {
           )}
 
           <div className="text-xs font-bold uppercase tracking-widest text-stone-400 px-3 pt-2 pb-1">More</div>
+          <a href="/staff" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-stone-600 hover:bg-stone-100 transition text-sm font-semibold">👩‍🏫 Our Teachers</a>
           <a href="/contact" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-stone-600 hover:bg-stone-100 transition text-sm font-semibold">✉️ Contact Us</a>
           {!hideAuth && authReady && (
             currentUser
