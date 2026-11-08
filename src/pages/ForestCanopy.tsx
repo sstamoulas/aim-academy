@@ -743,7 +743,7 @@ export default function ForestCanopy() {
 
           {achievements.length > 0 && (
             <section id="dc-achievements" className="py-20 px-8 mx-auto scroll-mt-24 max-w-7xl">
-              <div className="grid gap-6 lg:grid-cols-2">
+              <div className="grid gap-6 lg:grid-cols-2 items-start">
 
                 <div className="bg-gradient-to-br from-sage-700 to-sage-600 text-white rounded-[32px] overflow-hidden shadow-2xl p-10 space-y-5">
                   <div className="text-xs font-bold uppercase tracking-widest text-emerald-200">Student achievements since 2023</div>
@@ -765,7 +765,7 @@ export default function ForestCanopy() {
                   {teacherProfiles.length === 0 ? (
                     <p className="text-stone-400 text-sm font-quick italic">Teacher profiles coming soon.</p>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-3 max-h-72 overflow-y-auto scrollbar-none">
                       {teacherProfiles.map(t => {
                         const initials = t.displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
                         return (
