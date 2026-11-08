@@ -5,7 +5,6 @@ import { db, auth } from '../firebase'
 import type { AcademyEvent } from '../types/event'
 import { categorizeEvent } from '../types/event'
 import type { Program, ProgramMedia, Achievement, Review } from '../types/site'
-import type { TeacherProfile } from '../types/portal'
 import Carousel from '../components/Carousel'
 
 function ProgramCarousel({ imageUrl, imageStyle, media }: {
@@ -138,7 +137,6 @@ export default function ForestCanopy() {
   const [programs, setPrograms] = useState<Program[]>([])
   const [achievements, setAchievements] = useState<Achievement[]>([])
   const [reviews, setReviews] = useState<Review[]>([])
-  const [teacherProfiles, setTeacherProfiles] = useState<(TeacherProfile & { classes: string[] })[]>([])
   const [aboutContent, setAboutContent] = useState<{ heading: string; subheading: string; pillars: Array<{ title: string; description: string }> } | null>(null)
 
   useEffect(() => {
@@ -164,25 +162,17 @@ export default function ForestCanopy() {
   useEffect(() => {
     async function loadContent() {
       try {
-        const [progSnap, achSnap, revSnap, siteSnap, profilesSnap, classesSnap] = await Promise.all([
+        const [progSnap, achSnap, revSnap, siteSnap] = await Promise.all([
           getDocs(query(collection(db, 'programs'), where('published', '==', true))),
           getDocs(query(collection(db, 'achievements'), orderBy('order', 'asc'))),
           getDocs(query(collection(db, 'reviews'), where('published', '==', true))),
           getDocs(collection(db, 'site')),
-          getDocs(query(collection(db, 'teacherProfiles'), where('visibility', '==', 'public'))),
-          getDocs(collection(db, 'classes')),
         ])
         setPrograms(progSnap.docs.map(d => ({ id: d.id, ...d.data() } as Program)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))
         setAchievements(achSnap.docs.map(d => ({ id: d.id, ...d.data() } as Achievement)))
         setReviews(revSnap.docs.map(d => ({ id: d.id, ...d.data() } as Review)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))
         const aboutDoc = siteSnap.docs.find(d => d.id === 'about')
         if (aboutDoc) setAboutContent(aboutDoc.data() as typeof aboutContent)
-        const profiles = profilesSnap.docs.map(d => ({ id: d.id, ...d.data() } as TeacherProfile))
-        const allClasses = classesSnap.docs.map(d => ({ id: d.id, ...(d.data() as { name: string; teacherUid?: string }) }))
-        setTeacherProfiles(profiles.map(p => ({
-          ...p,
-          classes: allClasses.filter(c => c.teacherUid === p.uid).map(c => c.name),
-        })))
       } catch (e) {
         console.error('Failed to load site content:', e)
       }
@@ -348,10 +338,9 @@ export default function ForestCanopy() {
                 { key: 'overview', label: 'About' },
                 { key: 'activities', label: 'Programs' },
                 { key: 'safety', label: 'Achievements' },
-                { key: 'teachers', label: 'Teachers' },
               ] as const).map(({ key, label }) => (
                 <button key={key} onClick={() => setActiveTab(key)}
-                  className={`flex-1 py-2.5 rounded-xl font-kids text-xs tracking-wide transition ${activeTab === key ? 'bg-white text-wood-dark shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}>
+                  className={`flex-1 py-2.5 rounded-xl font-kids text-sm tracking-wide transition ${activeTab === key ? 'bg-white text-wood-dark shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}>
                   {label}
                 </button>
               ))}
@@ -437,42 +426,6 @@ export default function ForestCanopy() {
                 </section>
               )}
 
-              {activeTab === 'teachers' && (
-                <section className="wood-texture rounded-[24px] overflow-hidden shadow-xl p-6 space-y-4">
-                  <div>
-                    <div className="text-xs font-bold uppercase tracking-widest text-amber-200 font-quick">Our educators</div>
-                    <h2 className="font-kids text-2xl text-white mt-1">Meet our Teachers</h2>
-                    <p className="text-stone-300 text-sm leading-relaxed mt-1">Qualified instructors dedicated to guiding every child on their Islamic learning journey.</p>
-                  </div>
-                  {teacherProfiles.length === 0 ? (
-                    <p className="text-stone-400 text-sm font-quick italic">Teacher profiles coming soon.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {teacherProfiles.map(t => {
-                        const initials = t.displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-                        return (
-                          <div key={t.id} className="bg-white/10 border border-white/15 rounded-2xl p-4 flex items-start gap-3">
-                            <div className="w-11 h-11 rounded-xl bg-amber-200/20 border border-amber-200/30 flex items-center justify-center text-amber-100 font-bold font-kids flex-shrink-0">
-                              {initials}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="font-kids text-base text-white leading-tight">{t.displayName}</div>
-                              {t.classes.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1 mb-1.5">
-                                  {t.classes.map(c => (
-                                    <span key={c} className="text-xs font-quick font-semibold bg-white/15 text-amber-100 px-2 py-0.5 rounded-full">{c}</span>
-                                  ))}
-                                </div>
-                              )}
-                              {t.bio && <p className="text-stone-300 text-sm leading-relaxed">{t.bio}</p>}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </section>
-              )}
             </div>
 
             {!currentUser && (
@@ -742,58 +695,34 @@ export default function ForestCanopy() {
           )}
 
           {achievements.length > 0 && (
-            <section id="dc-achievements" className="py-20 px-8 mx-auto scroll-mt-24 max-w-7xl">
-              <div className="grid gap-6 lg:grid-cols-2 items-start">
-
-                <div className="bg-gradient-to-br from-sage-700 to-sage-600 text-white rounded-[32px] overflow-hidden shadow-2xl p-10 space-y-5">
-                  <div className="text-xs font-bold uppercase tracking-widest text-emerald-200">Student achievements since 2023</div>
-                  <p className="text-sage-50 leading-relaxed">These accomplishments reflect the dedication of our students, the commitment of our teachers, and the blessing of Allah ﷻ.</p>
-                  <div className={`grid gap-3 text-sm ${achievements.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                    {achievements.map(a => (
-                      <div key={a.id} className="bg-white/12 rounded-2xl p-4">{a.text}</div>
-                    ))}
-                  </div>
+            <section id="dc-achievements" className="py-20 px-8 max-w-5xl mx-auto scroll-mt-24">
+              <div className="bg-gradient-to-br from-sage-700 to-sage-600 text-white rounded-[32px] overflow-hidden shadow-2xl p-10 space-y-5">
+                <div className="text-xs font-bold uppercase tracking-widest text-emerald-200">Student achievements since 2023</div>
+                <p className="text-sage-50 leading-relaxed">These accomplishments reflect the dedication of our students, the commitment of our teachers, and the blessing of Allah ﷻ.</p>
+                <div className={`grid gap-3 text-sm ${achievements.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                  {achievements.map(a => (
+                    <div key={a.id} className="bg-white/12 rounded-2xl p-4">{a.text}</div>
+                  ))}
                 </div>
-
-                {/* Teachers card — always shown next to achievements */}
-                <div className="wood-texture rounded-[32px] overflow-hidden shadow-2xl p-10 space-y-6">
-                  <div>
-                    <div className="text-xs font-bold uppercase tracking-widest text-amber-200 font-quick">Our educators</div>
-                    <h2 className="text-3xl font-bold text-white mt-1">Meet our Teachers</h2>
-                    <p className="text-stone-300 text-sm leading-relaxed mt-2">Qualified instructors dedicated to guiding every child on their Islamic learning journey.</p>
-                  </div>
-                  {teacherProfiles.length === 0 ? (
-                    <p className="text-stone-400 text-sm font-quick italic">Teacher profiles coming soon.</p>
-                  ) : (
-                    <div className="space-y-3 max-h-72 overflow-y-auto scrollbar-none">
-                      {teacherProfiles.map(t => {
-                        const initials = t.displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-                        return (
-                          <div key={t.id} className="bg-white/10 border border-white/15 rounded-2xl p-4 flex items-start gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-amber-200/20 border border-amber-200/30 flex items-center justify-center text-amber-100 font-bold text-base font-kids flex-shrink-0">
-                              {initials}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="font-bold text-white">{t.displayName}</div>
-                              {t.classes.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1 mb-1.5">
-                                  {t.classes.map(c => (
-                                    <span key={c} className="text-xs font-quick font-semibold bg-white/15 text-amber-100 px-2 py-0.5 rounded-full">{c}</span>
-                                  ))}
-                                </div>
-                              )}
-                              {t.bio && <p className="text-stone-300 text-sm leading-relaxed">{t.bio}</p>}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-
               </div>
             </section>
           )}
+
+          {/* Meet our Teachers teaser */}
+          <section className="py-4 px-8 max-w-5xl mx-auto">
+            <div className="flex items-center justify-between gap-4 bg-white rounded-[28px] p-6 shadow-sm border border-stone-200/70">
+              <div className="flex items-center gap-4">
+                <span className="text-3xl">👩‍🏫</span>
+                <div>
+                  <div className="font-bold text-wood-dark">Meet our Teachers</div>
+                  <div className="text-stone-500 text-sm font-quick">Dedicated educators guiding every child on their Islamic learning journey.</div>
+                </div>
+              </div>
+              <a href="/staff" className="shrink-0 bg-wood text-white font-bold font-quick text-sm px-5 py-2.5 rounded-full shadow-sm hover:brightness-95 transition">
+                Meet the Team →
+              </a>
+            </div>
+          </section>
 
           {!currentUser && (
           <section id="dc-join" className="py-10 px-8 max-w-5xl mx-auto">

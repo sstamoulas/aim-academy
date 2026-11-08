@@ -38,6 +38,7 @@ export default function SiteFooter() {
             <a href="/#dc-programs" className="hover:text-wood-dark transition">Programs</a>
             <a href="/contact" className="hover:text-wood-dark transition">Events</a>
             <a href="/#dc-achievements" className="hover:text-wood-dark transition">Achievements</a>
+            <a href="/staff" className="hover:text-wood-dark transition">Our Teachers</a>
             <a href="/contact" className="hover:text-wood-dark transition">Contact</a>
             {authReady && (currentUser
               ? <a href={portalHref} className="hover:text-wood-dark transition">My Portal</a>
