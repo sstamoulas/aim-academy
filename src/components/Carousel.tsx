@@ -93,20 +93,25 @@ export default function Carousel({
 
   function go(i: number) {
     setCurrent(i)
-    onCurrentChange?.(i)
+    // onCurrentChange is fired via useEffect after current updates
   }
   const prev = () => go((current - 1 + count) % count)
   const next = () => go((current + 1) % count)
+
+  // Notify parent after current changes (must not call setState inside another setState)
+  const prevCurrentRef = useRef(0)
+  useEffect(() => {
+    if (current !== prevCurrentRef.current) {
+      prevCurrentRef.current = current
+      onCurrentChange?.(current)
+    }
+  }, [current, onCurrentChange])
 
   // Auto-advance
   useEffect(() => {
     if (!interval || isSingle || dragging || skipAutoAdvance) return
     const id = setInterval(() => {
-      setCurrent(c => {
-        const n = (c + 1) % count
-        onCurrentChange?.(n)
-        return n
-      })
+      setCurrent(c => (c + 1) % count)
     }, interval)
     return () => clearInterval(id)
   }, [interval, isSingle, dragging, skipAutoAdvance, count])
