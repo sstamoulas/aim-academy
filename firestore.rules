@@ -133,5 +133,25 @@ service cloud.firestore {
     match /isQuizProgress/{docId} {
       allow read, write: if isStaff();
     }
+
+    // Progress report snapshots — staff read/write; parents can read their child's reports
+    match /progressReports/{docId} {
+      allow read, write: if isStaff();
+      allow read: if isParent() && resource.data.parentEmail == request.auth.token.email;
+    }
+
+    // Quarterly progress reports — staff read/write; parents can read their child's submitted reports
+    match /quarterlyReports/{docId} {
+      allow read, write: if isStaff();
+      allow read: if isParent() && resource.data.status == 'submitted' && resource.data.parentEmail == request.auth.token.email;
+    }
+
+    // Teacher profiles — admin manages; parents + public can read based on visibility
+    match /teacherProfiles/{docId} {
+      allow read, write: if isAdmin();
+      allow read: if isStaff();
+      allow read: if isParent() && (resource.data.visibility == 'parents' || resource.data.visibility == 'public');
+      allow read: if resource.data.visibility == 'public';
+    }
   }
 }

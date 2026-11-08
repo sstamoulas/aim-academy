@@ -5,6 +5,7 @@ import { db, auth } from '../firebase'
 import type { AcademyEvent } from '../types/event'
 import { categorizeEvent } from '../types/event'
 import type { Program, ProgramMedia, Achievement, Review } from '../types/site'
+import type { TeacherProfile } from '../types/portal'
 import Carousel from '../components/Carousel'
 
 function ProgramCarousel({ imageUrl, imageStyle, media }: {
@@ -137,6 +138,7 @@ export default function ForestCanopy() {
   const [programs, setPrograms] = useState<Program[]>([])
   const [achievements, setAchievements] = useState<Achievement[]>([])
   const [reviews, setReviews] = useState<Review[]>([])
+  const [teacherProfiles, setTeacherProfiles] = useState<(TeacherProfile & { classes: string[] })[]>([])
   const [aboutContent, setAboutContent] = useState<{ heading: string; subheading: string; pillars: Array<{ title: string; description: string }> } | null>(null)
 
   useEffect(() => {
@@ -162,17 +164,25 @@ export default function ForestCanopy() {
   useEffect(() => {
     async function loadContent() {
       try {
-        const [progSnap, achSnap, revSnap, siteSnap] = await Promise.all([
+        const [progSnap, achSnap, revSnap, siteSnap, profilesSnap, classesSnap] = await Promise.all([
           getDocs(query(collection(db, 'programs'), where('published', '==', true))),
           getDocs(query(collection(db, 'achievements'), orderBy('order', 'asc'))),
           getDocs(query(collection(db, 'reviews'), where('published', '==', true))),
           getDocs(collection(db, 'site')),
+          getDocs(query(collection(db, 'teacherProfiles'), where('visibility', '==', 'public'))),
+          getDocs(collection(db, 'classes')),
         ])
         setPrograms(progSnap.docs.map(d => ({ id: d.id, ...d.data() } as Program)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))
         setAchievements(achSnap.docs.map(d => ({ id: d.id, ...d.data() } as Achievement)))
         setReviews(revSnap.docs.map(d => ({ id: d.id, ...d.data() } as Review)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))
         const aboutDoc = siteSnap.docs.find(d => d.id === 'about')
         if (aboutDoc) setAboutContent(aboutDoc.data() as typeof aboutContent)
+        const profiles = profilesSnap.docs.map(d => ({ id: d.id, ...d.data() } as TeacherProfile))
+        const allClasses = classesSnap.docs.map(d => ({ id: d.id, ...(d.data() as { name: string; teacherUid?: string }) }))
+        setTeacherProfiles(profiles.map(p => ({
+          ...p,
+          classes: allClasses.filter(c => c.teacherUid === p.uid).map(c => c.name),
+        })))
       } catch (e) {
         console.error('Failed to load site content:', e)
       }
@@ -338,9 +348,10 @@ export default function ForestCanopy() {
                 { key: 'overview', label: 'About' },
                 { key: 'activities', label: 'Programs' },
                 { key: 'safety', label: 'Achievements' },
+                { key: 'teachers', label: 'Teachers' },
               ] as const).map(({ key, label }) => (
                 <button key={key} onClick={() => setActiveTab(key)}
-                  className={`flex-1 py-2.5 rounded-xl font-kids text-sm tracking-wide transition ${activeTab === key ? 'bg-white text-wood-dark shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}>
+                  className={`flex-1 py-2.5 rounded-xl font-kids text-xs tracking-wide transition ${activeTab === key ? 'bg-white text-wood-dark shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}>
                   {label}
                 </button>
               ))}
@@ -423,6 +434,40 @@ export default function ForestCanopy() {
                     <div className="text-xs font-bold uppercase tracking-widest text-emerald-200">A testament to dedication</div>
                     <p className="text-lg font-bold mt-2 leading-snug">These accomplishments reflect the dedication of our students, the commitment of our teachers, and the blessing of Allah ﷻ.</p>
                   </div>
+                </section>
+              )}
+
+              {activeTab === 'teachers' && (
+                <section className="space-y-3">
+                  <div className="bg-white rounded-[24px] p-6 shadow-sm border border-stone-200/70">
+                    <h2 className="font-kids text-2xl text-stone-900">Meet our Teachers</h2>
+                    <p className="text-stone-500 text-sm leading-relaxed mt-2">Qualified instructors dedicated to guiding every child on their Islamic learning journey.</p>
+                  </div>
+                  {teacherProfiles.length === 0 ? (
+                    <div className="bg-stone-50 rounded-[24px] p-6 border border-stone-200/70 text-center text-stone-400 text-sm font-quick">
+                      Teacher profiles coming soon.
+                    </div>
+                  ) : teacherProfiles.map(t => {
+                    const initials = t.displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+                    return (
+                      <div key={t.id} className="bg-white rounded-[24px] p-5 shadow-sm border border-stone-200/70 flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-sage-100 flex items-center justify-center text-sage-700 font-bold text-base font-kids flex-shrink-0">
+                          {initials}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-kids text-lg text-wood-dark leading-tight">{t.displayName}</div>
+                          {t.classes.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1 mb-2">
+                              {t.classes.map(c => (
+                                <span key={c} className="text-xs font-quick font-semibold bg-sage-50 text-sage-700 px-2 py-0.5 rounded-full border border-sage-100">{c}</span>
+                              ))}
+                            </div>
+                          )}
+                          {t.bio && <p className="text-stone-500 text-sm leading-relaxed">{t.bio}</p>}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </section>
               )}
             </div>
@@ -693,16 +738,55 @@ export default function ForestCanopy() {
             </section>
           )}
 
-          {achievements.length > 0 && (
-            <section id="dc-achievements" className="py-20 px-8 max-w-5xl mx-auto scroll-mt-24">
-              <div className="bg-gradient-to-br from-sage-700 to-sage-600 text-white rounded-[32px] overflow-hidden shadow-2xl p-10 space-y-5">
-                <div className="text-xs font-bold uppercase tracking-widest text-emerald-200">Student achievements since 2023</div>
-                <p className="text-sage-50 leading-relaxed">These accomplishments reflect the dedication of our students, the commitment of our teachers, and the blessing of Allah ﷻ.</p>
-                <div className={`grid gap-3 text-sm ${achievements.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                  {achievements.map(a => (
-                    <div key={a.id} className="bg-white/12 rounded-2xl p-4">{a.text}</div>
-                  ))}
-                </div>
+          {(achievements.length > 0 || teacherProfiles.length > 0) && (
+            <section id="dc-achievements" className={`py-20 px-8 mx-auto scroll-mt-24 ${achievements.length > 0 && teacherProfiles.length > 0 ? 'max-w-7xl' : 'max-w-5xl'}`}>
+              <div className={`grid gap-6 ${achievements.length > 0 && teacherProfiles.length > 0 ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
+
+                {achievements.length > 0 && (
+                  <div className="bg-gradient-to-br from-sage-700 to-sage-600 text-white rounded-[32px] overflow-hidden shadow-2xl p-10 space-y-5">
+                    <div className="text-xs font-bold uppercase tracking-widest text-emerald-200">Student achievements since 2023</div>
+                    <p className="text-sage-50 leading-relaxed">These accomplishments reflect the dedication of our students, the commitment of our teachers, and the blessing of Allah ﷻ.</p>
+                    <div className={`grid gap-3 text-sm ${achievements.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                      {achievements.map(a => (
+                        <div key={a.id} className="bg-white/12 rounded-2xl p-4">{a.text}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {teacherProfiles.length > 0 && (
+                  <div className="bg-white rounded-[32px] border border-stone-200/70 shadow-sm p-10 space-y-6">
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-wood font-quick">Our educators</div>
+                      <h2 className="text-2xl font-bold text-wood-dark mt-1">Meet our Teachers</h2>
+                      <p className="text-stone-500 text-sm leading-relaxed mt-2">Qualified instructors dedicated to guiding every child on their Islamic learning journey.</p>
+                    </div>
+                    <div className="space-y-4">
+                      {teacherProfiles.map(t => {
+                        const initials = t.displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+                        return (
+                          <div key={t.id} className="flex items-start gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-sage-100 flex items-center justify-center text-sage-700 font-bold text-base font-kids flex-shrink-0">
+                              {initials}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-bold text-wood-dark">{t.displayName}</div>
+                              {t.classes.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1 mb-1.5">
+                                  {t.classes.map(c => (
+                                    <span key={c} className="text-xs font-quick font-semibold bg-sage-50 text-sage-700 px-2 py-0.5 rounded-full border border-sage-100">{c}</span>
+                                  ))}
+                                </div>
+                              )}
+                              {t.bio && <p className="text-stone-500 text-sm leading-relaxed">{t.bio}</p>}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
               </div>
             </section>
           )}

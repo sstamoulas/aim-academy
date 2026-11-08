@@ -3877,51 +3877,58 @@ function OverviewTab() {
   const [classes, setClasses] = useState<AcademyClass[]>([])
   const [taskMap, setTaskMap] = useState<Record<string, TaskStatus>>({})
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => { loadOverview() }, [])
 
   async function loadOverview() {
     setLoading(true)
-    const classesSnap = await getDocs(collection(db, 'classes'))
-    const allClasses = classesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AcademyClass))
-    setClasses(allClasses)
-    if (allClasses.length === 0) { setLoading(false); return }
+    setError(null)
+    try {
+      const classesSnap = await getDocs(collection(db, 'classes'))
+      const allClasses = classesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AcademyClass))
+      setClasses(allClasses)
+      if (allClasses.length === 0) { setLoading(false); return }
 
-    const classIds = allClasses.map(c => c.id)
-    // Firestore 'in' supports up to 30 items; fine for a school's class count
-    const [studentsSnap, attendanceSnap, hwSnap, quranSnap, qaidahSnap, quizSnap, reportsSnap] =
-      await Promise.all([
-        getDocs(collection(db, 'students')),
-        getDocs(query(collection(db, 'attendance'), where('date', '>=', weekStart), where('date', '<=', weekEnd))),
-        getDocs(query(collection(db, 'isHomework'), where('week', '==', week))),
-        getDocs(query(collection(db, 'quranProgress'), where('classId', 'in', classIds))),
-        getDocs(query(collection(db, 'qaidahProgress'), where('classId', 'in', classIds))),
-        getDocs(query(collection(db, 'isQuizProgress'), where('classId', 'in', classIds))),
-        getDocs(query(collection(db, 'quarterlyReports'), where('quarter', '==', quarter))),
-      ])
+      const classIds = allClasses.map(c => c.id)
+      // Firestore 'in' supports up to 30 items; fine for a school's class count
+      const [studentsSnap, attendanceSnap, hwSnap, quranSnap, qaidahSnap, quizSnap, reportsSnap] =
+        await Promise.all([
+          getDocs(collection(db, 'students')),
+          getDocs(query(collection(db, 'attendance'), where('date', '>=', weekStart), where('date', '<=', weekEnd))),
+          getDocs(query(collection(db, 'isHomework'), where('week', '==', week))),
+          getDocs(query(collection(db, 'quranProgress'), where('classId', 'in', classIds))),
+          getDocs(query(collection(db, 'qaidahProgress'), where('classId', 'in', classIds))),
+          getDocs(query(collection(db, 'isQuizProgress'), where('classId', 'in', classIds))),
+          getDocs(query(collection(db, 'quarterlyReports'), where('quarter', '==', quarter))),
+        ])
 
-    const students = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Student))
-    const map: Record<string, TaskStatus> = {}
+      const students = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Student))
+      const map: Record<string, TaskStatus> = {}
 
-    for (const cls of allClasses) {
-      const studentCount = students.filter(s => (s.classIds ?? []).includes(cls.id)).length
+      for (const cls of allClasses) {
+        const studentCount = students.filter(s => (s.classIds ?? []).includes(cls.id)).length
 
-      map[cls.id] = {
-        attendance: attendanceSnap.docs.some(d => d.data().classId === cls.id),
-        homework:   hwSnap.docs.some(d => d.data().classId === cls.id),
-        quran:      quranSnap.docs.some(d => d.data().classId === cls.id && (d.data().updatedAt ?? '') >= weekStart),
-        qaidah:     qaidahSnap.docs.some(d => d.data().classId === cls.id && (d.data().updatedAt ?? '') >= weekStart),
-        quiz:       quizSnap.docs.some(d =>
-          d.data().classId === cls.id &&
-          ((d.data().results ?? []) as { month: string }[]).some(r => r.month === month)
-        ),
-        reportsSubmitted: reportsSnap.docs.filter(d => d.data().classId === cls.id && d.data().status === 'submitted').length,
-        reportsTotal: studentCount,
+        map[cls.id] = {
+          attendance: attendanceSnap.docs.some(d => d.data().classId === cls.id),
+          homework:   hwSnap.docs.some(d => d.data().classId === cls.id),
+          quran:      quranSnap.docs.some(d => d.data().classId === cls.id && (d.data().updatedAt ?? '') >= weekStart),
+          qaidah:     qaidahSnap.docs.some(d => d.data().classId === cls.id && (d.data().updatedAt ?? '') >= weekStart),
+          quiz:       quizSnap.docs.some(d =>
+            d.data().classId === cls.id &&
+            ((d.data().results ?? []) as { month: string }[]).some(r => r.month === month)
+          ),
+          reportsSubmitted: reportsSnap.docs.filter(d => d.data().classId === cls.id && d.data().status === 'submitted').length,
+          reportsTotal: studentCount,
+        }
       }
-    }
 
-    setTaskMap(map)
-    setLoading(false)
+      setTaskMap(map)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load overview')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const done = 'bg-sage-100 text-sage-700'
@@ -3948,6 +3955,12 @@ function OverviewTab() {
       {loading ? (
         <div className="flex justify-center py-16">
           <div className="w-8 h-8 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" />
+        </div>
+      ) : error ? (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-6 text-rose-700 font-quick text-sm">
+          <p className="font-semibold mb-1">Failed to load overview</p>
+          <p className="text-xs text-rose-500 font-mono break-all">{error}</p>
+          <button onClick={loadOverview} className="mt-3 text-xs font-bold underline hover:no-underline">Retry</button>
         </div>
       ) : classes.length === 0 ? (
         <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">
