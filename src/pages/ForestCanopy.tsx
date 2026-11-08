@@ -233,6 +233,9 @@ export default function ForestCanopy() {
                   <a href="#dc-achievements" onClick={() => { setMobileMenuOpen(false); setActiveTab('safety') }} className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
                     🏆 Achievements
                   </a>
+                  <a href="/staff" className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
+                    👩‍🏫 Our Teachers
+                  </a>
                   <a href="/contact" className="flex items-center gap-3 px-5 py-2.5 text-white font-kids text-sm hover:bg-white/10 transition">
                     ✉️ Contact Us
                   </a>
