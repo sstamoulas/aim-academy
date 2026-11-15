@@ -5,6 +5,7 @@ import { db, auth } from '../firebase'
 import type { AcademyEvent } from '../types/event'
 import { categorizeEvent } from '../types/event'
 import type { Program, ProgramMedia, Achievement, Review } from '../types/site'
+import type { TeacherProfile } from '../types/portal'
 import Carousel from '../components/Carousel'
 
 function ProgramCarousel({ imageUrl, imageStyle, media }: {
@@ -138,6 +139,7 @@ export default function ForestCanopy() {
   const [achievements, setAchievements] = useState<Achievement[]>([])
   const [reviews, setReviews] = useState<Review[]>([])
   const [aboutContent, setAboutContent] = useState<{ heading: string; subheading: string; pillars: Array<{ title: string; description: string }> } | null>(null)
+  const [teacherProfiles, setTeacherProfiles] = useState<TeacherProfile[]>([])
 
   useEffect(() => {
     async function loadEvents() {
@@ -162,15 +164,17 @@ export default function ForestCanopy() {
   useEffect(() => {
     async function loadContent() {
       try {
-        const [progSnap, achSnap, revSnap, siteSnap] = await Promise.all([
+        const [progSnap, achSnap, revSnap, siteSnap, teacherSnap] = await Promise.all([
           getDocs(query(collection(db, 'programs'), where('published', '==', true))),
           getDocs(query(collection(db, 'achievements'), orderBy('order', 'asc'))),
           getDocs(query(collection(db, 'reviews'), where('published', '==', true))),
           getDocs(collection(db, 'site')),
+          getDocs(query(collection(db, 'teacherProfiles'), where('visibility', '==', 'public'))),
         ])
         setPrograms(progSnap.docs.map(d => ({ id: d.id, ...d.data() } as Program)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))
         setAchievements(achSnap.docs.map(d => ({ id: d.id, ...d.data() } as Achievement)))
         setReviews(revSnap.docs.map(d => ({ id: d.id, ...d.data() } as Review)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))
+        setTeacherProfiles(teacherSnap.docs.map(d => ({ id: d.id, ...d.data() } as TeacherProfile)))
         const aboutDoc = siteSnap.docs.find(d => d.id === 'about')
         if (aboutDoc) setAboutContent(aboutDoc.data() as typeof aboutContent)
       } catch (e) {
@@ -341,6 +345,7 @@ export default function ForestCanopy() {
                 { key: 'overview', label: 'About' },
                 { key: 'activities', label: 'Programs' },
                 { key: 'safety', label: 'Achievements' },
+                { key: 'teachers', label: 'Teachers' },
               ] as const).map(({ key, label }) => (
                 <button key={key} onClick={() => setActiveTab(key)}
                   className={`flex-1 py-2.5 rounded-xl font-kids text-sm tracking-wide transition ${activeTab === key ? 'bg-white text-wood-dark shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}>
@@ -426,6 +431,48 @@ export default function ForestCanopy() {
                     <div className="text-xs font-bold uppercase tracking-widest text-emerald-200">A testament to dedication</div>
                     <p className="text-lg font-bold mt-2 leading-snug">These accomplishments reflect the dedication of our students, the commitment of our teachers, and the blessing of Allah ﷻ.</p>
                   </div>
+                </section>
+              )}
+
+              {activeTab === 'teachers' && (
+                <section className="space-y-4">
+                  {teacherProfiles.length === 0 ? (
+                    <div className="bg-white rounded-[24px] p-6 shadow-sm border border-stone-200/70 text-center">
+                      <div className="text-3xl mb-3">👩‍🏫</div>
+                      <h2 className="font-kids text-2xl text-stone-900">Meet our Teachers</h2>
+                      <p className="text-stone-400 text-sm mt-2">Teacher profiles coming soon.</p>
+                    </div>
+                  ) : (
+                    <>
+                      {teacherProfiles.map(profile => {
+                        const initials = profile.displayName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+                        return (
+                          <div key={profile.uid} className="bg-white rounded-[24px] border border-stone-200/70 shadow-sm overflow-hidden">
+                            <div className="wood-texture px-5 pt-5 pb-4 flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center font-bold text-white font-kids text-lg flex-shrink-0">
+                                {initials}
+                              </div>
+                              <h3 className="font-kids text-lg text-white leading-tight">{profile.displayName}</h3>
+                            </div>
+                            <div className="px-5 py-4 space-y-2">
+                              {profile.bio
+                                ? <p className="text-stone-600 text-sm leading-relaxed">{profile.bio}</p>
+                                : <p className="text-stone-400 text-sm italic">Bio coming soon.</p>
+                              }
+                              {profile.schoolEmail && (
+                                <a href={`mailto:${profile.schoolEmail}`} className="inline-flex items-center gap-1.5 text-xs font-semibold text-sage-600 hover:text-sage-800 transition">
+                                  ✉️ {profile.schoolEmail}
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                      <a href="/staff" className="flex items-center justify-center gap-2 py-3 text-sm font-semibold text-wood hover:text-wood-dark transition">
+                        View full profiles →
+                      </a>
+                    </>
+                  )}
                 </section>
               )}
 
