@@ -867,6 +867,20 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
   const [savingNotes, setSavingNotes] = useState<Record<string, boolean>>({})
   const [resolvingId, setResolvingId] = useState<string | null>(null)
   const [notifyStatus, setNotifyStatus] = useState<Record<string, string>>({})
+  const [isAssignments, setIsAssignments] = useState<Record<string, ISHomeworkAssignment>>({})
+
+  useEffect(() => {
+    async function loadAssignments() {
+      const snap = await getDocs(query(collection(db, 'isHomework'), where('classId', '==', cls.id)))
+      const map: Record<string, ISHomeworkAssignment> = {}
+      snap.docs.forEach(d => {
+        const a = { id: d.id, ...d.data() } as ISHomeworkAssignment
+        map[a.week] = a
+      })
+      setIsAssignments(map)
+    }
+    loadAssignments()
+  }, [cls.id])
 
   async function load() {
     setLoading(true)
@@ -991,7 +1005,19 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer select-none">
                           <input type="checkbox" checked={missedHomework[item.id] ?? false}
-                            onChange={e => setMissedHomework(prev => ({ ...prev, [item.id]: e.target.checked }))}
+                            onChange={e => {
+                              setMissedHomework(prev => ({ ...prev, [item.id]: e.target.checked }))
+                              if (e.target.checked) {
+                                const week = isoWeek(new Date(item.date))
+                                const assignment = isAssignments[week]
+                                if (assignment && !notes[item.id]) {
+                                  const autoNote = assignment.description
+                                    ? `${assignment.title} — ${assignment.description}`
+                                    : assignment.title
+                                  setNotes(prev => ({ ...prev, [item.id]: autoNote }))
+                                }
+                              }
+                            }}
                             className="w-4 h-4 rounded accent-rose-500" />
                           <span className="text-sm font-quick text-stone-700">Islamic Studies Homework</span>
                         </label>
