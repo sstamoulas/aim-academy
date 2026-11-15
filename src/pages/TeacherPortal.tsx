@@ -382,17 +382,13 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
   const [saved, setSaved] = useState(false)
   const [savingAssignment, setSavingAssignment] = useState(false)
   const [savedAssignment, setSavedAssignment] = useState(false)
-  const [isChapter, setIsChapter] = useState('')
-  const [savingChapter, setSavingChapter] = useState(false)
-  const [savedChapter, setSavedChapter] = useState(false)
 
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const [hwSnap, assignSnap, chapterSnap] = await Promise.all([
+      const [hwSnap, assignSnap] = await Promise.all([
         getDoc(doc(db, 'weeklyHomework', `${cls.id}__${week}`)),
         getDoc(doc(db, 'isHomework', `${cls.id}__${week}`)),
-        getDoc(doc(db, 'isClassProgress', cls.id)),
       ])
       if (hwSnap.exists()) {
         const raw = (hwSnap.data() as HwData).completed ?? {}
@@ -413,28 +409,12 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
         setAssignment(null)
         setAssignmentForm({ title: '', description: '' })
       }
-      if (chapterSnap.exists()) {
-        setIsChapter((chapterSnap.data().currentChapter as string) ?? '')
-      } else {
-        setIsChapter('')
-      }
+
       setLoading(false)
     }
     load()
   }, [cls.id, week])
 
-  async function handleSaveChapter() {
-    setSavingChapter(true)
-    await setDoc(doc(db, 'isClassProgress', cls.id), {
-      classId: cls.id,
-      currentChapter: isChapter.trim(),
-      updatedAt: new Date().toISOString(),
-      updatedBy: teacherUid,
-    })
-    setSavingChapter(false)
-    setSavedChapter(true)
-    setTimeout(() => setSavedChapter(false), 3000)
-  }
 
   async function handleSaveAssignment() {
     if (!assignmentForm.title.trim()) return
@@ -470,25 +450,6 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
 
   return (
     <div>
-      {/* Current Chapter Card */}
-      <div className="bg-sage-50 border border-sage-200 rounded-2xl p-5 mb-5">
-        <h4 className="font-semibold text-stone-800 font-quick text-sm mb-3">Current Chapter / Topic</h4>
-        <div className="flex gap-3 items-start">
-          <input
-            value={isChapter}
-            onChange={e => setIsChapter(e.target.value)}
-            placeholder="e.g. Chapter 5 — The Five Pillars of Islam"
-            className="flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
-          />
-          <button
-            onClick={handleSaveChapter}
-            disabled={savingChapter}
-            className="bg-sage-600 text-white font-bold font-quick px-5 py-2 rounded-full text-sm hover:brightness-95 transition disabled:opacity-60 flex-shrink-0">
-            {savingChapter ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-        {savedChapter && <span className="text-sm text-sage-700 font-quick font-semibold mt-2 block">Saved!</span>}
-      </div>
 
       <div className="flex items-center gap-3 mb-5">
         <button onClick={() => setWeek(w => shiftWeek(w, -1))} className="w-8 h-8 rounded-full border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-stone-50 transition">‹</button>
