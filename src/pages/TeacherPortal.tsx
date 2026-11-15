@@ -988,8 +988,8 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
           {items.map((item, idx) => {
             const isOpen = expanded === item.id
             const what: string[] = []
-            if (missedLesson[item.id])   what.push('IS Lesson')
-            if (missedHomework[item.id]) what.push('IS Homework')
+            if (missedLesson[item.id])   what.push('Islamic Studies Lesson')
+            if (missedHomework[item.id]) what.push('Islamic Studies Homework')
             return (
               <div key={item.id} className={`bg-white ${idx > 0 ? 'border-t border-stone-100' : ''}`}>
                 {/* Collapsed row */}
@@ -1026,13 +1026,13 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
                           <input type="checkbox" checked={missedLesson[item.id] ?? false}
                             onChange={e => setMissedLesson(prev => ({ ...prev, [item.id]: e.target.checked }))}
                             className="w-4 h-4 rounded accent-rose-500" />
-                          <span className="text-sm font-quick text-stone-700">IS Lesson</span>
+                          <span className="text-sm font-quick text-stone-700">Islamic Studies Lesson</span>
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer select-none">
                           <input type="checkbox" checked={missedHomework[item.id] ?? false}
                             onChange={e => setMissedHomework(prev => ({ ...prev, [item.id]: e.target.checked }))}
                             className="w-4 h-4 rounded accent-rose-500" />
-                          <span className="text-sm font-quick text-stone-700">IS Homework</span>
+                          <span className="text-sm font-quick text-stone-700">Islamic Studies Homework</span>
                         </label>
                       </div>
                       <div className="mb-3">
@@ -2210,7 +2210,7 @@ function StudentProfile({ cls, student, onBack }: { cls: AcademyClass; student: 
         </div>
       )}
 
-      {/* IS Homework history */}
+      {/* Islamic Studies Homework history */}
       {hwHistory.length > 0 && (
         <div className="bg-white rounded-2xl border border-stone-200/70 p-4">
           <h4 className="font-semibold text-stone-700 font-quick text-sm mb-3">Islamic Studies Homework (last {hwHistory.length} weeks)</h4>
@@ -2255,8 +2255,8 @@ function StudentProfile({ cls, student, onBack }: { cls: AcademyClass; student: 
               <div key={item.id} className="flex items-start gap-3 text-xs font-quick">
                 <span className="text-stone-400 w-20 flex-shrink-0">{item.date}</span>
                 <div className="flex-1 min-w-0">
-                  {item.missedLesson && <span className="mr-1 px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600 font-bold">IS Lesson</span>}
-                  {item.missedHomework && <span className="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600 font-bold">IS Homework</span>}
+                  {item.missedLesson && <span className="mr-1 px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600 font-bold">Islamic Studies Lesson</span>}
+                  {item.missedHomework && <span className="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600 font-bold">Islamic Studies Homework</span>}
                   {item.missedWorkNotes && <div className="text-stone-400 mt-0.5 truncate">{item.missedWorkNotes}</div>}
                 </div>
               </div>
@@ -2487,7 +2487,7 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
 interface ClassStatus {
   attendance: boolean
   quranQaidah: boolean   // any quran or qaidah progress updated this week
-  isHw: boolean          // IS Homework assignment posted this week
+  isHw: boolean          // Islamic Studies Homework assignment posted this week
   hwCompletion: boolean  // Weekly homework completion entered
   quiz: boolean          // IS Quiz result entered for current month
   reports: { submitted: number; total: number } | null  // null = no deadline set
