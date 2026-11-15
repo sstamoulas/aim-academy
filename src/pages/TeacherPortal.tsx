@@ -857,9 +857,11 @@ function AnnouncementsTab({ cls, teacherUid, teacherName }: { cls: AcademyClass;
 // ── Missed Work Tab ───────────────────────────────────────────────────────────
 
 function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; teacherUid: string }) {
-  const [items, setItems] = useState<MissedWork[]>([])
+  const [allItems, setAllItems] = useState<MissedWork[]>([])
   const [loading, setLoading] = useState(true)
-  const [showResolved, setShowResolved] = useState(false)
+  const [viewAll, setViewAll] = useState(false)
+  const [showCaughtUp, setShowCaughtUp] = useState(false)
+  const [week, setWeek] = useState(currentWeek())
   const [expanded, setExpanded] = useState<string | null>(null)
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [missedLesson, setMissedLesson] = useState<Record<string, boolean>>({})
@@ -884,15 +886,13 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
 
   async function load() {
     setLoading(true)
-    const q = query(
+    const snap = await getDocs(query(
       collection(db, 'missedWork'),
       where('classId', '==', cls.id),
-      where('resolved', '==', showResolved),
       orderBy('date', 'desc'),
-    )
-    const snap = await getDocs(q)
+    ))
     const loaded = snap.docs.map(d => ({ id: d.id, ...d.data() } as MissedWork))
-    setItems(loaded)
+    setAllItems(loaded)
     const noteMap: Record<string, string> = {}
     const lessonMap: Record<string, boolean> = {}
     const hwMap: Record<string, boolean> = {}
@@ -907,7 +907,20 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [cls.id, showResolved])
+  useEffect(() => { load() }, [cls.id])
+
+  // Week date range
+  const weekStart = weekMonday(week).toISOString().split('T')[0]
+  const weekEndDate = weekMonday(week); weekEndDate.setDate(weekEndDate.getDate() + 6)
+  const weekEnd = weekEndDate.toISOString().split('T')[0]
+
+  const filteredItems = allItems.filter(item => {
+    const matchesCaughtUp = showCaughtUp ? item.resolved : !item.resolved
+    const matchesWeek = viewAll ? true : (item.date >= weekStart && item.date <= weekEnd)
+    return matchesCaughtUp && matchesWeek
+  })
+
+  const unresolvedTotal = allItems.filter(i => !i.resolved).length
 
   async function saveNotes(itemId: string) {
     setSavingNotes(prev => ({ ...prev, [itemId]: true }))
@@ -919,7 +932,7 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
     setSavingNotes(prev => ({ ...prev, [itemId]: false }))
   }
 
-  async function markResolved(itemId: string) {
+  async function markCaughtUp(itemId: string) {
     setResolvingId(itemId)
     await setDoc(doc(db, 'missedWork', itemId), { resolved: true, resolvedAt: new Date().toISOString() }, { merge: true })
     setResolvingId(null)
@@ -941,33 +954,60 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
 
   return (
     <div>
-      <div className="flex items-center gap-1 mb-5 bg-stone-100 rounded-xl p-1 w-fit">
-        {([false, true] as const).map(v => (
-          <button key={String(v)} onClick={() => setShowResolved(v)}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold font-quick transition ${showResolved === v ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}>
-            {v ? 'Resolved' : 'Unresolved'}
+      {/* Header row */}
+      <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
+        {viewAll ? (
+          <div className="flex items-center gap-3">
+            <button onClick={() => { setViewAll(false); setShowCaughtUp(false) }}
+              className="text-xs font-semibold font-quick text-stone-500 hover:text-sage-700 transition">
+              ← This week
+            </button>
+            <div className="flex items-center gap-1 bg-stone-100 rounded-xl p-1">
+              {([false, true] as const).map(v => (
+                <button key={String(v)} onClick={() => setShowCaughtUp(v)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold font-quick transition ${showCaughtUp === v ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}>
+                  {v ? 'Caught Up' : `Unresolved (${unresolvedTotal})`}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button onClick={() => setWeek(w => shiftWeek(w, -1))} className="w-8 h-8 rounded-full border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-stone-50 transition">‹</button>
+            <span className="font-quick text-sm font-semibold text-stone-700">{weekLabel(week)}</span>
+            <button onClick={() => setWeek(w => shiftWeek(w, 1))} className="w-8 h-8 rounded-full border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-stone-50 transition">›</button>
+          </div>
+        )}
+        {!viewAll && unresolvedTotal > 0 && (
+          <button onClick={() => setViewAll(true)}
+            className="text-xs font-semibold font-quick text-stone-500 hover:text-sage-700 transition">
+            View all unresolved ({unresolvedTotal}) →
           </button>
-        ))}
+        )}
       </div>
 
-      {items.length === 0 ? (
+      {filteredItems.length === 0 ? (
         <div className="bg-stone-50 rounded-2xl border border-stone-200 p-10 text-center">
           <div className="text-3xl mb-3">✅</div>
-          <p className="font-quick text-sm text-stone-500 font-semibold">No missed work flagged</p>
-          <p className="font-quick text-xs text-stone-400 mt-1">
-            {showResolved ? 'No resolved items for this class.' : 'All students are caught up!'}
+          <p className="font-quick text-sm text-stone-500 font-semibold">
+            {showCaughtUp ? 'No caught-up items' : viewAll ? 'No unresolved missed work' : 'No missed work this week'}
           </p>
+          {!viewAll && !showCaughtUp && unresolvedTotal > 0 && (
+            <button onClick={() => setViewAll(true)} className="mt-2 text-xs font-quick text-sage-600 hover:underline">
+              View all unresolved ({unresolvedTotal}) →
+            </button>
+          )}
         </div>
       ) : (
         <div className="rounded-2xl border border-stone-200/70 overflow-hidden">
-          {items.map((item, idx) => {
+          {filteredItems.map((item, idx) => {
             const isOpen = expanded === item.id
+            const isCaughtUp = item.resolved
             const what: string[] = []
-            if (missedLesson[item.id])   what.push('Islamic Studies Lesson')
-            if (missedHomework[item.id]) what.push('Islamic Studies Homework')
+            if (missedLesson[item.id])   what.push('IS Lesson')
+            if (missedHomework[item.id]) what.push('IS Homework')
             return (
               <div key={item.id} className={`bg-white ${idx > 0 ? 'border-t border-stone-100' : ''}`}>
-                {/* Collapsed row */}
                 <button
                   type="button"
                   onClick={() => setExpanded(isOpen ? null : item.id)}
@@ -982,21 +1022,19 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
                     {what.map(w => (
                       <span key={w} className="text-xs font-bold font-quick bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full">{w}</span>
                     ))}
-                    {item.resolvedAt && (
-                      <span className="text-xs font-quick text-sage-600 bg-sage-50 border border-sage-200 px-2.5 py-0.5 rounded-full">
-                        Resolved
+                    {isCaughtUp && (
+                      <span className="text-xs font-quick text-sage-600 bg-sage-50 border border-sage-200 px-2.5 py-0.5 rounded-full font-semibold">
+                        Caught Up ✓
                       </span>
                     )}
-                    {notes[item.id] && <span className="text-xs text-stone-300 font-quick truncate max-w-[120px]">{notes[item.id]}</span>}
                   </div>
                   <span className="text-stone-300 text-sm">{isOpen ? '▲' : '▼'}</span>
                 </button>
 
-                {/* Expanded panel */}
                 {isOpen && (
                   <div className="px-5 pb-5 border-t border-stone-100 bg-stone-50/40">
                     <div className="pt-4">
-                      <div className={`flex gap-4 mb-3 ${showResolved ? 'opacity-60 pointer-events-none' : ''}`}>
+                      <div className={`flex gap-4 mb-3 ${isCaughtUp ? 'opacity-60 pointer-events-none' : ''}`}>
                         <label className="flex items-center gap-2 cursor-pointer select-none">
                           <input type="checkbox" checked={missedLesson[item.id] ?? false}
                             onChange={e => setMissedLesson(prev => ({ ...prev, [item.id]: e.target.checked }))}
@@ -1008,8 +1046,8 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
                             onChange={e => {
                               setMissedHomework(prev => ({ ...prev, [item.id]: e.target.checked }))
                               if (e.target.checked) {
-                                const week = isoWeek(new Date(item.date))
-                                const assignment = isAssignments[week]
+                                const itemWeek = isoWeek(new Date(item.date))
+                                const assignment = isAssignments[itemWeek]
                                 if (assignment && !notes[item.id]) {
                                   const autoNote = assignment.description
                                     ? `${assignment.title} — ${assignment.description}`
@@ -1029,19 +1067,19 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
                           onChange={e => setNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
                           rows={3}
                           placeholder="Describe what the student missed…"
-                          disabled={showResolved}
+                          disabled={isCaughtUp}
                           className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm resize-none disabled:opacity-60"
                         />
                       </div>
-                      {!showResolved && (
+                      {!isCaughtUp && (
                         <div className="flex items-center gap-3 flex-wrap">
                           <button onClick={() => saveNotes(item.id)} disabled={savingNotes[item.id]}
                             className="bg-stone-100 text-stone-700 font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-stone-200 transition disabled:opacity-60">
                             {savingNotes[item.id] ? 'Saving…' : 'Save Notes'}
                           </button>
-                          <button onClick={() => markResolved(item.id)} disabled={resolvingId === item.id}
+                          <button onClick={() => markCaughtUp(item.id)} disabled={resolvingId === item.id}
                             className="bg-sage-100 text-sage-700 font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-sage-200 transition disabled:opacity-60">
-                            {resolvingId === item.id ? 'Resolving…' : 'Mark Resolved'}
+                            {resolvingId === item.id ? 'Saving…' : 'Caught Up ✓'}
                           </button>
                           <button onClick={() => notifyParent(item.id)} disabled={notifyStatus[item.id] === 'sending'}
                             className="bg-wood/10 text-wood font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-wood/20 transition disabled:opacity-60 border border-wood/20">
