@@ -2213,7 +2213,7 @@ function StudentProfile({ cls, student, onBack }: { cls: AcademyClass; student: 
       {/* IS Homework history */}
       {hwHistory.length > 0 && (
         <div className="bg-white rounded-2xl border border-stone-200/70 p-4">
-          <h4 className="font-semibold text-stone-700 font-quick text-sm mb-3">IS Homework (last {hwHistory.length} weeks)</h4>
+          <h4 className="font-semibold text-stone-700 font-quick text-sm mb-3">Islamic Studies Homework (last {hwHistory.length} weeks)</h4>
           <div className="space-y-1.5">
             {hwHistory.map((h, i) => (
               <div key={i} className="flex items-center gap-3 text-xs font-quick">
@@ -2230,7 +2230,7 @@ function StudentProfile({ cls, student, onBack }: { cls: AcademyClass; student: 
       {/* IS Quiz results */}
       {quizResults.length > 0 && (
         <div className="bg-white rounded-2xl border border-stone-200/70 p-4">
-          <h4 className="font-semibold text-stone-700 font-quick text-sm mb-3">IS Quiz Results</h4>
+          <h4 className="font-semibold text-stone-700 font-quick text-sm mb-3">Islamic Studies Quiz Results</h4>
           <div className="space-y-1.5">
             {quizResults.map((r, i) => (
               <div key={i} className="flex items-center gap-3 text-xs font-quick">
@@ -2572,7 +2572,7 @@ function Dashboard({ classes, onSelect }: { classes: AcademyClass[]; onSelect: (
             const weeklyTasks: { label: string; done: boolean; tab: DetailTab }[] = s ? [
               { label: 'Attendance',          done: s.attendance,   tab: 'attendance' },
               { label: "Qur'an / Qa'idah",    done: s.quranQaidah,  tab: 'quran' },
-              { label: 'IS Homework',         done: s.isHw,         tab: 'homework' },
+              { label: 'Islamic Studies',      done: s.isHw,         tab: 'homework' },
               { label: 'Homework Completion', done: s.hwCompletion, tab: 'homework' },
             ] : []
 
