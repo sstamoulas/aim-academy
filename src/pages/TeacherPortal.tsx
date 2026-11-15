@@ -1844,7 +1844,7 @@ function QuarterlyReportEditor({
           )}
           {snapshot.quizSummary[0] && (
             <div className="bg-white rounded-xl border border-stone-200/70 px-3 py-2.5">
-              <div className="text-stone-400 mb-0.5">Latest IS Quiz</div>
+              <div className="text-stone-400 mb-0.5">Latest Islamic Studies Quiz</div>
               <span className={`inline-block px-2 py-0.5 rounded-full font-bold text-xs ${QUIZ_COLOR[snapshot.quizSummary[0].grade] ?? 'bg-stone-100 text-stone-500'}`}>
                 {QUIZ_LABEL[snapshot.quizSummary[0].grade] ?? snapshot.quizSummary[0].grade}
               </span>
@@ -1856,7 +1856,7 @@ function QuarterlyReportEditor({
         {/* Quiz history */}
         {snapshot.quizSummary.length > 1 && (
           <div>
-            <div className="text-xs text-stone-400 font-quick font-semibold mb-1.5">IS Quiz History</div>
+            <div className="text-xs text-stone-400 font-quick font-semibold mb-1.5">Islamic Studies Quiz History</div>
             <div className="flex flex-wrap gap-1.5">
               {snapshot.quizSummary.map((q, i) => (
                 <span key={i} className={`px-2 py-0.5 rounded-full text-xs font-bold font-quick ${QUIZ_COLOR[q.grade] ?? 'bg-stone-100 text-stone-500'}`}>
@@ -2131,7 +2131,7 @@ function StudentProfile({ cls, student, onBack }: { cls: AcademyClass; student: 
           { label: 'Attendance', value: attRate !== null ? `${attRate}%` : '—', sub: `${attendance.length} sessions` },
           { label: "Qur'an", value: quran?.currentSurah || '—', sub: quran?.currentAyah ? `Ayah ${quran.currentAyah}` : '' },
           { label: "Qa'idah", value: qaidah?.currentLesson ? qaidah.currentLesson.split(' ').slice(0,3).join(' ') : '—', sub: qaidah?.fluency?.replace('_', ' ') ?? '' },
-          { label: 'IS Quiz', value: quizResults[0] ? QUIZ_LABEL[quizResults[0].grade] : '—', sub: quizResults[0]?.month ?? '' },
+          { label: 'Islamic Studies Quiz', value: quizResults[0] ? QUIZ_LABEL[quizResults[0].grade] : '—', sub: quizResults[0]?.month ?? '' },
         ].map(stat => (
           <div key={stat.label} className="bg-white rounded-2xl border border-stone-200/70 px-4 py-3">
             <div className="text-xs text-stone-400 font-quick mb-1">{stat.label}</div>
@@ -2227,7 +2227,7 @@ function StudentProfile({ cls, student, onBack }: { cls: AcademyClass; student: 
         </div>
       )}
 
-      {/* IS Quiz results */}
+      {/* Islamic Studies Quiz results */}
       {quizResults.length > 0 && (
         <div className="bg-white rounded-2xl border border-stone-200/70 p-4">
           <h4 className="font-semibold text-stone-700 font-quick text-sm mb-3">Islamic Studies Quiz Results</h4>
@@ -2344,7 +2344,7 @@ function StudentProfile({ cls, student, onBack }: { cls: AcademyClass; student: 
                     {r.qaidahLesson && <div><span className="text-stone-400">Qa'idah: </span><span className="text-stone-700 font-semibold">{r.qaidahLesson}</span></div>}
                     {r.qaidahFluency && <div><span className="text-stone-400">Fluency: </span><span className="text-stone-700 font-semibold capitalize">{r.qaidahFluency.replace('_', ' ')}</span></div>}
                     {r.islamicStudiesLevel && <div><span className="text-stone-400">IS Level: </span><span className="text-stone-700 font-semibold">{r.islamicStudiesLevel}</span></div>}
-                    {r.latestQuizGrade && <div><span className="text-stone-400">IS Quiz: </span><span className={`font-bold px-1.5 py-0.5 rounded-full ${QUIZ_COLOR[r.latestQuizGrade] ?? 'bg-stone-100 text-stone-500'}`}>{QUIZ_LABEL[r.latestQuizGrade] ?? r.latestQuizGrade}</span></div>}
+                    {r.latestQuizGrade && <div><span className="text-stone-400">Islamic Studies Quiz: </span><span className={`font-bold px-1.5 py-0.5 rounded-full ${QUIZ_COLOR[r.latestQuizGrade] ?? 'bg-stone-100 text-stone-500'}`}>{QUIZ_LABEL[r.latestQuizGrade] ?? r.latestQuizGrade}</span></div>}
                     {r.attendanceRate !== null && <div><span className="text-stone-400">Attendance: </span><span className="text-stone-700 font-semibold">{r.attendanceRate}% <span className="font-normal text-stone-400">({r.attendanceSessions} sessions)</span></span></div>}
                   </div>
                   {r.quranNextAssignment && <div className="text-xs font-quick text-stone-500">Next: {r.quranNextAssignment}</div>}
@@ -2387,7 +2387,7 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
     ['quran', "Qur'an"],
     ['qaidah', "Qa'idah"],
     ['homework', 'Islamic Studies'],
-    ['quiz', 'IS Quiz'],
+    ['quiz', 'Islamic Studies Quiz'],
     ['missedWork', 'Missed Work'],
     ['announcements', 'Announcements'],
     ['notes', 'Notes'],
@@ -2489,7 +2489,7 @@ interface ClassStatus {
   quranQaidah: boolean   // any quran or qaidah progress updated this week
   isHw: boolean          // Islamic Studies Homework assignment posted this week
   hwCompletion: boolean  // Weekly homework completion entered
-  quiz: boolean          // IS Quiz result entered for current month
+  quiz: boolean          // Islamic Studies Quiz result entered for current month
   reports: { submitted: number; total: number } | null  // null = no deadline set
 }
 
