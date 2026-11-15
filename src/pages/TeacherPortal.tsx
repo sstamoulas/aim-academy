@@ -1004,8 +1004,8 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
             const isOpen = expanded === item.id
             const isCaughtUp = item.resolved
             const what: string[] = []
-            if (missedLesson[item.id])   what.push('IS Lesson')
-            if (missedHomework[item.id]) what.push('IS Homework')
+            if (missedLesson[item.id])   what.push('Islamic Studies Lesson')
+            if (missedHomework[item.id]) what.push('Islamic Studies Homework')
             return (
               <div key={item.id} className={`bg-white ${idx > 0 ? 'border-t border-stone-100' : ''}`}>
                 <button
