@@ -113,7 +113,13 @@ service cloud.firestore {
       allow read: if isParent();
     }
 
-    // Classwide IS homework assignments — staff write; parents + staff read
+    // Global IS assignments — admin write; staff + parents read
+    match /isAssignments/{docId} {
+      allow read, write: if isAdmin();
+      allow read: if isTeacher() || isParent();
+    }
+
+    // Classwide IS homework assignments (legacy) — staff write; parents + staff read
     match /isHomework/{docId} {
       allow read, write: if isStaff();
       allow read: if isParent();

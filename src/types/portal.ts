@@ -152,7 +152,7 @@ export interface MissedWork {
 
 export interface ISHomeworkAssignment {
   id: string
-  classId: string
+  classId?: string // legacy — no longer used
   week: string // ISO week YYYY-Wnn
   title: string
   description: string

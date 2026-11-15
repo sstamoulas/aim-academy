@@ -372,28 +372,24 @@ function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: str
 
 // ── Homework ──────────────────────────────────────────────────────────────────
 
-function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyClass; students: Student[]; teacherUid: string; teacherName: string }) {
+function HomeworkTab({ cls, students, teacherUid }: { cls: AcademyClass; students: Student[]; teacherUid: string; teacherName: string }) {
   const [week, setWeek] = useState(currentWeek())
   const [completed, setCompleted] = useState<Record<string, ISHomeworkStatus>>({})
   const [expanded, setExpanded] = useState<string | null>(null)
   const [assignment, setAssignment] = useState<ISHomeworkAssignment | null>(null)
-  const [assignmentForm, setAssignmentForm] = useState({ title: '', description: '' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [savingAssignment, setSavingAssignment] = useState(false)
-  const [savedAssignment, setSavedAssignment] = useState(false)
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       const [hwSnap, assignSnap] = await Promise.all([
         getDoc(doc(db, 'weeklyHomework', `${cls.id}__${week}`)),
-        getDoc(doc(db, 'isHomework', `${cls.id}__${week}`)),
+        getDoc(doc(db, 'isAssignments', week)),
       ])
       if (hwSnap.exists()) {
         const raw = (hwSnap.data() as HwData).completed ?? {}
-        // Backward compat: map legacy boolean values to ISHomeworkStatus
         const mapped: Record<string, ISHomeworkStatus> = {}
         Object.entries(raw).forEach(([k, v]) => {
           mapped[k] = typeof v === 'boolean' ? (v ? 'complete' : 'not_complete') : v as ISHomeworkStatus
@@ -402,40 +398,11 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
       } else {
         setCompleted({})
       }
-      if (assignSnap.exists()) {
-        const a = { id: assignSnap.id, ...assignSnap.data() } as ISHomeworkAssignment
-        setAssignment(a)
-        setAssignmentForm({ title: a.title, description: a.description })
-      } else {
-        setAssignment(null)
-        setAssignmentForm({ title: '', description: '' })
-      }
-
+      setAssignment(assignSnap.exists() ? { id: assignSnap.id, ...assignSnap.data() } as ISHomeworkAssignment : null)
       setLoading(false)
     }
     load()
   }, [cls.id, week])
-
-
-  async function handleSaveAssignment() {
-    if (!assignmentForm.title.trim()) return
-    setSavingAssignment(true)
-    const docId = `${cls.id}__${week}`
-    const now = new Date().toISOString()
-    await setDoc(doc(db, 'isHomework', docId), {
-      classId: cls.id,
-      week,
-      title: assignmentForm.title.trim(),
-      description: assignmentForm.description.trim(),
-      createdAt: assignment?.createdAt ?? now,
-      createdBy: teacherUid,
-      createdByName: teacherName,
-    })
-    setAssignment({ id: docId, classId: cls.id, week, title: assignmentForm.title.trim(), description: assignmentForm.description.trim(), createdAt: assignment?.createdAt ?? now, createdBy: teacherUid, createdByName: teacherName })
-    setSavingAssignment(false)
-    setSavedAssignment(true)
-    setTimeout(() => setSavedAssignment(false), 3000)
-  }
 
   async function handleSave() {
     setSaving(true)
@@ -458,42 +425,20 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
         <button onClick={() => setWeek(w => shiftWeek(w, 1))} className="w-8 h-8 rounded-full border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-stone-50 transition">›</button>
       </div>
 
-      {/* Class Assignment Card */}
+      {/* Global IS Assignment (read-only — set by admin) */}
       <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-6">
-        <h4 className="font-semibold text-stone-800 font-quick text-sm mb-3">Class Assignment</h4>
-        <div className="space-y-3">
-          <div>
-            <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Assignment Title</label>
-            <input
-              value={assignmentForm.title}
-              onChange={e => setAssignmentForm(f => ({ ...f, title: e.target.value }))}
-              placeholder="e.g. Chapter 4 Review — The Five Pillars"
-              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Description (optional)</label>
-            <textarea
-              value={assignmentForm.description}
-              onChange={e => setAssignmentForm(f => ({ ...f, description: e.target.value }))}
-              placeholder="Pages to read, what to study, etc."
-              rows={2}
-              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm resize-none"
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleSaveAssignment}
-              disabled={savingAssignment || !assignmentForm.title.trim()}
-              className="bg-amber-500 text-white font-bold font-quick px-5 py-2 rounded-full text-sm hover:brightness-95 transition disabled:opacity-60">
-              {savingAssignment ? 'Saving…' : assignment ? 'Update Assignment' : 'Post Assignment'}
-            </button>
-            {savedAssignment && <span className="text-sm text-amber-700 font-quick font-semibold">Saved!</span>}
-            {assignment && !savedAssignment && (
-              <span className="text-xs text-stone-400 font-quick">Posted · visible to parents</span>
-            )}
-          </div>
+        <div className="flex items-center gap-2 mb-2">
+          <h4 className="font-semibold text-stone-800 font-quick text-sm">Islamic Studies Assignment</h4>
+          <span className="text-xs font-quick text-amber-600 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">Set by admin</span>
         </div>
+        {assignment ? (
+          <div>
+            <p className="font-quick text-sm font-semibold text-stone-700">{assignment.title}</p>
+            {assignment.description && <p className="font-quick text-xs text-stone-500 mt-1">{assignment.description}</p>}
+          </div>
+        ) : (
+          <p className="font-quick text-xs text-stone-400 italic">No assignment posted for this week yet.</p>
+        )}
       </div>
 
       {students.length === 0 ? (
@@ -875,7 +820,7 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
 
   useEffect(() => {
     async function loadAssignments() {
-      const snap = await getDocs(query(collection(db, 'isHomework'), where('classId', '==', cls.id)))
+      const snap = await getDocs(collection(db, 'isAssignments'))
       const map: Record<string, ISHomeworkAssignment> = {}
       snap.docs.forEach(d => {
         const a = { id: d.id, ...d.data() } as ISHomeworkAssignment
@@ -884,7 +829,7 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
       setIsAssignments(map)
     }
     loadAssignments()
-  }, [cls.id])
+  }, [])
 
   async function load() {
     setLoading(true)
@@ -2564,7 +2509,7 @@ function Dashboard({ classes, onSelect }: { classes: AcademyClass[]; onSelect: (
         const [attSnap, hwCompSnap, isHwSnap, quranSnap, qaidahSnap, quizSnap, reportsSnap] = await Promise.all([
           getDocs(query(collection(db, 'attendance'), where('classId', '==', cls.id), where('date', '>=', monStr), where('date', '<=', sunStr))),
           getDoc(doc(db, 'weeklyHomework', `${cls.id}__${week}`)),
-          getDoc(doc(db, 'isHomework',     `${cls.id}__${week}`)),
+          getDoc(doc(db, 'isAssignments',  week)),
           getDocs(query(collection(db, 'quranProgress'),  where('classId', '==', cls.id))),
           getDocs(query(collection(db, 'qaidahProgress'), where('classId', '==', cls.id))),
           getDocs(query(collection(db, 'isQuizProgress'), where('classId', '==', cls.id))),

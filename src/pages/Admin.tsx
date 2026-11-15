@@ -3,14 +3,14 @@ import {
   signOut, onAuthStateChanged, type User,
 } from 'firebase/auth'
 import {
-  collection, doc, getDocs, setDoc, updateDoc, deleteDoc, orderBy, query, where,
+  collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, orderBy, query, where,
 } from 'firebase/firestore'
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { httpsCallable } from 'firebase/functions'
 import { auth, db, storage, functions } from '../firebase'
 import type { AcademyEvent, EventDetail, EventSection, EventMedia, SectionType, PricingTier, PricingModel } from '../types/event'
 import { PRICING_MODEL_LABELS, categorizeEvent } from '../types/event'
-import type { AcademyClass, Student, Registration, ChildRequest, TeacherProfile } from '../types/portal'
+import type { AcademyClass, Student, Registration, ChildRequest, TeacherProfile, ISHomeworkAssignment } from '../types/portal'
 import type { Program, ProgramMedia, Achievement, Review } from '../types/site'
 
 // ── User management types ─────────────────────────────────────────────────────
@@ -885,8 +885,8 @@ function EventList({ events, onNew, onEdit, onDelete, onTogglePublish }: {
                   </div>
                 </div>
                 {/* Bottom row: live toggle + actions */}
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-stone-100">
-                  <label className="flex items-center gap-1.5 cursor-pointer mr-auto">
+                <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-stone-100">
+                  <label className="flex items-center gap-1.5 cursor-pointer flex-shrink-0">
                     <div className="relative">
                       <input type="checkbox" checked={event.published} onChange={() => onTogglePublish(event)} className="sr-only peer" />
                       <div className="w-9 h-5 bg-stone-200 peer-checked:bg-sage-600 rounded-full transition" />
@@ -896,18 +896,20 @@ function EventList({ events, onNew, onEdit, onDelete, onTogglePublish }: {
                       {event.published ? 'Live' : 'Draft'}
                     </span>
                   </label>
-                  <a href={`/events/${event.slug}`} target="_blank" rel="noopener noreferrer"
-                    className="text-xs font-quick font-semibold text-stone-500 hover:text-sage-700 transition px-3 py-1.5 rounded-lg hover:bg-stone-50">
-                    View
-                  </a>
-                  <button onClick={() => onEdit(event)}
-                    className="text-xs font-quick font-semibold text-stone-500 hover:text-sage-700 transition px-3 py-1.5 rounded-lg hover:bg-stone-50 cursor-pointer">
-                    Edit
-                  </button>
-                  <button onClick={() => onDelete(event)}
-                    className="text-xs font-quick font-semibold text-stone-400 hover:text-rose-600 transition px-3 py-1.5 rounded-lg hover:bg-rose-50 cursor-pointer">
-                    Delete
-                  </button>
+                  <div className="flex items-center gap-1 ml-auto flex-shrink-0">
+                    <a href={`/events/${event.slug}`} target="_blank" rel="noopener noreferrer"
+                      className="text-xs font-quick font-semibold text-stone-500 hover:text-sage-700 transition px-3 py-1.5 rounded-lg hover:bg-stone-50">
+                      View
+                    </a>
+                    <button onClick={() => onEdit(event)}
+                      className="text-xs font-quick font-semibold text-stone-500 hover:text-sage-700 transition px-3 py-1.5 rounded-lg hover:bg-stone-50 cursor-pointer">
+                      Edit
+                    </button>
+                    <button onClick={() => onDelete(event)}
+                      className="text-xs font-quick font-semibold text-stone-400 hover:text-rose-600 transition px-3 py-1.5 rounded-lg hover:bg-rose-50 cursor-pointer">
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             )
@@ -1113,42 +1115,44 @@ function UsersTab() {
                   <div className="text-xs text-stone-400 font-quick truncate">{u.email}</div>
                 </div>
               </div>
-              {/* Bottom row: role selector + impersonate */}
-              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-stone-100">
+              {/* Bottom rows: role selector + actions */}
+              <div className="mt-3 pt-3 border-t border-stone-100 space-y-2">
                 {changingRoleUid === u.uid ? (
-                  <div className="w-5 h-5 border-2 border-sage-200 border-t-sage-600 rounded-full animate-spin mr-auto" />
+                  <div className="w-5 h-5 border-2 border-sage-200 border-t-sage-600 rounded-full animate-spin" />
                 ) : (
                   <select
                     value={u.role}
                     onChange={e => handleRoleChange(u.uid, e.target.value as UserRole)}
-                    className={`text-xs font-bold font-quick border rounded-full px-3 py-1.5 cursor-pointer focus:outline-none mr-auto ${ROLE_COLORS[u.role]}`}
+                    className={`text-xs font-bold font-quick border rounded-full px-3 py-1.5 cursor-pointer focus:outline-none ${ROLE_COLORS[u.role]}`}
                   >
                     {(Object.keys(ROLE_LABELS) as UserRole[]).map(r => (
                       <option key={r} value={r}>{ROLE_LABELS[r]}</option>
                     ))}
                   </select>
                 )}
-                <button
-                  onClick={() => { setEditingUser(u); setEditUserForm({ displayName: u.displayName || '', phone: u.phone || '' }) }}
-                  className="text-xs font-semibold font-quick text-stone-400 hover:text-sage-700 border border-stone-200 hover:border-sage-400 px-3 py-1.5 rounded-lg transition flex-shrink-0"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => {
-                    sessionStorage.setItem('impersonating', JSON.stringify({ uid: u.uid, email: u.email, role: u.role, displayName: u.displayName || u.email }))
-                    window.location.href = u.role === 'teacher' ? '/portal/teacher' : '/portal/parent'
-                  }}
-                  className="text-xs font-semibold font-quick text-stone-400 hover:text-sage-700 border border-stone-200 hover:border-sage-400 px-3 py-1.5 rounded-lg transition flex-shrink-0"
-                >
-                  Impersonate
-                </button>
-                <button
-                  onClick={() => openDeleteUser(u)}
-                  className="text-xs font-semibold font-quick text-rose-400 hover:text-rose-600 border border-rose-200 hover:border-rose-400 px-3 py-1.5 rounded-lg transition flex-shrink-0"
-                >
-                  Remove
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => { setEditingUser(u); setEditUserForm({ displayName: u.displayName || '', phone: u.phone || '' }) }}
+                    className="text-xs font-semibold font-quick text-stone-400 hover:text-sage-700 border border-stone-200 hover:border-sage-400 px-3 py-1.5 rounded-lg transition"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => {
+                      sessionStorage.setItem('impersonating', JSON.stringify({ uid: u.uid, email: u.email, role: u.role, displayName: u.displayName || u.email }))
+                      window.location.href = u.role === 'teacher' ? '/portal/teacher' : '/portal/parent'
+                    }}
+                    className="text-xs font-semibold font-quick text-stone-400 hover:text-sage-700 border border-stone-200 hover:border-sage-400 px-3 py-1.5 rounded-lg transition"
+                  >
+                    Impersonate
+                  </button>
+                  <button
+                    onClick={() => openDeleteUser(u)}
+                    className="text-xs font-semibold font-quick text-rose-400 hover:text-rose-600 border border-rose-200 hover:border-rose-400 px-3 py-1.5 rounded-lg transition"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
               {u.role === 'parent' && (
                 <div className="mt-3 pt-3 border-t border-stone-100">
@@ -2491,17 +2495,17 @@ function ContactSubmissionsTab() {
     <div className="space-y-4">
       {submissions.map(s => (
         <div key={s.id} className="bg-white rounded-[20px] border border-stone-200/70 shadow-sm p-6">
-          <div className="flex items-start justify-between gap-4 mb-3">
-            <div>
+          <div className="mb-3">
+            <div className="flex items-start justify-between gap-2 flex-wrap">
               <div className="font-semibold text-stone-800">{s.name}</div>
-              <div className="text-sm text-stone-500 font-quick">{s.email} · {s.phone}</div>
+              {s.submittedAt && (
+                <div className="text-xs text-stone-400 font-quick flex-shrink-0">
+                  {(typeof s.submittedAt.toDate === 'function' ? s.submittedAt.toDate() : new Date(s.submittedAt as unknown as string))
+                    .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </div>
+              )}
             </div>
-            {s.submittedAt && (
-              <div className="text-xs text-stone-400 font-quick whitespace-nowrap">
-                {(typeof s.submittedAt.toDate === 'function' ? s.submittedAt.toDate() : new Date(s.submittedAt as unknown as string))
-                  .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-              </div>
-            )}
+            <div className="text-sm text-stone-500 font-quick break-all">{s.email} · {s.phone}</div>
           </div>
           {s.interests?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-3">
@@ -4002,13 +4006,122 @@ function OverviewTab() {
   )
 }
 
+// ── Islamic Studies Assignments (global, admin-managed) ───────────────────────
+
+function islamicStudiesWeekLabel(w: string): string {
+  const [mon, sun] = weekMondaySunday(w)
+  const fmt = (s: string) => new Date(s + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return `${fmt(mon)} – ${fmt(sun)}`
+}
+
+function islamicStudiesShiftWeek(w: string, delta: number): string {
+  const [mon] = weekMondaySunday(w)
+  const d = new Date(mon + 'T00:00:00')
+  d.setDate(d.getDate() + delta * 7)
+  return isoWeek(d)
+}
+
+function IslamicStudiesTab() {
+  const [week, setWeek] = useState(isoWeek(new Date()))
+  const [assignment, setAssignment] = useState<ISHomeworkAssignment | null>(null)
+  const [form, setForm] = useState({ title: '', description: '' })
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      const snap = await getDoc(doc(db, 'isAssignments', week))
+      if (snap.exists()) {
+        const a = { id: snap.id, ...snap.data() } as ISHomeworkAssignment
+        setAssignment(a)
+        setForm({ title: a.title, description: a.description })
+      } else {
+        setAssignment(null)
+        setForm({ title: '', description: '' })
+      }
+      setLoading(false)
+    }
+    load()
+  }, [week])
+
+  async function handleSave() {
+    if (!form.title.trim()) return
+    setSaving(true)
+    const now = new Date().toISOString()
+    const data: Omit<ISHomeworkAssignment, 'id'> = {
+      week,
+      title: form.title.trim(),
+      description: form.description.trim(),
+      createdAt: assignment?.createdAt ?? now,
+      createdBy: 'admin',
+      createdByName: 'Admin',
+    }
+    await setDoc(doc(db, 'isAssignments', week), data)
+    setAssignment({ id: week, ...data })
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 3000)
+  }
+
+  return (
+    <div className="max-w-xl">
+      <h2 className="font-kids text-2xl text-wood-dark mb-1">Islamic Studies</h2>
+      <p className="text-sm font-quick text-stone-500 mb-6">Post the weekly IS assignment — visible to all teachers and parents.</p>
+
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={() => setWeek(w => islamicStudiesShiftWeek(w, -1))} className="w-8 h-8 rounded-full border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-stone-50 transition">‹</button>
+        <span className="font-quick text-sm font-semibold text-stone-700 flex-1 text-center">{islamicStudiesWeekLabel(week)}</span>
+        <button onClick={() => setWeek(w => islamicStudiesShiftWeek(w, 1))} className="w-8 h-8 rounded-full border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-stone-50 transition">›</button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-10"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+      ) : (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Assignment Title</label>
+            <input
+              value={form.title}
+              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              placeholder="e.g. Chapter 4 Review — The Five Pillars"
+              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Description (optional)</label>
+            <textarea
+              value={form.description}
+              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="Pages to read, topics to study, etc."
+              rows={3}
+              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm resize-none"
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSave}
+              disabled={saving || !form.title.trim()}
+              className="bg-amber-500 text-white font-bold font-quick px-6 py-2.5 rounded-full text-sm hover:brightness-95 transition disabled:opacity-60">
+              {saving ? 'Saving…' : assignment ? 'Update Assignment' : 'Post Assignment'}
+            </button>
+            {saved && <span className="text-sm text-amber-700 font-quick font-semibold">Saved!</span>}
+            {assignment && !saved && <span className="text-xs text-stone-400 font-quick">Posted · visible to teachers & parents</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Admin Root ────────────────────────────────────────────────────────────────
 
 export default function Admin() {
   const [user, setUser] = useState<User | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'events' | 'classes' | 'users' | 'registrations' | 'content' | 'contact' | 'payments' | 'attendance' | 'devtools' | 'overview'>('events')
+  const [activeTab, setActiveTab] = useState<'events' | 'classes' | 'users' | 'registrations' | 'content' | 'contact' | 'payments' | 'attendance' | 'devtools' | 'overview' | 'islamicStudies'>('events')
   const [pendingCount, setPendingCount] = useState(0)
   const [events, setEvents] = useState<AcademyEvent[]>([])
   const [editing, setEditing] = useState<Partial<AcademyEvent> | null>(null)
@@ -4095,16 +4208,17 @@ export default function Admin() {
   }
 
   const TABS: { id: typeof activeTab; label: string; icon: string }[] = [
-    { id: 'events',        label: 'Events',        icon: '📅' },
-    { id: 'classes',       label: 'Classes',       icon: '🏫' },
-    { id: 'registrations', label: 'Registrations', icon: '📋' },
-    { id: 'users',         label: 'Users',         icon: '👥' },
-    { id: 'attendance',    label: 'Attendance',    icon: '✅' },
-    { id: 'overview',      label: 'Overview',      icon: '📊' },
-    { id: 'content',       label: 'Content',       icon: '✏️' },
-    { id: 'contact',       label: 'Contact',       icon: '✉️' },
-    { id: 'payments',      label: 'Payments',      icon: '💳' },
-    { id: 'devtools',      label: 'Dev Tools',     icon: '🛠️' },
+    { id: 'events',         label: 'Events',           icon: '📅' },
+    { id: 'classes',        label: 'Classes',          icon: '🏫' },
+    { id: 'registrations',  label: 'Registrations',    icon: '📋' },
+    { id: 'users',          label: 'Users',            icon: '👥' },
+    { id: 'attendance',     label: 'Attendance',       icon: '✅' },
+    { id: 'islamicStudies', label: 'Islamic Studies',  icon: '📖' },
+    { id: 'overview',       label: 'Overview',         icon: '📊' },
+    { id: 'content',        label: 'Content',          icon: '✏️' },
+    { id: 'contact',        label: 'Contact',          icon: '✉️' },
+    { id: 'payments',       label: 'Payments',         icon: '💳' },
+    { id: 'devtools',       label: 'Dev Tools',        icon: '🛠️' },
   ]
 
   return (
@@ -4218,6 +4332,8 @@ export default function Admin() {
           <UsersTab />
         ) : activeTab === 'attendance' ? (
           <AttendanceAdminTab />
+        ) : activeTab === 'islamicStudies' ? (
+          <IslamicStudiesTab />
         ) : activeTab === 'devtools' ? (
           <DevToolsTab />
         ) : activeTab === 'contact' ? (
