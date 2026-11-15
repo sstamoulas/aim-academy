@@ -32,11 +32,22 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.rejectRegistration = exports.notifyAnnouncementParents = exports.sendPaymentReminders = exports.markPayment = exports.approveRegistration = exports.deleteUser = exports.inviteUser = exports.setUserRole = exports.createPaymentIntent = exports.submitContactForm = void 0;
+exports.clearSeedData = exports.seedDatabase = exports.notifyCaughtUpParent = exports.notifyMissedWorkParent = exports.rejectRegistration = exports.notifyAnnouncementParents = exports.sendAttendanceReminders = exports.sendPaymentReminders = exports.markPayment = exports.approveRegistration = exports.deleteUser = exports.inviteUser = exports.setUserRole = exports.createPaymentIntent = exports.submitContactForm = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const app_1 = require("firebase-admin/app");
@@ -475,6 +486,87 @@ exports.sendPaymentReminders = (0, https_1.onCall)({ secrets: [gmailUser, gmailP
     }
     return { success: true, emailsSent };
 });
+// ── Attendance reminders ──────────────────────────────────────────────────────
+/** Send attendance reminder emails to teachers who haven't submitted for the current week. */
+exports.sendAttendanceReminders = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
+    var _a, _b, _c;
+    if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admins can send attendance reminders.');
+    }
+    const { classIds } = request.data;
+    // Current week Monday–Sunday (ISO)
+    const now = new Date();
+    const day = now.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + diff);
+    monday.setHours(0, 0, 0, 0);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const mondayStr = monday.toISOString().split('T')[0];
+    const sundayStr = sunday.toISOString().split('T')[0];
+    const weekLabel = monday.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const db = (0, firestore_1.getFirestore)();
+    // Load classes (all or filtered)
+    let classSnap;
+    if (classIds && classIds.length > 0) {
+        const docs = await Promise.all(classIds.map(id => db.collection('classes').doc(id).get()));
+        classSnap = { docs: docs.filter(d => d.exists) };
+    }
+    else {
+        classSnap = await db.collection('classes').get();
+    }
+    // Group incomplete classes by teacherUid
+    const byTeacher = new Map();
+    await Promise.all(classSnap.docs.map(async (classDoc) => {
+        const cls = classDoc.data();
+        if (!cls.teacherUid)
+            return;
+        // Check if attendance was submitted this week
+        const attSnap = await db.collection('attendance')
+            .where('classId', '==', classDoc.id)
+            .where('date', '>=', mondayStr)
+            .where('date', '<=', sundayStr)
+            .get();
+        if (!attSnap.empty)
+            return; // already submitted
+        if (!byTeacher.has(cls.teacherUid)) {
+            byTeacher.set(cls.teacherUid, { teacherName: cls.teacherName, classNames: [] });
+        }
+        byTeacher.get(cls.teacherUid).classNames.push(cls.name);
+    }));
+    // Look up teacher emails and send
+    let emailsSent = 0;
+    for (const [teacherUid, { teacherName, classNames }] of byTeacher) {
+        const userDoc = await db.collection('users').doc(teacherUid).get();
+        const teacherEmail = (_c = userDoc.data()) === null || _c === void 0 ? void 0 : _c.email;
+        if (!teacherEmail)
+            continue;
+        const classList = classNames.map(n => `<li><strong>${n}</strong></li>`).join('\n');
+        const greeting = teacherName ? `Ustadh/Ustadha ${teacherName}` : 'Teacher';
+        try {
+            await sendEmail({
+                user: gmailUser.value(),
+                pass: gmailPass.value(),
+                to: teacherEmail,
+                subject: `Attendance Reminder — Week of ${weekLabel}`,
+                html: `
+            <p>As-salamu alaykum <strong>${greeting}</strong>,</p>
+            <p>This is a friendly reminder that attendance has not yet been submitted for the week of <strong>${weekLabel}</strong> for the following class(es):</p>
+            <ul>${classList}</ul>
+            <p>Please log in to the Teacher Portal to submit attendance:</p>
+            <p><a href="https://aimava.org/portal/teacher">Teacher Portal →</a></p>
+            <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br>Anas Ibn Malik Academy</p>
+          `,
+            });
+            emailsSent++;
+        }
+        catch (err) {
+            console.error(`Failed to email ${teacherEmail}:`, err);
+        }
+    }
+    return { success: true, emailsSent, teachersReminded: byTeacher.size };
+});
 // ── Announcement notifications ────────────────────────────────────────────────
 /** Email all parents in a class when a teacher posts an announcement. */
 exports.notifyAnnouncementParents = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
@@ -568,5 +660,303 @@ exports.rejectRegistration = (0, https_1.onCall)({ secrets: [gmailUser, gmailPas
         console.error('Rejection email failed (registration was still rejected):', emailErr);
     }
     return { success: true };
+});
+// ── notifyMissedWorkParent ────────────────────────────────────────────────────
+// Teacher/admin: sends parent an email about their child's missed work.
+exports.notifyMissedWorkParent = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
+    var _a;
+    const db = (0, firestore_1.getFirestore)();
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+    const role = (_a = request.auth.token) === null || _a === void 0 ? void 0 : _a.role;
+    if (role !== 'teacher' && role !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Teachers and admins only.');
+    }
+    const { missedWorkId } = request.data;
+    if (!missedWorkId)
+        throw new https_1.HttpsError('invalid-argument', 'missedWorkId required.');
+    const mwDoc = await db.collection('missedWork').doc(missedWorkId).get();
+    if (!mwDoc.exists)
+        throw new https_1.HttpsError('not-found', 'Missed work record not found.');
+    const mw = mwDoc.data();
+    // Look up student to get parent email
+    const stuDoc = await db.collection('students').doc(mw.studentId).get();
+    if (!stuDoc.exists)
+        throw new https_1.HttpsError('not-found', 'Student not found.');
+    const stu = stuDoc.data();
+    const parentEmail = stu.parentEmail;
+    if (!parentEmail)
+        return { success: false, reason: 'No parent email on file.' };
+    const dateStr = new Date(mw.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    const what = [];
+    if (mw.missedLesson)
+        what.push('Islamic Studies Lesson');
+    if (mw.missedHomework)
+        what.push('Islamic Studies Homework/Worksheet');
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: gmailUser.value(), pass: gmailPass.value() },
+    });
+    await transporter.sendMail({
+        from: `"AIM Academy" <${gmailUser.value()}>`,
+        to: parentEmail,
+        subject: `Missed Work — ${mw.studentName} — ${mw.className}`,
+        html: `
+        <p>As-salamu alaykum <strong>${stu.parentName || 'Dear Parent'}</strong>,</p>
+        <p>This is a reminder that <strong>${mw.studentName}</strong> was absent from <strong>${mw.className}</strong> on <strong>${dateStr}</strong>.</p>
+        ${what.length > 0 ? `
+        <p><strong>What was missed:</strong></p>
+        <ul>${what.map(w => `<li>${w}</li>`).join('')}</ul>
+        ` : ''}
+        ${mw.missedWorkNotes ? `<p><strong>Teacher's notes:</strong><br/>${mw.missedWorkNotes.replace(/\n/g, '<br/>')}</p>` : ''}
+        <p>Please reach out to the teacher if you have any questions.</p>
+        <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br/>Anas Ibn Malik Academy</p>
+      `,
+    });
+    return { success: true };
+});
+// ── notifyCaughtUpParent ──────────────────────────────────────────────────────
+// Teacher/admin: sends parent an email confirming their child caught up on missed work.
+exports.notifyCaughtUpParent = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
+    const db = (0, firestore_1.getFirestore)();
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+    const role = request.auth.token['role'];
+    if (role !== 'teacher' && role !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Teachers and admins only.');
+    }
+    const { missedWorkId } = request.data;
+    if (!missedWorkId)
+        throw new https_1.HttpsError('invalid-argument', 'missedWorkId required.');
+    const mwDoc = await db.collection('missedWork').doc(missedWorkId).get();
+    if (!mwDoc.exists)
+        throw new https_1.HttpsError('not-found', 'Missed work record not found.');
+    const mw = mwDoc.data();
+    const stuDoc = await db.collection('students').doc(mw.studentId).get();
+    if (!stuDoc.exists)
+        throw new https_1.HttpsError('not-found', 'Student not found.');
+    const stu = stuDoc.data();
+    const parentEmail = stu.parentEmail;
+    if (!parentEmail)
+        return { success: false, reason: 'No parent email on file.' };
+    const dateStr = new Date(mw.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    const what = [];
+    if (mw.missedLesson)
+        what.push('Islamic Studies Lesson');
+    if (mw.missedHomework)
+        what.push('Islamic Studies Homework/Worksheet');
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: gmailUser.value(), pass: gmailPass.value() },
+    });
+    await transporter.sendMail({
+        from: `"AIM Academy" <${gmailUser.value()}>`,
+        to: parentEmail,
+        subject: `Caught Up — ${mw.studentName} — ${mw.className}`,
+        html: `
+        <p>As-salamu alaykum <strong>${stu.parentName || 'Dear Parent'}</strong>,</p>
+        <p>Great news! <strong>${mw.studentName}</strong> has caught up on the work missed from <strong>${mw.className}</strong> on <strong>${dateStr}</strong>.</p>
+        ${what.length > 0 ? `
+        <p><strong>Work completed:</strong></p>
+        <ul>${what.map(w => `<li>${w}</li>`).join('')}</ul>
+        ` : ''}
+        ${mw.missedWorkNotes ? `<p><strong>Teacher's notes:</strong><br/>${mw.missedWorkNotes.replace(/\n/g, '<br/>')}</p>` : ''}
+        <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br/>Anas Ibn Malik Academy</p>
+      `,
+    });
+    return { success: true };
+});
+// ── seedDatabase ──────────────────────────────────────────────────────────────
+// Admin-only: writes realistic test data (classes, students, attendance, etc.)
+// All documents use "seed_" prefixed IDs so they can be cleared without risk.
+exports.seedDatabase = (0, https_1.onCall)({ secrets: [] }, async (request) => {
+    var _a;
+    const db = (0, firestore_1.getFirestore)();
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+    const callerDoc = await db.collection('users').doc(request.auth.uid).get();
+    if (!callerDoc.exists || ((_a = callerDoc.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Admin only.');
+    }
+    const TEACHER = {
+        ibrahim: { uid: 'seed_teacher_ibrahim', name: 'Ibrahim Khan' },
+        zainab: { uid: 'seed_teacher_zainab', name: 'Zainab Malik' },
+        ahmad: { uid: 'seed_teacher_ahmad', name: 'Ahmad Siddiqui' },
+    };
+    const CLS = {
+        hifz: 'seed_cls_hifz',
+        qaidah: 'seed_cls_qaidah',
+        is3: 'seed_cls_is3',
+        tajweed: 'seed_cls_tajweed',
+    };
+    const classes = [
+        { id: CLS.hifz, name: 'Hifz', description: 'Quran memorization for advanced students', teacherUid: TEACHER.ibrahim.uid, teacherName: TEACHER.ibrahim.name, schedule: 'Saturday 9:00am–11:00am', tuitionAmount: 15000, nextReportDeadline: '2026-11-07', createdAt: '2026-09-01T00:00:00.000Z' },
+        { id: CLS.qaidah, name: "Noorani Qa'idah", description: "Foundational Arabic reading using the Noorani Qa'idah method", teacherUid: TEACHER.zainab.uid, teacherName: TEACHER.zainab.name, schedule: 'Saturday 11:00am–12:30pm', tuitionAmount: 12000, nextReportDeadline: '2026-11-14', createdAt: '2026-09-01T00:00:00.000Z' },
+        { id: CLS.is3, name: 'Islamic Studies Grade 3', description: 'Aqeedah, Fiqh, Seerah, and Akhlaq for Grade 3 students', teacherUid: TEACHER.ahmad.uid, teacherName: TEACHER.ahmad.name, schedule: 'Saturday 12:30pm–2:00pm', tuitionAmount: 12000, createdAt: '2026-09-01T00:00:00.000Z' },
+        { id: CLS.tajweed, name: 'Quran Recitation (Tajweed)', description: 'Quran recitation with proper Tajweed rules for intermediate students', teacherUid: TEACHER.zainab.uid, teacherName: TEACHER.zainab.name, schedule: 'Saturday 2:00pm–3:30pm', tuitionAmount: 14000, createdAt: '2026-09-01T00:00:00.000Z' },
+    ];
+    const students = [
+        { id: 'seed_stu_omar', firstName: 'Omar', lastName: 'Abdullah', classIds: [CLS.hifz], tuitionAmount: 15000, parentName: 'Khalid Abdullah', parentEmail: 'khalid.abdullah@seedtest.com', parentPhone: '(571) 555-0101' },
+        { id: 'seed_stu_aisha', firstName: 'Aisha', lastName: 'Rahman', classIds: [CLS.hifz], tuitionAmount: 15000, parentName: 'Hassan Rahman', parentEmail: 'hassan.rahman@seedtest.com', parentPhone: '(571) 555-0102' },
+        { id: 'seed_stu_yusuf', firstName: 'Yusuf', lastName: 'Al-Amin', classIds: [CLS.hifz], tuitionAmount: 15000, parentName: 'Bilal Al-Amin', parentEmail: 'bilal.alamin@seedtest.com', parentPhone: '(571) 555-0103' },
+        { id: 'seed_stu_maryam', firstName: 'Maryam', lastName: 'Hossain', classIds: [CLS.hifz], tuitionAmount: 15000, parentName: 'Tariq Hossain', parentEmail: 'tariq.hossain@seedtest.com', parentPhone: '(571) 555-0104' },
+        { id: 'seed_stu_zayd', firstName: 'Zayd', lastName: 'Nasser', classIds: [CLS.qaidah], tuitionAmount: 12000, parentName: 'Amira Nasser', parentEmail: 'amira.nasser@seedtest.com', parentPhone: '(571) 555-0201' },
+        { id: 'seed_stu_fatima', firstName: 'Fatima', lastName: 'Osman', classIds: [CLS.qaidah], tuitionAmount: 12000, parentName: 'Yusuf Osman', parentEmail: 'yusuf.osman@seedtest.com', parentPhone: '(571) 555-0202' },
+        { id: 'seed_stu_ibrahim', firstName: 'Ibrahim', lastName: 'Malik', classIds: [CLS.qaidah], tuitionAmount: 12000, parentName: 'Layla Malik', parentEmail: 'layla.malik@seedtest.com', parentPhone: '(571) 555-0203' },
+        { id: 'seed_stu_khadija', firstName: 'Khadijah', lastName: 'Hussain', classIds: [CLS.qaidah], tuitionAmount: 12000, parentName: 'Ahmed Hussain', parentEmail: 'ahmed.hussain@seedtest.com', parentPhone: '(571) 555-0204' },
+        { id: 'seed_stu_ali', firstName: 'Ali', lastName: 'Karimi', classIds: [CLS.qaidah], tuitionAmount: 12000, parentName: 'Sara Karimi', parentEmail: 'sara.karimi@seedtest.com', parentPhone: '(571) 555-0205' },
+        { id: 'seed_stu_sara', firstName: 'Sara', lastName: 'Ahmed', classIds: [CLS.is3], tuitionAmount: 12000, parentName: 'Nadia Ahmed', parentEmail: 'nadia.ahmed@seedtest.com', parentPhone: '(571) 555-0301' },
+        { id: 'seed_stu_hassan', firstName: 'Hassan', lastName: 'Qureshi', classIds: [CLS.is3], tuitionAmount: 12000, parentName: 'Imran Qureshi', parentEmail: 'imran.qureshi@seedtest.com', parentPhone: '(571) 555-0302' },
+        { id: 'seed_stu_zainab', firstName: 'Zainab', lastName: 'Farooq', classIds: [CLS.is3], tuitionAmount: 12000, parentName: 'Khalid Farooq', parentEmail: 'khalid.farooq@seedtest.com', parentPhone: '(571) 555-0303' },
+        { id: 'seed_stu_adam', firstName: 'Adam', lastName: 'Nasir', classIds: [CLS.is3], tuitionAmount: 12000, parentName: 'Rania Nasir', parentEmail: 'rania.nasir@seedtest.com', parentPhone: '(571) 555-0304' },
+        { id: 'seed_stu_noor', firstName: 'Noor', lastName: 'Siddiqui', classIds: [CLS.tajweed], tuitionAmount: 14000, parentName: 'Amna Siddiqui', parentEmail: 'amna.siddiqui@seedtest.com', parentPhone: '(571) 555-0401' },
+        { id: 'seed_stu_bilal', firstName: 'Bilal', lastName: 'Chaudhry', classIds: [CLS.tajweed], tuitionAmount: 14000, parentName: 'Zara Chaudhry', parentEmail: 'zara.chaudhry@seedtest.com', parentPhone: '(571) 555-0402' },
+        { id: 'seed_stu_hana', firstName: 'Hana', lastName: 'Al-Rashid', classIds: [CLS.tajweed], tuitionAmount: 14000, parentName: 'Faisal Al-Rashid', parentEmail: 'faisal.alrashid@seedtest.com', parentPhone: '(571) 555-0403' },
+        { id: 'seed_stu_umar', firstName: 'Umar', lastName: 'Patel', classIds: [CLS.tajweed], tuitionAmount: 14000, parentName: 'Safia Patel', parentEmail: 'safia.patel@seedtest.com', parentPhone: '(571) 555-0404' },
+    ].map(s => (Object.assign(Object.assign({}, s), { notes: '', createdAt: '2026-09-01T00:00:00.000Z' })));
+    const hifzStus = students.filter(s => s.classIds.includes(CLS.hifz));
+    const qaidahStus = students.filter(s => s.classIds.includes(CLS.qaidah));
+    const is3Stus = students.filter(s => s.classIds.includes(CLS.is3));
+    const tajweedStus = students.filter(s => s.classIds.includes(CLS.tajweed));
+    function mkSession(classId, date, stuList, presentIds) {
+        var _a, _b;
+        return {
+            classId, date,
+            records: stuList.map(s => ({
+                studentId: s.id,
+                studentName: `${s.firstName} ${s.lastName}`,
+                status: presentIds.includes(s.id) ? 'present' : 'absent',
+            })),
+            createdBy: (_b = (_a = classes.find(c => c.id === classId)) === null || _a === void 0 ? void 0 : _a.teacherUid) !== null && _b !== void 0 ? _b : '',
+            createdAt: `${date}T10:00:00.000Z`,
+        };
+    }
+    const attendance = [
+        Object.assign({ id: `${CLS.hifz}_2026-10-11` }, mkSession(CLS.hifz, '2026-10-11', hifzStus, ['seed_stu_omar', 'seed_stu_aisha', 'seed_stu_yusuf'])),
+        Object.assign({ id: `${CLS.hifz}_2026-10-18` }, mkSession(CLS.hifz, '2026-10-18', hifzStus, ['seed_stu_omar', 'seed_stu_aisha', 'seed_stu_yusuf', 'seed_stu_maryam'])),
+        Object.assign({ id: `${CLS.hifz}_2026-10-25` }, mkSession(CLS.hifz, '2026-10-25', hifzStus, ['seed_stu_aisha', 'seed_stu_yusuf', 'seed_stu_maryam'])),
+        Object.assign({ id: `${CLS.qaidah}_2026-10-11` }, mkSession(CLS.qaidah, '2026-10-11', qaidahStus, ['seed_stu_zayd', 'seed_stu_fatima', 'seed_stu_ibrahim', 'seed_stu_khadija'])),
+        Object.assign({ id: `${CLS.qaidah}_2026-10-18` }, mkSession(CLS.qaidah, '2026-10-18', qaidahStus, ['seed_stu_zayd', 'seed_stu_fatima', 'seed_stu_ibrahim', 'seed_stu_khadija', 'seed_stu_ali'])),
+        Object.assign({ id: `${CLS.qaidah}_2026-10-25` }, mkSession(CLS.qaidah, '2026-10-25', qaidahStus, ['seed_stu_zayd', 'seed_stu_fatima', 'seed_stu_khadija', 'seed_stu_ali'])),
+        Object.assign({ id: `${CLS.is3}_2026-10-11` }, mkSession(CLS.is3, '2026-10-11', is3Stus, ['seed_stu_sara', 'seed_stu_hassan', 'seed_stu_zainab'])),
+        Object.assign({ id: `${CLS.is3}_2026-10-18` }, mkSession(CLS.is3, '2026-10-18', is3Stus, ['seed_stu_sara', 'seed_stu_hassan', 'seed_stu_zainab', 'seed_stu_adam'])),
+        Object.assign({ id: `${CLS.is3}_2026-10-25` }, mkSession(CLS.is3, '2026-10-25', is3Stus, ['seed_stu_sara', 'seed_stu_zainab', 'seed_stu_adam'])),
+        Object.assign({ id: `${CLS.tajweed}_2026-10-11` }, mkSession(CLS.tajweed, '2026-10-11', tajweedStus, ['seed_stu_noor', 'seed_stu_bilal', 'seed_stu_hana', 'seed_stu_umar'])),
+        Object.assign({ id: `${CLS.tajweed}_2026-10-18` }, mkSession(CLS.tajweed, '2026-10-18', tajweedStus, ['seed_stu_noor', 'seed_stu_hana', 'seed_stu_umar'])),
+        Object.assign({ id: `${CLS.tajweed}_2026-10-25` }, mkSession(CLS.tajweed, '2026-10-25', tajweedStus, ['seed_stu_noor', 'seed_stu_bilal', 'seed_stu_hana', 'seed_stu_umar'])),
+    ];
+    const progress = [
+        { id: `${CLS.hifz}__seed_stu_omar`, classId: CLS.hifz, studentId: 'seed_stu_omar', quranPosition: 'Surah Al-Mulk (67), Ayah 18', qaidahPosition: 'Completed', islamicStudiesLevel: 'Grade 5', notes: 'Strong memorization, needs to work on tajweed', updatedAt: '2026-10-25T11:00:00.000Z', updatedBy: TEACHER.ibrahim.uid },
+        { id: `${CLS.hifz}__seed_stu_aisha`, classId: CLS.hifz, studentId: 'seed_stu_aisha', quranPosition: 'Surah Al-Qalam (68), Ayah 5', qaidahPosition: 'Completed', islamicStudiesLevel: 'Grade 5', notes: 'Excellent progress, ahead of schedule', updatedAt: '2026-10-25T11:00:00.000Z', updatedBy: TEACHER.ibrahim.uid },
+        { id: `${CLS.hifz}__seed_stu_yusuf`, classId: CLS.hifz, studentId: 'seed_stu_yusuf', quranPosition: 'Surah Al-Haqqah (69), Ayah 1', qaidahPosition: 'Completed', islamicStudiesLevel: 'Grade 5', notes: 'Good retention, occasional pronunciation errors', updatedAt: '2026-10-18T11:00:00.000Z', updatedBy: TEACHER.ibrahim.uid },
+        { id: `${CLS.hifz}__seed_stu_maryam`, classId: CLS.hifz, studentId: 'seed_stu_maryam', quranPosition: 'Surah Al-Maarij (70), Ayah 10', qaidahPosition: 'Completed', islamicStudiesLevel: 'Grade 4', notes: 'Needs more revision of Juz 29', updatedAt: '2026-10-25T11:00:00.000Z', updatedBy: TEACHER.ibrahim.uid },
+        { id: `${CLS.qaidah}__seed_stu_zayd`, classId: CLS.qaidah, studentId: 'seed_stu_zayd', quranPosition: '', qaidahPosition: "Noorani Qa'idah Page 18", islamicStudiesLevel: 'Grade 1', notes: 'Good progress, needs practice with compound letters', updatedAt: '2026-10-25T12:00:00.000Z', updatedBy: TEACHER.zainab.uid },
+        { id: `${CLS.qaidah}__seed_stu_fatima`, classId: CLS.qaidah, studentId: 'seed_stu_fatima', quranPosition: '', qaidahPosition: "Noorani Qa'idah Page 22", islamicStudiesLevel: 'Grade 2', notes: 'Excellent, ahead of class', updatedAt: '2026-10-25T12:00:00.000Z', updatedBy: TEACHER.zainab.uid },
+        { id: `${CLS.qaidah}__seed_stu_ibrahim`, classId: CLS.qaidah, studentId: 'seed_stu_ibrahim', quranPosition: '', qaidahPosition: "Noorani Qa'idah Page 14", islamicStudiesLevel: 'Grade 1', notes: 'Slow but steady, extra practice recommended', updatedAt: '2026-10-18T12:00:00.000Z', updatedBy: TEACHER.zainab.uid },
+        { id: `${CLS.qaidah}__seed_stu_khadija`, classId: CLS.qaidah, studentId: 'seed_stu_khadija', quranPosition: '', qaidahPosition: "Noorani Qa'idah Page 20", islamicStudiesLevel: 'Grade 2', notes: 'Good, tanween still needs work', updatedAt: '2026-10-25T12:00:00.000Z', updatedBy: TEACHER.zainab.uid },
+        { id: `${CLS.qaidah}__seed_stu_ali`, classId: CLS.qaidah, studentId: 'seed_stu_ali', quranPosition: '', qaidahPosition: "Noorani Qa'idah Page 16", islamicStudiesLevel: 'Grade 1', notes: 'Needs encouragement, making progress', updatedAt: '2026-10-25T12:00:00.000Z', updatedBy: TEACHER.zainab.uid },
+        { id: `${CLS.is3}__seed_stu_sara`, classId: CLS.is3, studentId: 'seed_stu_sara', quranPosition: 'Surah Al-Fatiha — Memorized', qaidahPosition: "Qa'idah Complete", islamicStudiesLevel: 'Grade 3, Chapter 4', notes: 'Strong student, participates well', updatedAt: '2026-10-25T13:30:00.000Z', updatedBy: TEACHER.ahmad.uid },
+        { id: `${CLS.is3}__seed_stu_hassan`, classId: CLS.is3, studentId: 'seed_stu_hassan', quranPosition: 'Surah Al-Fatiha — Memorized', qaidahPosition: "Qa'idah Complete", islamicStudiesLevel: 'Grade 3, Chapter 3', notes: 'Needs help with Salah chapter', updatedAt: '2026-10-25T13:30:00.000Z', updatedBy: TEACHER.ahmad.uid },
+        { id: `${CLS.is3}__seed_stu_zainab`, classId: CLS.is3, studentId: 'seed_stu_zainab', quranPosition: 'Surah Al-Ikhlas — Memorized', qaidahPosition: "Qa'idah Page 30", islamicStudiesLevel: 'Grade 3, Chapter 4', notes: 'Very attentive and asks great questions', updatedAt: '2026-10-18T13:30:00.000Z', updatedBy: TEACHER.ahmad.uid },
+        { id: `${CLS.is3}__seed_stu_adam`, classId: CLS.is3, studentId: 'seed_stu_adam', quranPosition: 'Surah Al-Fatiha — Memorized', qaidahPosition: "Qa'idah Page 25", islamicStudiesLevel: 'Grade 3, Chapter 3', notes: 'Improving steadily', updatedAt: '2026-10-25T13:30:00.000Z', updatedBy: TEACHER.ahmad.uid },
+        { id: `${CLS.tajweed}__seed_stu_noor`, classId: CLS.tajweed, studentId: 'seed_stu_noor', quranPosition: 'Surah Yaseen — Ikhfa rules', qaidahPosition: 'Completed', islamicStudiesLevel: 'Grade 4', notes: 'Beautiful recitation, almost ready for Juz 1 review', updatedAt: '2026-10-25T14:30:00.000Z', updatedBy: TEACHER.zainab.uid },
+        { id: `${CLS.tajweed}__seed_stu_bilal`, classId: CLS.tajweed, studentId: 'seed_stu_bilal', quranPosition: 'Surah Al-Baqarah — Idgham rules', qaidahPosition: 'Completed', islamicStudiesLevel: 'Grade 4', notes: 'Working on Idgham, good overall', updatedAt: '2026-10-25T14:30:00.000Z', updatedBy: TEACHER.zainab.uid },
+        { id: `${CLS.tajweed}__seed_stu_hana`, classId: CLS.tajweed, studentId: 'seed_stu_hana', quranPosition: 'Surah Al-Imran — Qalqalah practice', qaidahPosition: 'Completed', islamicStudiesLevel: 'Grade 3', notes: 'Qalqalah improving, consistent effort', updatedAt: '2026-10-18T14:30:00.000Z', updatedBy: TEACHER.zainab.uid },
+        { id: `${CLS.tajweed}__seed_stu_umar`, classId: CLS.tajweed, studentId: 'seed_stu_umar', quranPosition: 'Surah An-Nisa — Madd rules', qaidahPosition: 'Completed', islamicStudiesLevel: 'Grade 4', notes: 'Strong madd pronunciation, keep it up', updatedAt: '2026-10-25T14:30:00.000Z', updatedBy: TEACHER.zainab.uid },
+    ];
+    const homework = [
+        { id: `${CLS.is3}__2026-W42`, classId: CLS.is3, week: '2026-W42', completed: { seed_stu_sara: true, seed_stu_hassan: false, seed_stu_zainab: true, seed_stu_adam: true }, updatedAt: '2026-10-18T13:30:00.000Z', updatedBy: TEACHER.ahmad.uid },
+        { id: `${CLS.is3}__2026-W43`, classId: CLS.is3, week: '2026-W43', completed: { seed_stu_sara: true, seed_stu_hassan: true, seed_stu_zainab: true, seed_stu_adam: false }, updatedAt: '2026-10-25T13:30:00.000Z', updatedBy: TEACHER.ahmad.uid },
+        { id: `${CLS.hifz}__2026-W42`, classId: CLS.hifz, week: '2026-W42', completed: { seed_stu_omar: true, seed_stu_aisha: true, seed_stu_yusuf: true, seed_stu_maryam: false }, updatedAt: '2026-10-18T11:00:00.000Z', updatedBy: TEACHER.ibrahim.uid },
+        { id: `${CLS.hifz}__2026-W43`, classId: CLS.hifz, week: '2026-W43', completed: { seed_stu_omar: true, seed_stu_aisha: true, seed_stu_yusuf: false, seed_stu_maryam: true }, updatedAt: '2026-10-25T11:00:00.000Z', updatedBy: TEACHER.ibrahim.uid },
+        { id: `${CLS.tajweed}__2026-W42`, classId: CLS.tajweed, week: '2026-W42', completed: { seed_stu_noor: true, seed_stu_bilal: true, seed_stu_hana: false, seed_stu_umar: true }, updatedAt: '2026-10-18T14:30:00.000Z', updatedBy: TEACHER.zainab.uid },
+        { id: `${CLS.tajweed}__2026-W43`, classId: CLS.tajweed, week: '2026-W43', completed: { seed_stu_noor: true, seed_stu_bilal: false, seed_stu_hana: true, seed_stu_umar: true }, updatedAt: '2026-10-25T14:30:00.000Z', updatedBy: TEACHER.zainab.uid },
+    ];
+    const quizResults = [
+        { id: `${CLS.is3}__2026-10`, classId: CLS.is3, month: '2026-10', maxScore: 20, scores: { seed_stu_sara: 18, seed_stu_hassan: 14, seed_stu_zainab: 19, seed_stu_adam: 16 }, updatedAt: '2026-10-25T13:30:00.000Z', updatedBy: TEACHER.ahmad.uid },
+        { id: `${CLS.hifz}__2026-10`, classId: CLS.hifz, month: '2026-10', maxScore: 10, scores: { seed_stu_omar: 9, seed_stu_aisha: 10, seed_stu_yusuf: 8, seed_stu_maryam: 7 }, updatedAt: '2026-10-25T11:00:00.000Z', updatedBy: TEACHER.ibrahim.uid },
+    ];
+    const announcements = [
+        { id: 'seed_ann_hifz_1', title: 'Juz 29 Revision This Saturday', body: "As-salamu alaykum dear parents,\n\nThis Saturday we will be doing a full revision of Juz 29.", classId: CLS.hifz, className: 'Hifz', authorUid: TEACHER.ibrahim.uid, authorName: TEACHER.ibrahim.name, createdAt: '2026-10-22T10:00:00.000Z', published: true },
+        { id: 'seed_ann_hifz_2', title: 'Mid-Year Progress Reports — Nov 7', body: "As-salamu alaykum,\n\nProgress reports for the Hifz class are due by November 7th.", classId: CLS.hifz, className: 'Hifz', authorUid: TEACHER.ibrahim.uid, authorName: TEACHER.ibrahim.name, createdAt: '2026-10-15T10:00:00.000Z', published: true },
+        { id: 'seed_ann_qaidah_1', title: "Practice Letters 10–15 This Week", body: "As-salamu alaykum,\n\nWe covered letters 10–15 in the Noorani Qa'idah this Saturday.", classId: CLS.qaidah, className: "Noorani Qa'idah", authorUid: TEACHER.zainab.uid, authorName: TEACHER.zainab.name, createdAt: '2026-10-25T13:00:00.000Z', published: true },
+        { id: 'seed_ann_qaidah_2', title: 'Class Starting 15 Minutes Late Nov 1', body: "As-salamu alaykum,\n\nThe Noorani Qa'idah class on November 1st will start at 11:15am.", classId: CLS.qaidah, className: "Noorani Qa'idah", authorUid: TEACHER.zainab.uid, authorName: TEACHER.zainab.name, createdAt: '2026-10-20T09:00:00.000Z', published: true },
+        { id: 'seed_ann_is3_1', title: 'Chapter 4 Quiz Next Saturday', body: "As-salamu alaykum,\n\nWe will have a short quiz on Chapter 4 (The Five Pillars) next Saturday.", classId: CLS.is3, className: 'Islamic Studies Grade 3', authorUid: TEACHER.ahmad.uid, authorName: TEACHER.ahmad.name, createdAt: '2026-10-21T12:00:00.000Z', published: true },
+        { id: 'seed_ann_tajweed_1', title: 'Ikhfa and Idgham Review', body: "As-salamu alaykum dear parents,\n\nThis week we focused on Ikhfa and Idgham rules.", classId: CLS.tajweed, className: 'Quran Recitation (Tajweed)', authorUid: TEACHER.zainab.uid, authorName: TEACHER.zainab.name, createdAt: '2026-10-25T15:00:00.000Z', published: true },
+        { id: 'seed_ann_tajweed_2', title: 'No Class on November 8th', body: "As-salamu alaykum,\n\nNo Tajweed class on November 8th due to a community event. Resumes Nov 15.", classId: CLS.tajweed, className: 'Quran Recitation (Tajweed)', authorUid: TEACHER.zainab.uid, authorName: TEACHER.zainab.name, createdAt: '2026-10-18T15:00:00.000Z', published: true },
+    ];
+    // Write in batches (Firestore limit: 500 ops per batch)
+    const allDocs = [
+        ...classes.map((_a) => {
+            var { id } = _a, d = __rest(_a, ["id"]);
+            return ({ col: 'classes', id, data: d });
+        }),
+        ...students.map((_a) => {
+            var { id } = _a, d = __rest(_a, ["id"]);
+            return ({ col: 'students', id, data: d });
+        }),
+        ...attendance.map((_a) => {
+            var { id } = _a, d = __rest(_a, ["id"]);
+            return ({ col: 'attendance', id, data: d });
+        }),
+        ...progress.map((_a) => {
+            var { id } = _a, d = __rest(_a, ["id"]);
+            return ({ col: 'studentProgress', id, data: d });
+        }),
+        ...homework.map((_a) => {
+            var { id } = _a, d = __rest(_a, ["id"]);
+            return ({ col: 'weeklyHomework', id, data: d });
+        }),
+        ...quizResults.map((_a) => {
+            var { id } = _a, d = __rest(_a, ["id"]);
+            return ({ col: 'quizResults', id, data: d });
+        }),
+        ...announcements.map((_a) => {
+            var { id } = _a, d = __rest(_a, ["id"]);
+            return ({ col: 'announcements', id, data: d });
+        }),
+    ];
+    const batch = db.batch();
+    for (const { col, id, data } of allDocs)
+        batch.set(db.collection(col).doc(id), data);
+    await batch.commit();
+    return {
+        success: true,
+        counts: {
+            classes: classes.length,
+            students: students.length,
+            attendance: attendance.length,
+            progress: progress.length,
+            homework: homework.length,
+            quizResults: quizResults.length,
+            announcements: announcements.length,
+        },
+    };
+});
+// ── clearSeedData ─────────────────────────────────────────────────────────────
+// Admin-only: deletes all documents whose ID starts with "seed_"
+exports.clearSeedData = (0, https_1.onCall)({ secrets: [] }, async (request) => {
+    var _a;
+    const db = (0, firestore_1.getFirestore)();
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+    const callerDoc = await db.collection('users').doc(request.auth.uid).get();
+    if (!callerDoc.exists || ((_a = callerDoc.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Admin only.');
+    }
+    const collections = ['classes', 'students', 'attendance', 'studentProgress', 'weeklyHomework', 'quizResults', 'announcements', 'missedWork'];
+    let deleted = 0;
+    for (const col of collections) {
+        const snap = await db.collection(col).get();
+        const seedDocs = snap.docs.filter(d => d.id.startsWith('seed_'));
+        if (seedDocs.length > 0) {
+            const batch = db.batch();
+            for (const d of seedDocs)
+                batch.delete(d.ref);
+            await batch.commit();
+            deleted += seedDocs.length;
+        }
+    }
+    return { success: true, deleted };
 });
 //# sourceMappingURL=index.js.map

@@ -13,6 +13,7 @@ import ImpersonationBanner, { getImpersonation, type ImpersonationState } from '
 const functions = getFunctions()
 const notifyAnnouncementParentsFn = httpsCallable(functions, 'notifyAnnouncementParents')
 const notifyMissedWorkParentFn = httpsCallable(functions, 'notifyMissedWorkParent')
+const notifyCaughtUpParentFn   = httpsCallable(functions, 'notifyCaughtUpParent')
 
 // ── Date/week helpers ─────────────────────────────────────────────────────────
 
@@ -869,6 +870,7 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
   const [savingNotes, setSavingNotes] = useState<Record<string, boolean>>({})
   const [resolvingId, setResolvingId] = useState<string | null>(null)
   const [notifyStatus, setNotifyStatus] = useState<Record<string, string>>({})
+  const [caughtUpNotifyStatus, setCaughtUpNotifyStatus] = useState<Record<string, string>>({})
   const [isAssignments, setIsAssignments] = useState<Record<string, ISHomeworkAssignment>>({})
 
   useEffect(() => {
@@ -948,6 +950,17 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
       setNotifyStatus(prev => ({ ...prev, [itemId]: 'error' }))
     }
     setTimeout(() => setNotifyStatus(prev => ({ ...prev, [itemId]: '' })), 4000)
+  }
+
+  async function notifyCaughtUp(itemId: string) {
+    setCaughtUpNotifyStatus(prev => ({ ...prev, [itemId]: 'sending' }))
+    try {
+      await notifyCaughtUpParentFn({ missedWorkId: itemId })
+      setCaughtUpNotifyStatus(prev => ({ ...prev, [itemId]: 'sent' }))
+    } catch {
+      setCaughtUpNotifyStatus(prev => ({ ...prev, [itemId]: 'error' }))
+    }
+    setTimeout(() => setCaughtUpNotifyStatus(prev => ({ ...prev, [itemId]: '' })), 4000)
   }
 
   if (loading) return <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
@@ -1071,24 +1084,36 @@ function MissedWorkTab({ cls, teacherUid: _teacherUid }: { cls: AcademyClass; te
                           className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm resize-none disabled:opacity-60"
                         />
                       </div>
-                      {!isCaughtUp && (
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <button onClick={() => saveNotes(item.id)} disabled={savingNotes[item.id]}
-                            className="bg-stone-100 text-stone-700 font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-stone-200 transition disabled:opacity-60">
-                            {savingNotes[item.id] ? 'Saving…' : 'Save Notes'}
-                          </button>
-                          <button onClick={() => markCaughtUp(item.id)} disabled={resolvingId === item.id}
-                            className="bg-sage-100 text-sage-700 font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-sage-200 transition disabled:opacity-60">
-                            {resolvingId === item.id ? 'Saving…' : 'Caught Up ✓'}
-                          </button>
-                          <button onClick={() => notifyParent(item.id)} disabled={notifyStatus[item.id] === 'sending'}
-                            className="bg-wood/10 text-wood font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-wood/20 transition disabled:opacity-60 border border-wood/20">
-                            {notifyStatus[item.id] === 'sending' ? 'Sending…' : 'Notify Parent'}
-                          </button>
-                          {notifyStatus[item.id] === 'sent' && <span className="text-xs font-quick text-sage-600 font-semibold">Email sent!</span>}
-                          {notifyStatus[item.id] === 'error' && <span className="text-xs font-quick text-rose-500 font-semibold">Failed to send.</span>}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {!isCaughtUp && (
+                          <>
+                            <button onClick={() => saveNotes(item.id)} disabled={savingNotes[item.id]}
+                              className="bg-stone-100 text-stone-700 font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-stone-200 transition disabled:opacity-60">
+                              {savingNotes[item.id] ? 'Saving…' : 'Save Notes'}
+                            </button>
+                            <button onClick={() => markCaughtUp(item.id)} disabled={resolvingId === item.id}
+                              className="bg-sage-100 text-sage-700 font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-sage-200 transition disabled:opacity-60">
+                              {resolvingId === item.id ? 'Saving…' : 'Caught Up ✓'}
+                            </button>
+                            <button onClick={() => notifyParent(item.id)} disabled={notifyStatus[item.id] === 'sending'}
+                              className="bg-wood/10 text-wood font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-wood/20 transition disabled:opacity-60 border border-wood/20">
+                              {notifyStatus[item.id] === 'sending' ? 'Sending…' : 'Notify Parent'}
+                            </button>
+                            {notifyStatus[item.id] === 'sent' && <span className="text-xs font-quick text-sage-600 font-semibold">Email sent!</span>}
+                            {notifyStatus[item.id] === 'error' && <span className="text-xs font-quick text-rose-500 font-semibold">Failed to send.</span>}
+                          </>
+                        )}
+                        {isCaughtUp && (
+                          <>
+                            <button onClick={() => notifyCaughtUp(item.id)} disabled={caughtUpNotifyStatus[item.id] === 'sending'}
+                              className="bg-wood/10 text-wood font-semibold font-quick text-xs px-4 py-2 rounded-full hover:bg-wood/20 transition disabled:opacity-60 border border-wood/20">
+                              {caughtUpNotifyStatus[item.id] === 'sending' ? 'Sending…' : 'Notify Parent — Caught Up'}
+                            </button>
+                            {caughtUpNotifyStatus[item.id] === 'sent' && <span className="text-xs font-quick text-sage-600 font-semibold">Email sent!</span>}
+                            {caughtUpNotifyStatus[item.id] === 'error' && <span className="text-xs font-quick text-rose-500 font-semibold">Failed to send.</span>}
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
