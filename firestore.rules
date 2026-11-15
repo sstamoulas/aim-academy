@@ -119,6 +119,17 @@ service cloud.firestore {
       allow read: if isParent();
     }
 
+    // Classwide IS chapter progress — staff read/write; parents can read
+    match /isClassProgress/{docId} {
+      allow read, write: if isStaff();
+      allow read: if isParent();
+    }
+
+    // Per-student notes — staff read/write only
+    match /studentNotes/{docId} {
+      allow read, write: if isStaff();
+    }
+
     // Qa'idah progress tracking — staff read/write
     match /qaidahProgress/{docId} {
       allow read, write: if isStaff();

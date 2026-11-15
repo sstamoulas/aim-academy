@@ -79,7 +79,6 @@ function shiftMonth(m: string, delta: number): string {
 
 // ── Progress types (inline) ───────────────────────────────────────────────────
 
-interface ProgData { quranPosition: string; qaidahPosition: string; islamicStudiesLevel: string; notes: string; updatedAt?: string }
 type ISHomeworkStatus = 'complete' | 'partially_complete' | 'not_complete' | 'no_homework'
 const IS_HW_OPTIONS: { value: ISHomeworkStatus; label: string; short: string }[] = [
   { value: 'complete',           label: 'Complete',     short: 'C'  },
@@ -370,122 +369,6 @@ function AttendanceTab({ cls, teacherUid }: { cls: AcademyClass; teacherUid: str
   )
 }
 
-// ── Progress ──────────────────────────────────────────────────────────────────
-
-function ProgressTab({ cls, students, teacherUid }: { cls: AcademyClass; students: Student[]; teacherUid: string }) {
-  const [progMap, setProgMap] = useState<Record<string, ProgData>>({})
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState<Record<string, boolean>>({})
-  const [saved, setSaved] = useState<Record<string, boolean>>({})
-  const [expanded, setExpanded] = useState<string | null>(null)
-
-  useEffect(() => {
-    async function load() {
-      setLoading(true)
-      const docs = await Promise.all(students.map(s => getDoc(doc(db, 'studentProgress', `${cls.id}__${s.id}`))))
-      const map: Record<string, ProgData> = {}
-      students.forEach((s, i) => {
-        const d = docs[i]
-        map[s.id] = d.exists() ? (d.data() as ProgData) : { quranPosition: '', qaidahPosition: '', islamicStudiesLevel: '', notes: '' }
-      })
-      setProgMap(map)
-      setLoading(false)
-    }
-    if (students.length > 0) load(); else setLoading(false)
-  }, [cls.id, students.map(s => s.id).join(',')])
-
-  function update(studentId: string, field: keyof ProgData, value: string) {
-    setProgMap(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: value } }))
-  }
-
-  async function saveStudent(s: Student) {
-    setSaving(prev => ({ ...prev, [s.id]: true }))
-    await setDoc(doc(db, 'studentProgress', `${cls.id}__${s.id}`), {
-      classId: cls.id,
-      studentId: s.id,
-      ...progMap[s.id],
-      updatedAt: new Date().toISOString(),
-      updatedBy: teacherUid,
-    })
-    setSaving(prev => ({ ...prev, [s.id]: false }))
-    setSaved(prev => ({ ...prev, [s.id]: true }))
-    setTimeout(() => setSaved(prev => ({ ...prev, [s.id]: false })), 3000)
-  }
-
-  if (loading) return <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
-  if (students.length === 0) return <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">No students enrolled in this class yet.</div>
-
-  return (
-    <div className="rounded-2xl border border-stone-200/70 overflow-hidden">
-      {students.map((s, idx) => {
-        const p = progMap[s.id] ?? { quranPosition: '', qaidahPosition: '', islamicStudiesLevel: '', notes: '' }
-        const isOpen = expanded === s.id
-        const hasData = p.quranPosition || p.qaidahPosition || p.islamicStudiesLevel
-        return (
-          <div key={s.id} className={idx > 0 ? 'border-t border-stone-200/70' : ''}>
-            {/* Collapsed row */}
-            <button
-              onClick={() => setExpanded(isOpen ? null : s.id)}
-              className="w-full flex items-center gap-3 px-4 py-3 bg-white hover:bg-stone-50 transition text-left"
-            >
-              <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-xs flex-shrink-0">
-                {s.firstName[0]}{s.lastName[0]}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-stone-800 font-quick text-sm">{s.firstName} {s.lastName}</div>
-                {!isOpen && hasData && (
-                  <div className="text-xs text-stone-400 font-quick truncate">
-                    {[p.quranPosition, p.qaidahPosition, p.islamicStudiesLevel].filter(Boolean).join(' · ')}
-                  </div>
-                )}
-              </div>
-              {p.updatedAt && !isOpen && (
-                <span className="text-xs text-stone-400 font-quick flex-shrink-0">
-                  {new Date(p.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                </span>
-              )}
-              <svg className={`w-4 h-4 text-stone-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-
-            {/* Expanded panel */}
-            {isOpen && (
-              <div className="px-4 pb-4 pt-1 bg-stone-50/60 border-t border-stone-100">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
-                  {[
-                    { field: 'quranPosition' as const, label: "Qur'an Position", placeholder: "e.g. Surah Al-Mulk, Ayah 5" },
-                    { field: 'qaidahPosition' as const, label: "Qa'idah Position", placeholder: "e.g. Noorani Qa'idah, Page 12" },
-                    { field: 'islamicStudiesLevel' as const, label: 'Islamic Studies', placeholder: 'e.g. Grade 3, Chapter 2' },
-                    { field: 'notes' as const, label: 'Notes', placeholder: 'Optional notes…' },
-                  ].map(({ field, label, placeholder }) => (
-                    <div key={field}>
-                      <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">{label}</label>
-                      <input
-                        value={p[field] as string}
-                        onChange={e => update(s.id, field, e.target.value)}
-                        placeholder={placeholder}
-                        className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
-                      />
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-center gap-3 mt-3">
-                  <button onClick={() => saveStudent(s)} disabled={saving[s.id]}
-                    className="bg-wood text-white font-bold font-quick px-5 py-2 rounded-full text-sm hover:brightness-95 transition disabled:opacity-60">
-                    {saving[s.id] ? 'Saving…' : 'Save'}
-                  </button>
-                  {saved[s.id] && <span className="text-sm text-sage-600 font-quick font-semibold">Saved!</span>}
-                </div>
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 // ── Homework ──────────────────────────────────────────────────────────────────
 
 function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyClass; students: Student[]; teacherUid: string; teacherName: string }) {
@@ -499,13 +382,17 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
   const [saved, setSaved] = useState(false)
   const [savingAssignment, setSavingAssignment] = useState(false)
   const [savedAssignment, setSavedAssignment] = useState(false)
+  const [isChapter, setIsChapter] = useState('')
+  const [savingChapter, setSavingChapter] = useState(false)
+  const [savedChapter, setSavedChapter] = useState(false)
 
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const [hwSnap, assignSnap] = await Promise.all([
+      const [hwSnap, assignSnap, chapterSnap] = await Promise.all([
         getDoc(doc(db, 'weeklyHomework', `${cls.id}__${week}`)),
         getDoc(doc(db, 'isHomework', `${cls.id}__${week}`)),
+        getDoc(doc(db, 'isClassProgress', cls.id)),
       ])
       if (hwSnap.exists()) {
         const raw = (hwSnap.data() as HwData).completed ?? {}
@@ -526,10 +413,28 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
         setAssignment(null)
         setAssignmentForm({ title: '', description: '' })
       }
+      if (chapterSnap.exists()) {
+        setIsChapter((chapterSnap.data().currentChapter as string) ?? '')
+      } else {
+        setIsChapter('')
+      }
       setLoading(false)
     }
     load()
   }, [cls.id, week])
+
+  async function handleSaveChapter() {
+    setSavingChapter(true)
+    await setDoc(doc(db, 'isClassProgress', cls.id), {
+      classId: cls.id,
+      currentChapter: isChapter.trim(),
+      updatedAt: new Date().toISOString(),
+      updatedBy: teacherUid,
+    })
+    setSavingChapter(false)
+    setSavedChapter(true)
+    setTimeout(() => setSavedChapter(false), 3000)
+  }
 
   async function handleSaveAssignment() {
     if (!assignmentForm.title.trim()) return
@@ -565,6 +470,26 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
 
   return (
     <div>
+      {/* Current Chapter Card */}
+      <div className="bg-sage-50 border border-sage-200 rounded-2xl p-5 mb-5">
+        <h4 className="font-semibold text-stone-800 font-quick text-sm mb-3">Current Chapter / Topic</h4>
+        <div className="flex gap-3 items-start">
+          <input
+            value={isChapter}
+            onChange={e => setIsChapter(e.target.value)}
+            placeholder="e.g. Chapter 5 — The Five Pillars of Islam"
+            className="flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
+          />
+          <button
+            onClick={handleSaveChapter}
+            disabled={savingChapter}
+            className="bg-sage-600 text-white font-bold font-quick px-5 py-2 rounded-full text-sm hover:brightness-95 transition disabled:opacity-60 flex-shrink-0">
+            {savingChapter ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+        {savedChapter && <span className="text-sm text-sage-700 font-quick font-semibold mt-2 block">Saved!</span>}
+      </div>
+
       <div className="flex items-center gap-3 mb-5">
         <button onClick={() => setWeek(w => shiftWeek(w, -1))} className="w-8 h-8 rounded-full border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-stone-50 transition">‹</button>
         <span className="font-quick text-sm font-semibold text-stone-700 flex-1 text-center">{weekLabel(week)}</span>
@@ -573,7 +498,7 @@ function HomeworkTab({ cls, students, teacherUid, teacherName }: { cls: AcademyC
 
       {/* Class Assignment Card */}
       <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-6">
-        <h4 className="font-semibold text-stone-800 font-quick text-sm mb-3">Class Assignment (IS Homework)</h4>
+        <h4 className="font-semibold text-stone-800 font-quick text-sm mb-3">Class Assignment</h4>
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Assignment Title</label>
@@ -1369,6 +1294,103 @@ function QaidahTab({ cls, students, teacherUid }: { cls: AcademyClass; students:
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Notes Tab ─────────────────────────────────────────────────────────────────
+
+function NotesTab({ cls, students, teacherUid }: { cls: AcademyClass; students: Student[]; teacherUid: string }) {
+  const [notesMap, setNotesMap] = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState<Record<string, boolean>>({})
+  const [saved, setSaved] = useState<Record<string, boolean>>({})
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      const docs = await Promise.all(students.map(s => getDoc(doc(db, 'studentNotes', `${cls.id}__${s.id}`))))
+      const map: Record<string, string> = {}
+      students.forEach((s, i) => {
+        const d = docs[i]
+        map[s.id] = d.exists() ? (d.data().notes as string ?? '') : ''
+      })
+      setNotesMap(map)
+      setLoading(false)
+    }
+    if (students.length > 0) load(); else setLoading(false)
+  }, [cls.id, students.map(s => s.id).join(',')])
+
+  async function handleSave(s: Student) {
+    setSaving(prev => ({ ...prev, [s.id]: true }))
+    await setDoc(doc(db, 'studentNotes', `${cls.id}__${s.id}`), {
+      classId: cls.id,
+      studentId: s.id,
+      notes: notesMap[s.id] ?? '',
+      updatedAt: new Date().toISOString(),
+      updatedBy: teacherUid,
+    })
+    setSaving(prev => ({ ...prev, [s.id]: false }))
+    setSaved(prev => ({ ...prev, [s.id]: true }))
+    setTimeout(() => setSaved(prev => ({ ...prev, [s.id]: false })), 3000)
+  }
+
+  if (loading) return <div className="flex justify-center py-12"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+  if (students.length === 0) return <div className="bg-stone-50 rounded-2xl border border-stone-200 p-8 text-center text-stone-400 font-quick text-sm">No students enrolled in this class yet.</div>
+
+  return (
+    <div className="rounded-2xl border border-stone-200/70 overflow-hidden">
+      {students.map((s, idx) => {
+        const notes = notesMap[s.id] ?? ''
+        const isOpen = expanded === s.id
+        return (
+          <div key={s.id} className={`bg-white ${idx > 0 ? 'border-t border-stone-200/70' : ''}`}>
+            {/* Collapsed row */}
+            <button
+              onClick={() => setExpanded(isOpen ? null : s.id)}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-stone-50 transition text-left"
+            >
+              <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center font-bold text-sage-700 font-quick text-xs flex-shrink-0">
+                {s.firstName[0]}{s.lastName[0]}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-stone-800 font-quick text-sm">{s.firstName} {s.lastName}</div>
+                {!isOpen && notes && (
+                  <div className="text-xs text-stone-400 font-quick truncate">{notes}</div>
+                )}
+                {!isOpen && !notes && (
+                  <div className="text-xs text-stone-300 font-quick italic">No notes yet</div>
+                )}
+              </div>
+              <svg className={`w-4 h-4 text-stone-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {/* Expanded panel */}
+            {isOpen && (
+              <div className="px-4 pb-4 pt-2 bg-stone-50/60 border-t border-stone-100">
+                <label className="block text-xs font-semibold text-stone-500 font-quick mb-1 mt-2">Notes</label>
+                <textarea
+                  value={notes}
+                  onChange={e => setNotesMap(prev => ({ ...prev, [s.id]: e.target.value }))}
+                  placeholder="Add notes about this student…"
+                  rows={4}
+                  className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm resize-none"
+                />
+                <div className="flex items-center gap-3 mt-3">
+                  <button onClick={() => handleSave(s)} disabled={saving[s.id]}
+                    className="bg-wood text-white font-bold font-quick px-5 py-2 rounded-full text-sm hover:brightness-95 transition disabled:opacity-60">
+                    {saving[s.id] ? 'Saving…' : 'Save'}
+                  </button>
+                  {saved[s.id] && <span className="text-sm text-sage-600 font-quick font-semibold">Saved!</span>}
+                </div>
               </div>
             )}
           </div>
@@ -2340,7 +2362,7 @@ function StudentProfile({ cls, student, onBack }: { cls: AcademyClass; student: 
 
 // ── Class Detail ──────────────────────────────────────────────────────────────
 
-type DetailTab = 'attendance' | 'progress' | 'quran' | 'qaidah' | 'homework' | 'quiz' | 'missedWork' | 'announcements' | 'students'
+type DetailTab = 'attendance' | 'quran' | 'qaidah' | 'homework' | 'quiz' | 'missedWork' | 'announcements' | 'students' | 'notes'
 
 function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
   cls: AcademyClass; teacherUid: string; teacherName: string; onBack: () => void; initialTab?: DetailTab
@@ -2362,25 +2384,25 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
 
   const TABS: [DetailTab, string][] = [
     ['attendance', 'Attendance'],
-    ['progress', 'Progress'],
     ['quran', "Qur'an"],
     ['qaidah', "Qa'idah"],
-    ['homework', 'Homework'],
-    ['quiz', 'Quiz'],
+    ['homework', 'Islamic Studies'],
+    ['quiz', 'IS Quiz'],
     ['missedWork', 'Missed Work'],
     ['announcements', 'Announcements'],
+    ['notes', 'Notes'],
     ['students', `Students (${students.length})`],
   ]
 
   const TAB_ICONS: Record<DetailTab, React.ReactElement> = {
     attendance: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>,
-    progress:   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
     quran:      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>,
     qaidah:     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>,
     homework:   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>,
     quiz:       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>,
     missedWork: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>,
     announcements: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>,
+    notes:      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
     students:   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
   }
 
@@ -2447,13 +2469,13 @@ function ClassDetail({ cls, teacherUid, teacherName, onBack, initialTab }: {
             )
           )}
           {tab === 'attendance' && <AttendanceTab cls={cls} teacherUid={teacherUid} />}
-          {tab === 'progress' && (loadingStudents ? loadingSpinner : <ProgressTab cls={cls} students={students} teacherUid={teacherUid} />)}
           {tab === 'homework' && (loadingStudents ? loadingSpinner : <HomeworkTab cls={cls} students={students} teacherUid={teacherUid} teacherName={teacherName} />)}
           {tab === 'quiz' && (loadingStudents ? loadingSpinner : <QuizTab cls={cls} students={students} teacherUid={teacherUid} />)}
           {tab === 'missedWork' && <MissedWorkTab cls={cls} teacherUid={teacherUid} />}
           {tab === 'announcements' && <AnnouncementsTab cls={cls} teacherUid={teacherUid} teacherName={teacherName} />}
           {tab === 'quran' && (loadingStudents ? loadingSpinner : <QuranTab cls={cls} students={students} teacherUid={teacherUid} />)}
           {tab === 'qaidah' && (loadingStudents ? loadingSpinner : <QaidahTab cls={cls} students={students} teacherUid={teacherUid} />)}
+          {tab === 'notes' && (loadingStudents ? loadingSpinner : <NotesTab cls={cls} students={students} teacherUid={teacherUid} />)}
         </div>
       </div>
     </div>
@@ -2557,7 +2579,7 @@ function Dashboard({ classes, onSelect }: { classes: AcademyClass[]; onSelect: (
             const applicableTasks: { label: string; done: boolean; tab: DetailTab }[] = s ? [
               { label: 'Monthly Quiz', done: s.quiz, tab: 'quiz' },
               ...(s.reports
-                ? [{ label: `Progress Reports (${s.reports.submitted}/${s.reports.total} submitted)`, done: s.reports.submitted === s.reports.total && s.reports.total > 0, tab: 'progress' as DetailTab }]
+                ? [{ label: `Progress Reports (${s.reports.submitted}/${s.reports.total} submitted)`, done: s.reports.submitted === s.reports.total && s.reports.total > 0, tab: 'students' as DetailTab }]
                 : []),
             ] : []
 
