@@ -2533,8 +2533,7 @@ function Dashboard({ classes, onSelect }: { classes: AcademyClass[]; onSelect: (
             const weeklyTasks: { label: string; done: boolean; tab: DetailTab }[] = s ? [
               { label: 'Attendance',          done: s.attendance,   tab: 'attendance' },
               { label: "Qur'an / Qa'idah",    done: s.quranQaidah,  tab: 'quran' },
-              { label: 'Islamic Studies',      done: s.isHw,         tab: 'homework' },
-              { label: 'Homework Completion', done: s.hwCompletion, tab: 'homework' },
+              { label: 'Islamic Studies',      done: s.isHw && s.hwCompletion, tab: 'homework' },
             ] : []
 
             const applicableTasks: { label: string; done: boolean; tab: DetailTab }[] = s ? [
