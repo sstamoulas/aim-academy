@@ -248,8 +248,8 @@ function ChildDetail({ data, onBack }: {
             {missedWorkItems.map(item => {
               const cls = classes.find(c => c.id === item.classId)
               const what: string[] = []
-              if (item.missedLesson) what.push('IS Lesson')
-              if (item.missedHomework) what.push('IS Homework')
+              if (item.missedLesson) what.push('Islamic Studies Lesson')
+              if (item.missedHomework) what.push('Islamic Studies Homework')
               return (
                 <div key={item.id} className="bg-white rounded-2xl border border-rose-100 p-5">
                   <div className="flex items-start justify-between gap-3 mb-2">

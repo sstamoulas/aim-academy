@@ -12,6 +12,9 @@
         ],
         "staging": [
           "aim-academy-7fdae-staging"
+        ],
+        "production": [
+          "aim-academy-prod"
         ]
       }
     },
