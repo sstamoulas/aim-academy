@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import {
-  signOut, onAuthStateChanged, type User,
+  signOut, onAuthStateChanged, updateProfile, verifyBeforeUpdateEmail, type User,
 } from 'firebase/auth'
 import {
-  collection, doc, getDoc, getDocs, addDoc, query, where, orderBy, limit, documentId,
+  collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, query, where, orderBy, limit, documentId,
 } from 'firebase/firestore'
 import { auth, db } from '../firebase'
 import type { AcademyClass, Student, AttendanceSession, AttendanceRecord, Announcement, ChildRequest, MissedWork, ISHomeworkAssignment, TeacherProfile } from '../types/portal'
@@ -21,7 +21,7 @@ function ChildDetail({ data, onBack }: {
   onBack: () => void
 }) {
   const { student, classes } = data
-  const [tab, setTab] = useState<'attendance' | 'missedWork' | 'homework' | 'announcements'>('attendance')
+  const [tab, setTab] = useState<'attendance' | 'missedWork' | 'homework' | 'announcements'>('announcements')
   const [sessions, setSessions] = useState<AttendanceSession[]>([])
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [missedWorkItems, setMissedWorkItems] = useState<MissedWork[]>([])
@@ -145,13 +145,6 @@ function ChildDetail({ data, onBack }: {
         )}
       </div>
 
-      {/* Monthly fee display */}
-      {student.tuitionAmount ? (
-        <div className="bg-stone-50 border border-stone-200 rounded-2xl px-5 py-4 mb-4 flex items-center justify-between">
-          <div className="font-semibold text-stone-700 font-quick text-sm">Monthly Fee</div>
-          <div className="text-stone-800 font-quick font-bold">${(student.tuitionAmount / 100).toFixed(2)}<span className="text-stone-400 font-normal text-xs">/mo</span></div>
-        </div>
-      ) : null}
 
       {/* Teacher profiles */}
       {teacherProfiles.length > 0 && (
@@ -180,15 +173,15 @@ function ChildDetail({ data, onBack }: {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-stone-200 mb-6">
+      <div className="flex border-b border-stone-200 mb-6 overflow-x-auto">
         {([
-          ['attendance', `Attendance (${totalCount})`],
-          ['missedWork', `Missed Work${missedWorkItems.length > 0 ? ` (${missedWorkItems.length})` : ''}`],
-          ['homework', `Homework${homeworkAssignments.length > 0 ? ` (${homeworkAssignments.length})` : ''}`],
           ['announcements', `Announcements (${announcements.length})`],
+          ['attendance', `Attendance (${totalCount})`],
+          ['homework', `Homework${homeworkAssignments.length > 0 ? ` (${homeworkAssignments.length})` : ''}`],
+          ['missedWork', `Missed Work${missedWorkItems.length > 0 ? ` (${missedWorkItems.length})` : ''}`],
         ] as const).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-2.5 text-sm font-semibold font-quick border-b-2 -mb-px transition ${
+            className={`px-3 py-2.5 text-xs font-semibold font-quick border-b-2 -mb-px transition whitespace-nowrap flex-shrink-0 ${
               tab === t ? 'border-sage-600 text-sage-700' : 'border-transparent text-stone-400 hover:text-stone-600'
             }`}>
             {label}
@@ -352,9 +345,18 @@ export default function ParentPortal() {
   const [displayName, setDisplayName] = useState('')
   const [authLoading, setAuthLoading] = useState(true)
 
+  const [mainTab, setMainTab] = useState<'children' | 'account'>('children')
   const [children, setChildren] = useState<ChildData[]>([])
   const [dataLoading, setDataLoading] = useState(false)
   const [selectedChild, setSelectedChild] = useState<ChildData | null>(null)
+
+  // Account Info state
+  const [accountForm, setAccountForm] = useState({ displayName: '', phone: '', email: '' })
+  const [emailVerifySent, setEmailVerifySent] = useState(false)
+  const [accountLoading, setAccountLoading] = useState(false)
+  const [accountSaving, setAccountSaving] = useState(false)
+  const [accountSaved, setAccountSaved] = useState(false)
+  const [accountError, setAccountError] = useState<string | null>(null)
 
   const [pendingRequests, setPendingRequests] = useState<ChildRequest[]>([])
   const [registerOpen, setRegisterOpen] = useState(false)
@@ -491,6 +493,68 @@ export default function ParentPortal() {
       setRegisterError(err instanceof Error ? err.message : 'Failed to submit request.')
     } finally {
       setRegisterSubmitting(false)
+    }
+  }
+
+  async function loadAccount() {
+    if (!user) return
+    setAccountLoading(true)
+    const uid = impersonation?.uid ?? user.uid
+    const snap = await getDoc(doc(db, 'users', uid))
+    const data = snap.data() ?? {}
+    setAccountForm({
+      displayName: data.displayName ?? impersonation?.displayName ?? user.displayName ?? '',
+      phone: data.phone ?? '',
+      email: impersonation?.email ?? user.email ?? '',
+    })
+    setEmailVerifySent(false)
+    setAccountLoading(false)
+  }
+
+  async function handleSaveAccount(e: React.FormEvent) {
+    e.preventDefault()
+    if (!user) return
+    setAccountError(null)
+    setEmailVerifySent(false)
+    setAccountSaving(true)
+    try {
+      const uid = impersonation?.uid ?? user.uid
+      const currentEmail = impersonation?.email ?? user.email ?? ''
+      const newEmail = accountForm.email.trim().toLowerCase()
+      const emailChanged = newEmail && newEmail !== currentEmail
+
+      // Save name + phone to Firestore
+      await setDoc(doc(db, 'users', uid), {
+        displayName: accountForm.displayName.trim(),
+        phone: accountForm.phone.trim(),
+      }, { merge: true })
+
+      if (!impersonation) {
+        await updateProfile(user, { displayName: accountForm.displayName.trim() })
+        setDisplayName(accountForm.displayName.trim())
+      }
+
+      // Email change — send verification to new address; update Firestore + students after
+      if (emailChanged && !impersonation) {
+        await verifyBeforeUpdateEmail(user, newEmail)
+        setEmailVerifySent(true)
+        // Update Firestore email and student parentEmail links
+        await updateDoc(doc(db, 'users', uid), { email: newEmail })
+        const studentSnap = await getDocs(query(collection(db, 'students'), where('parentEmail', '==', currentEmail)))
+        await Promise.all(studentSnap.docs.map(d => updateDoc(d.ref, { parentEmail: newEmail })))
+      }
+
+      setAccountSaved(true)
+      setTimeout(() => setAccountSaved(false), 3000)
+    } catch (err: unknown) {
+      const code = (err as { code?: string }).code
+      if (code === 'auth/requires-recent-login') {
+        setAccountError('For security, please sign out and sign back in before changing your email.')
+      } else {
+        setAccountError(err instanceof Error ? err.message : 'Failed to save.')
+      }
+    } finally {
+      setAccountSaving(false)
     }
   }
 
@@ -735,6 +799,100 @@ export default function ParentPortal() {
           />
         ) : (
           <div>
+            {/* Top nav */}
+            <div className="flex gap-1 bg-stone-100 rounded-2xl p-1 mb-8 w-fit">
+              {(['children', 'account'] as const).map(t => (
+                <button key={t} onClick={() => { setMainTab(t); if (t === 'account') loadAccount() }}
+                  className={`px-5 py-2 rounded-xl text-sm font-semibold font-quick transition ${
+                    mainTab === t ? 'bg-white shadow-sm text-stone-800' : 'text-stone-400 hover:text-stone-600'
+                  }`}>
+                  {t === 'children' ? 'My Children' : 'Account Info'}
+                </button>
+              ))}
+            </div>
+
+            {mainTab === 'account' ? (
+              accountLoading ? (
+                <div className="flex justify-center py-16"><div className="w-7 h-7 border-4 border-sage-200 border-t-sage-600 rounded-full animate-spin" /></div>
+              ) : (
+                <div className="space-y-6 max-w-md">
+                  {/* Contact Details */}
+                  <div className="bg-white rounded-[24px] border border-stone-200/70 p-6">
+                    <h3 className="font-kids text-xl text-wood-dark mb-5">Contact Details</h3>
+                    <form onSubmit={handleSaveAccount} className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Full Name</label>
+                        <input
+                          value={accountForm.displayName}
+                          onChange={e => setAccountForm(f => ({ ...f, displayName: e.target.value }))}
+                          placeholder="Your name"
+                          className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Phone</label>
+                        <input
+                          type="tel"
+                          value={accountForm.phone}
+                          onChange={e => setAccountForm(f => ({ ...f, phone: e.target.value }))}
+                          placeholder="e.g. 703-555-0100"
+                          className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-stone-500 font-quick mb-1">Email</label>
+                        <input
+                          type="email"
+                          value={accountForm.email}
+                          onChange={e => setAccountForm(f => ({ ...f, email: e.target.value }))}
+                          placeholder="your@email.com"
+                          className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400"
+                        />
+                        <p className="text-xs text-stone-400 font-quick mt-1">If changed, a verification link will be sent to the new address.</p>
+                      </div>
+                      {emailVerifySent && (
+                        <div className="bg-sage-50 border border-sage-200 rounded-xl px-4 py-3 text-sm font-quick text-sage-700">
+                          Verification email sent to <strong>{accountForm.email}</strong>. Click the link to confirm your new email.
+                        </div>
+                      )}
+                      {accountError && <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">{accountError}</p>}
+                      <div className="flex items-center gap-3 pt-1">
+                        <button type="submit" disabled={accountSaving}
+                          className="bg-wood text-white font-bold font-quick px-6 py-2.5 rounded-full shadow-sm hover:brightness-95 transition disabled:opacity-60 text-sm">
+                          {accountSaving ? 'Saving…' : 'Save Changes'}
+                        </button>
+                        {accountSaved && <span className="text-sm text-sage-600 font-quick font-semibold">Saved!</span>}
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Billing Info */}
+                  {children.length > 0 && (
+                    <div className="bg-white rounded-[24px] border border-stone-200/70 p-6">
+                      <h3 className="font-kids text-xl text-wood-dark mb-5">Billing Info</h3>
+                      <div className="space-y-3">
+                        {children.map(({ student, classes }) => (
+                          <div key={student.id} className="flex items-center justify-between gap-4 py-2 border-b border-stone-100 last:border-0">
+                            <div>
+                              <div className="font-quick font-semibold text-stone-800 text-sm">{student.firstName} {student.lastName}</div>
+                              <div className="text-xs text-stone-400 font-quick">{classes.map(c => c.name).join(', ') || 'No classes'}</div>
+                            </div>
+                            {student.tuitionAmount ? (
+                              <div className="font-quick font-bold text-stone-700 text-sm flex-shrink-0">
+                                ${(student.tuitionAmount / 100).toFixed(2)}<span className="text-stone-400 font-normal text-xs">/mo</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-stone-400 font-quick">Not set</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            ) : (
+              <>
             <div className="flex items-center justify-between mb-2">
               <h2 className="font-kids text-3xl text-wood-dark">My Children</h2>
               <button
@@ -800,9 +958,6 @@ export default function ParentPortal() {
                               : <span className="text-xs text-stone-400 font-quick">No classes enrolled</span>
                             }
                           </div>
-                          {student.tuitionAmount ? (
-                            <div className="text-xs font-quick text-stone-400 mt-1">Monthly fee: <span className="font-semibold text-stone-600">${(student.tuitionAmount / 100).toFixed(2)}</span></div>
-                          ) : null}
                         </div>
                         <span className="text-stone-300 text-xl flex-shrink-0">›</span>
                       </div>
@@ -843,6 +998,8 @@ export default function ParentPortal() {
                   <span className="text-xs font-bold font-quick bg-amber-100 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-full flex-shrink-0">Pending</span>
                 )}
               </div>
+            )}
+            </>
             )}
           </div>
         )}
