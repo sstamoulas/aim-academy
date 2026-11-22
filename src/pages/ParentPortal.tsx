@@ -135,6 +135,13 @@ function ChildDetail({ data, onBack }: {
               </span>
             ))}
           </div>
+          {classes.some(c => c.teacherName) && (
+            <div className="text-xs text-stone-400 font-quick mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+              {classes.filter(c => c.teacherName).map(c => (
+                <span key={c.id}><span className="font-semibold text-stone-500">Teacher:</span> {c.teacherName}</span>
+              ))}
+            </div>
+          )}
         </div>
         {/* Attendance summary */}
         {totalCount > 0 && (
