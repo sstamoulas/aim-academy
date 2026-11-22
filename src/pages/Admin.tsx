@@ -4291,6 +4291,9 @@ export default function Admin() {
           <a href="/portal/teacher" className="block px-3 py-2 text-sm font-quick font-semibold text-stone-400 hover:text-sage-700 rounded-xl hover:bg-stone-50 transition">
             ← Teacher Portal
           </a>
+          <a href="/portal/parent" className="block px-3 py-2 text-sm font-quick font-semibold text-stone-400 hover:text-sage-700 rounded-xl hover:bg-stone-50 transition">
+            ← Parent Portal
+          </a>
           <button onClick={() => signOut(auth)}
             className="w-full text-left px-3 py-2 text-sm font-quick font-semibold text-stone-400 hover:text-rose-600 rounded-xl hover:bg-stone-50 transition">
             Sign Out
@@ -4310,6 +4313,7 @@ export default function Admin() {
             </div>
             <div className="flex items-center gap-3">
               <a href="/portal/teacher" className="text-xs font-quick font-semibold text-stone-500 hover:text-sage-700 transition">Teacher Portal</a>
+              <a href="/portal/parent" className="text-xs font-quick font-semibold text-stone-500 hover:text-sage-700 transition">Parent Portal</a>
               <a href="/" className="text-xs font-quick font-semibold text-stone-500 hover:text-sage-700 transition">View Site</a>
               <button onClick={() => signOut(auth)}
                 className="text-xs font-quick font-semibold text-stone-500 hover:text-rose-600 transition">
