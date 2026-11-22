@@ -459,11 +459,6 @@ export default function ForestCanopy() {
                                 ? <p className="text-stone-600 text-sm leading-relaxed">{profile.bio}</p>
                                 : <p className="text-stone-400 text-sm italic">Bio coming soon.</p>
                               }
-                              {profile.schoolEmail && (
-                                <a href={`mailto:${profile.schoolEmail}`} className="inline-flex items-center gap-1.5 text-xs font-semibold text-sage-600 hover:text-sage-800 transition">
-                                  ✉️ {profile.schoolEmail}
-                                </a>
-                              )}
                             </div>
                           </div>
                         )
