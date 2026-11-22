@@ -172,21 +172,18 @@ function ChildDetail({ data, onBack }: {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex border-b border-stone-200 mb-6 overflow-x-auto">
-        {([
-          ['announcements', `Announcements (${announcements.length})`],
-          ['attendance', `Attendance (${totalCount})`],
-          ['homework', `Homework${homeworkAssignments.length > 0 ? ` (${homeworkAssignments.length})` : ''}`],
-          ['missedWork', `Missed Work${missedWorkItems.length > 0 ? ` (${missedWorkItems.length})` : ''}`],
-        ] as const).map(([t, label]) => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`px-3 py-2.5 text-xs font-semibold font-quick border-b-2 -mb-px transition whitespace-nowrap flex-shrink-0 ${
-              tab === t ? 'border-sage-600 text-sage-700' : 'border-transparent text-stone-400 hover:text-stone-600'
-            }`}>
-            {label}
-          </button>
-        ))}
+      {/* Section dropdown */}
+      <div className="mb-6">
+        <select
+          value={tab}
+          onChange={e => setTab(e.target.value as typeof tab)}
+          className="w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold font-quick text-stone-700 focus:outline-none focus:ring-2 focus:ring-sage-400 cursor-pointer"
+        >
+          <option value="announcements">Announcements ({announcements.length})</option>
+          <option value="attendance">Attendance ({totalCount})</option>
+          <option value="homework">Homework{homeworkAssignments.length > 0 ? ` (${homeworkAssignments.length})` : ''}</option>
+          <option value="missedWork">Missed Work{missedWorkItems.length > 0 ? ` (${missedWorkItems.length})` : ''}</option>
+        </select>
       </div>
 
       {loading ? (
