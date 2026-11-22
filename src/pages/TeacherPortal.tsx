@@ -2705,12 +2705,17 @@ export default function TeacherPortal() {
 
   async function loadClasses() {
     setClassesLoading(true)
-    let q
-    if (impersonation) q = query(collection(db, 'classes'), where('teacherUid', '==', impersonation.uid))
-    else if (role === 'admin') q = query(collection(db, 'classes'), orderBy('createdAt', 'desc'))
-    else q = query(collection(db, 'classes'), where('teacherUid', '==', user!.uid))
-    const snap = await getDocs(q)
-    setClasses(snap.docs.map(d => ({ id: d.id, ...d.data() } as AcademyClass)))
+    const uid = impersonation?.uid ?? user!.uid
+    const [byPrimary, byArray] = await Promise.all([
+      getDocs(query(collection(db, 'classes'), where('teacherUid', '==', uid))),
+      getDocs(query(collection(db, 'classes'), where('teacherUids', 'array-contains', uid))),
+    ])
+    const seen = new Set<string>()
+    const merged: AcademyClass[] = []
+    ;[...byPrimary.docs, ...byArray.docs].forEach(d => {
+      if (!seen.has(d.id)) { seen.add(d.id); merged.push({ id: d.id, ...d.data() } as AcademyClass) }
+    })
+    setClasses(merged)
     setClassesLoading(false)
   }
 

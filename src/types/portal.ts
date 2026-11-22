@@ -1,4 +1,6 @@
 export interface AcademyClass {
+  teacherUids?: string[]   // multi-teacher support
+  teacherNames?: string[]  // display names for all assigned teachers
   id: string
   name: string
   description?: string

@@ -945,6 +945,7 @@ function UsersTab() {
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null)
   const [studentForm, setStudentForm] = useState<{ firstName: string; lastName: string; notes: string; tuitionAmount: number }>({ firstName: '', lastName: '', notes: '', tuitionAmount: 0 })
   const [savingStudent, setSavingStudent] = useState(false)
+  const [roleError, setRoleError] = useState<string | null>(null)
 
   const inviteUserFn = httpsCallable(functions, 'inviteUser')
   const setUserRoleFn = httpsCallable(functions, 'setUserRole')
@@ -1021,11 +1022,13 @@ function UsersTab() {
 
   async function handleRoleChange(uid: string, role: UserRole) {
     setChangingRoleUid(uid)
+    setRoleError(null)
     try {
       await setUserRoleFn({ uid, role })
       setUsers(prev => prev.map(u => u.uid === uid ? { ...u, role } : u))
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Failed to change role.')
+      setRoleError(err instanceof Error ? err.message : 'Failed to change role.')
+      setTimeout(() => setRoleError(null), 5000)
     } finally {
       setChangingRoleUid(null)
     }
@@ -1090,6 +1093,11 @@ function UsersTab() {
           + Invite User
         </button>
       </div>
+      {roleError && (
+        <div className="mb-4 bg-rose-50 border border-rose-200 rounded-2xl px-5 py-3 text-sm font-quick text-rose-700">
+          Role change failed: {roleError}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-16">
@@ -1429,7 +1437,7 @@ function UsersTab() {
 // ── Classes Tab ───────────────────────────────────────────────────────────────
 
 const EMPTY_CLASS: Omit<AcademyClass, 'id' | 'createdAt'> = {
-  name: '', description: '', teacherUid: '', teacherName: '', schedule: '', tuitionAmount: 0, nextReportDeadline: '',
+  name: '', description: '', teacherUid: '', teacherName: '', teacherUids: [], teacherNames: [], schedule: '', tuitionAmount: 0, nextReportDeadline: '',
 }
 
 function ClassesTab() {
@@ -1514,7 +1522,9 @@ function ClassesTab() {
   }
 
   function openEditClass(cls: AcademyClass) {
-    setClassForm({ name: cls.name, description: cls.description ?? '', teacherUid: cls.teacherUid, teacherName: cls.teacherName, schedule: cls.schedule ?? '', tuitionAmount: cls.tuitionAmount ?? 0, nextReportDeadline: cls.nextReportDeadline ?? '' })
+    const existingUids = cls.teacherUids?.length ? cls.teacherUids : (cls.teacherUid ? [cls.teacherUid] : [])
+    const existingNames = cls.teacherNames?.length ? cls.teacherNames : (cls.teacherName ? [cls.teacherName] : [])
+    setClassForm({ name: cls.name, description: cls.description ?? '', teacherUid: existingUids[0] ?? '', teacherName: existingNames[0] ?? '', teacherUids: existingUids, teacherNames: existingNames, schedule: cls.schedule ?? '', tuitionAmount: cls.tuitionAmount ?? 0, nextReportDeadline: cls.nextReportDeadline ?? '' })
     setEditingClassId(cls.id)
     setClassFormOpen(true)
   }
@@ -1565,8 +1575,8 @@ function ClassesTab() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <h2 className="font-kids text-3xl text-wood-dark">{selectedClass.name}</h2>
-            {selectedClass.teacherName && (
-              <p className="text-stone-500 text-sm font-quick mt-1">Teacher: {selectedClass.teacherName}</p>
+            {(selectedClass.teacherNames?.length || selectedClass.teacherName) && (
+              <p className="text-stone-500 text-sm font-quick mt-1">Teacher: {selectedClass.teacherNames?.join(', ') || selectedClass.teacherName}</p>
             )}
             {selectedClass.schedule && (
               <p className="text-stone-400 text-sm font-quick">{selectedClass.schedule}</p>
@@ -1631,7 +1641,7 @@ function ClassesTab() {
             {selectedClass.description && (
               <p className="text-stone-600 text-sm leading-relaxed">{selectedClass.description}</p>
             )}
-            <p className="text-stone-500 text-sm font-quick"><span className="font-semibold">Teacher:</span> {selectedClass.teacherName || '—'}</p>
+            <p className="text-stone-500 text-sm font-quick"><span className="font-semibold">Teacher:</span> {selectedClass.teacherNames?.join(', ') || selectedClass.teacherName || '—'}</p>
             <p className="text-stone-500 text-sm font-quick"><span className="font-semibold">Schedule:</span> {selectedClass.schedule || '—'}</p>
           </div>
         )}
@@ -1803,7 +1813,7 @@ function ClassesTab() {
               <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedClass(cls)}>
                 <div className="font-semibold text-stone-800 font-quick">{cls.name}</div>
                 <div className="text-xs text-stone-400 font-quick">
-                  {cls.teacherName || 'No teacher assigned'}{cls.schedule ? ` · ${cls.schedule}` : ''}
+                  {cls.teacherNames?.join(', ') || cls.teacherName || 'No teacher assigned'}{cls.schedule ? ` · ${cls.schedule}` : ''}
                 </div>
               </div>
               <div className="flex gap-3 text-xs font-quick font-semibold flex-shrink-0">
@@ -1869,20 +1879,38 @@ function ClassFormModal({
               className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm" />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Teacher</label>
-            <select
-              value={form.teacherUid}
-              onChange={e => {
-                const selected = teachers.find(t => t.uid === e.target.value)
-                onChange({ ...form, teacherUid: e.target.value, teacherName: selected?.displayName || selected?.email || '' })
-              }}
-              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 text-sm"
-            >
-              <option value="">No teacher assigned</option>
-              {teachers.map(t => (
-                <option key={t.uid} value={t.uid}>{t.displayName || t.email}</option>
-              ))}
-            </select>
+            <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Teachers</label>
+            <div className="rounded-2xl border border-stone-200 bg-stone-50 divide-y divide-stone-100 overflow-hidden">
+              {teachers.length === 0 && (
+                <p className="px-4 py-3 text-xs text-stone-400 font-quick">No teachers found.</p>
+              )}
+              {teachers.map(t => {
+                const checked = (form.teacherUids ?? []).includes(t.uid)
+                return (
+                  <label key={t.uid} className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-stone-100 transition">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        const uids = form.teacherUids ?? []
+                        const names = form.teacherNames ?? []
+                        const newUids = checked ? uids.filter(u => u !== t.uid) : [...uids, t.uid]
+                        const newNames = checked ? names.filter(n => n !== (t.displayName || t.email)) : [...names, t.displayName || t.email || '']
+                        onChange({
+                          ...form,
+                          teacherUids: newUids,
+                          teacherNames: newNames,
+                          teacherUid: newUids[0] ?? '',
+                          teacherName: newNames[0] ?? '',
+                        })
+                      }}
+                      className="rounded accent-sage-600"
+                    />
+                    <span className="text-sm font-quick text-stone-700">{t.displayName || t.email}</span>
+                  </label>
+                )
+              })}
+            </div>
           </div>
           <div>
             <label className="block text-xs font-semibold text-stone-600 font-quick mb-1">Schedule</label>
