@@ -1148,7 +1148,7 @@ function UsersTab() {
                   <button
                     onClick={() => {
                       sessionStorage.setItem('impersonating', JSON.stringify({ uid: u.uid, email: u.email, role: u.role, displayName: u.displayName || u.email }))
-                      window.location.href = u.role === 'teacher' ? '/portal/teacher' : '/portal/parent'
+                      window.location.href = u.role === 'teacher' ? '/portal/teacher' : u.role === 'admin' ? '/admin' : '/portal/parent'
                     }}
                     className="text-xs font-semibold font-quick text-stone-400 hover:text-sage-700 border border-stone-200 hover:border-sage-400 px-3 py-1.5 rounded-lg transition"
                   >
