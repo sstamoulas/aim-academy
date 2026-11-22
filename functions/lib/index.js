@@ -48,9 +48,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.clearSeedData = exports.seedDatabase = exports.notifyCaughtUpParent = exports.notifyMissedWorkParent = exports.rejectRegistration = exports.notifyAnnouncementParents = exports.sendAttendanceReminders = exports.sendPaymentReminders = exports.markPayment = exports.approveRegistration = exports.deleteUser = exports.inviteUser = exports.setUserRole = exports.createPaymentIntent = exports.submitContactForm = void 0;
-const v1_1 = require("firebase-functions/v1");
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { config: functionsConfig } = require('firebase-functions');
+const https_1 = require("firebase-functions/v2/https");
+const params_1 = require("firebase-functions/params");
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
 const auth_1 = require("firebase-admin/auth");
@@ -58,19 +57,10 @@ const cors_1 = __importDefault(require("cors"));
 const https = __importStar(require("https"));
 const nodemailer = __importStar(require("nodemailer"));
 (0, app_1.initializeApp)();
+const stripeSecret = (0, params_1.defineSecret)('STRIPE_SECRET_KEY');
+const gmailUser = (0, params_1.defineSecret)('GMAIL_USER');
+const gmailPass = (0, params_1.defineSecret)('GMAIL_PASS');
 const corsMiddleware = (0, cors_1.default)({ origin: true });
-/** Read runtime secrets from Firebase environment config (v1-style).
- *  Set with: firebase functions:config:set gmail.user=... gmail.pass=... stripe.secret=...
- */
-function getCfg() {
-    var _a, _b, _c, _d, _e, _f;
-    const cfg = functionsConfig();
-    return {
-        gmailUser: (_b = (_a = cfg.gmail) === null || _a === void 0 ? void 0 : _a.user) !== null && _b !== void 0 ? _b : '',
-        gmailPass: (_d = (_c = cfg.gmail) === null || _c === void 0 ? void 0 : _c.pass) !== null && _d !== void 0 ? _d : '',
-        stripeSecret: (_f = (_e = cfg.stripe) === null || _e === void 0 ? void 0 : _e.secret) !== null && _f !== void 0 ? _f : '',
-    };
-}
 function createStripePaymentIntent(secretKey, amount, currency, description) {
     return new Promise((resolve, reject) => {
         const params = new URLSearchParams({
@@ -132,7 +122,7 @@ function sendEmail(opts) {
         html: opts.html,
     });
 }
-exports.submitContactForm = v1_1.https.onRequest((req, res) => {
+exports.submitContactForm = (0, https_1.onRequest)({ secrets: [gmailUser, gmailPass], timeoutSeconds: 30 }, (req, res) => {
     corsMiddleware(req, res, async () => {
         var _a;
         if (req.method !== 'POST') {
@@ -155,20 +145,19 @@ exports.submitContactForm = v1_1.https.onRequest((req, res) => {
                 submittedAt: new Date().toISOString(),
             });
             const interestList = (interests !== null && interests !== void 0 ? interests : []).join(', ') || 'None selected';
-            const { gmailUser, gmailPass } = getCfg();
             await sendEmail({
-                user: gmailUser,
-                pass: gmailPass,
+                user: gmailUser.value(),
+                pass: gmailPass.value(),
                 to: TO_EMAIL,
                 replyTo: email.trim(),
                 subject: `New contact form submission from ${name.trim()}`,
                 html: `
-          <p><strong>Name:</strong> ${name.trim()}</p>
-          <p><strong>Phone:</strong> ${phone.trim()}</p>
-          <p><strong>Email:</strong> ${email.trim()}</p>
-          <p><strong>Interested in:</strong> ${interestList}</p>
-          <p><strong>Message:</strong> ${(message === null || message === void 0 ? void 0 : message.trim()) || '(none)'}</p>
-        `,
+            <p><strong>Name:</strong> ${name.trim()}</p>
+            <p><strong>Phone:</strong> ${phone.trim()}</p>
+            <p><strong>Email:</strong> ${email.trim()}</p>
+            <p><strong>Interested in:</strong> ${interestList}</p>
+            <p><strong>Message:</strong> ${(message === null || message === void 0 ? void 0 : message.trim()) || '(none)'}</p>
+          `,
             });
             res.json({ success: true });
         }
@@ -179,7 +168,7 @@ exports.submitContactForm = v1_1.https.onRequest((req, res) => {
         }
     });
 });
-exports.createPaymentIntent = v1_1.https.onRequest((req, res) => {
+exports.createPaymentIntent = (0, https_1.onRequest)({ secrets: [stripeSecret], timeoutSeconds: 30 }, (req, res) => {
     corsMiddleware(req, res, async () => {
         var _a, _b;
         if (req.method !== 'POST') {
@@ -193,8 +182,7 @@ exports.createPaymentIntent = v1_1.https.onRequest((req, res) => {
             return;
         }
         try {
-            const { stripeSecret } = getCfg();
-            const paymentIntent = await createStripePaymentIntent(stripeSecret, amount, currency, description);
+            const paymentIntent = await createStripePaymentIntent(stripeSecret.value(), amount, currency, description);
             res.json({ clientSecret: paymentIntent.client_secret });
         }
         catch (err) {
@@ -207,14 +195,14 @@ exports.createPaymentIntent = v1_1.https.onRequest((req, res) => {
 // ── Role management (admin-only) ──────────────────────────────────────────────
 const VALID_ROLES = ['admin', 'teacher', 'parent'];
 /** Change an existing user's role. Caller must have role === 'admin'. */
-exports.setUserRole = v1_1.https.onCall(async (data, context) => {
+exports.setUserRole = (0, https_1.onCall)(async (request) => {
     var _a, _b;
-    if (((_b = (_a = context.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
-        throw new v1_1.https.HttpsError('permission-denied', 'Only admins can set user roles.');
+    if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admins can set user roles.');
     }
-    const { uid, role } = data;
+    const { uid, role } = request.data;
     if (!uid || !VALID_ROLES.includes(role)) {
-        throw new v1_1.https.HttpsError('invalid-argument', 'uid and a valid role are required.');
+        throw new https_1.HttpsError('invalid-argument', 'uid and a valid role are required.');
     }
     await (0, auth_1.getAuth)().setCustomUserClaims(uid, { role });
     await (0, firestore_1.getFirestore)().collection('users').doc(uid).set({ role }, { merge: true });
@@ -222,14 +210,14 @@ exports.setUserRole = v1_1.https.onCall(async (data, context) => {
 });
 /** Invite a new user by email with a role. Creates the account if needed and
  *  emails them a password-setup link. Caller must have role === 'admin'. */
-exports.inviteUser = v1_1.https.onCall(async (data, context) => {
+exports.inviteUser = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
     var _a, _b;
-    if (((_b = (_a = context.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
-        throw new v1_1.https.HttpsError('permission-denied', 'Only admins can invite users.');
+    if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admins can invite users.');
     }
-    const { email, role, displayName } = data;
+    const { email, role, displayName } = request.data;
     if (!email || !VALID_ROLES.includes(role)) {
-        throw new v1_1.https.HttpsError('invalid-argument', 'email and a valid role are required.');
+        throw new https_1.HttpsError('invalid-argument', 'email and a valid role are required.');
     }
     // Create or fetch user
     let uid;
@@ -252,23 +240,22 @@ exports.inviteUser = v1_1.https.onCall(async (data, context) => {
         displayName: displayName || '',
         role,
         createdAt: new Date().toISOString(),
-        invitedBy: context.auth.uid,
+        invitedBy: request.auth.uid,
     }, { merge: true });
     // Generate password-reset link and email it
     const resetLink = await (0, auth_1.getAuth)().generatePasswordResetLink(email);
     const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
-    const { gmailUser, gmailPass } = getCfg();
     try {
         await sendEmail({
-            user: gmailUser,
-            pass: gmailPass,
+            user: gmailUser.value(),
+            pass: gmailPass.value(),
             to: email,
             subject: `You've been invited to AIM Academy as ${roleLabel}`,
             html: `
-        <p>You have been invited to the <strong>Anas Ibn Malik Academy</strong> portal as a <strong>${roleLabel}</strong>.</p>
-        <p><a href="${resetLink}">Click here to set your password and get started →</a></p>
-        <p style="color:#888;font-size:12px;">This link expires in 1 hour.</p>
-      `,
+          <p>You have been invited to the <strong>Anas Ibn Malik Academy</strong> portal as a <strong>${roleLabel}</strong>.</p>
+          <p><a href="${resetLink}">Click here to set your password and get started →</a></p>
+          <p style="color:#888;font-size:12px;">This link expires in 1 hour.</p>
+        `,
         });
     }
     catch (emailErr) {
@@ -277,14 +264,14 @@ exports.inviteUser = v1_1.https.onCall(async (data, context) => {
     return { success: true, resetLink };
 });
 /** Delete a user from Auth and Firestore. Caller must have role === 'admin'. */
-exports.deleteUser = v1_1.https.onCall(async (data, context) => {
+exports.deleteUser = (0, https_1.onCall)(async (request) => {
     var _a, _b;
-    if (((_b = (_a = context.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
-        throw new v1_1.https.HttpsError('permission-denied', 'Only admins can delete users.');
+    if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admins can delete users.');
     }
-    const { uid, deleteStudents = false } = data;
+    const { uid, deleteStudents = false } = request.data;
     if (!uid)
-        throw new v1_1.https.HttpsError('invalid-argument', 'uid is required.');
+        throw new https_1.HttpsError('invalid-argument', 'uid is required.');
     const db = (0, firestore_1.getFirestore)();
     // Look up the user's email so we can clean up email-linked records
     const authUser = await (0, auth_1.getAuth)().getUser(uid);
@@ -310,19 +297,19 @@ exports.deleteUser = v1_1.https.onCall(async (data, context) => {
     return { success: true };
 });
 /** Approve a pending family registration. Sets parent role, creates students, sends welcome email. */
-exports.approveRegistration = v1_1.https.onCall(async (data, context) => {
+exports.approveRegistration = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
-    if (((_b = (_a = context.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
-        throw new v1_1.https.HttpsError('permission-denied', 'Only admins can approve registrations.');
+    if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admins can approve registrations.');
     }
-    const { registrationId, classAssignments = [] } = data;
+    const { registrationId, classAssignments = [] } = request.data;
     if (!registrationId)
-        throw new v1_1.https.HttpsError('invalid-argument', 'registrationId is required.');
+        throw new https_1.HttpsError('invalid-argument', 'registrationId is required.');
     const db = (0, firestore_1.getFirestore)();
     const regRef = db.collection('registrations').doc(registrationId);
     const regDoc = await regRef.get();
     if (!regDoc.exists)
-        throw new v1_1.https.HttpsError('not-found', 'Registration not found.');
+        throw new https_1.HttpsError('not-found', 'Registration not found.');
     const reg = regDoc.data();
     const children = (_c = reg.children) !== null && _c !== void 0 ? _c : [];
     // Set parent role claim
@@ -333,7 +320,7 @@ exports.approveRegistration = v1_1.https.onCall(async (data, context) => {
         displayName: reg.parentName,
         role: 'parent',
         createdAt: new Date().toISOString(),
-        invitedBy: context.auth.uid,
+        invitedBy: request.auth.uid,
     }, { merge: true });
     // Look up the current year default fee from the first assigned class
     let defaultTuitionAmount = null;
@@ -391,22 +378,21 @@ exports.approveRegistration = v1_1.https.onCall(async (data, context) => {
     await regRef.update({
         status: 'approved',
         reviewedAt: new Date().toISOString(),
-        reviewedBy: context.auth.uid,
+        reviewedBy: request.auth.uid,
     });
     // Send welcome email
-    const { gmailUser, gmailPass } = getCfg();
     try {
         await sendEmail({
-            user: gmailUser,
-            pass: gmailPass,
+            user: gmailUser.value(),
+            pass: gmailPass.value(),
             to: reg.email,
             subject: 'Your AIM Academy registration has been approved!',
             html: `
-        <p>As-salamu alaykum <strong>${reg.parentName}</strong>,</p>
-        <p>Your family registration with <strong>Anas Ibn Malik Academy</strong> has been approved!</p>
-        <p><a href="https://aimava.org/portal/parent">Click here to access the Parent Portal →</a></p>
-        <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br>Anas Ibn Malik Academy</p>
-      `,
+          <p>As-salamu alaykum <strong>${reg.parentName}</strong>,</p>
+          <p>Your family registration with <strong>Anas Ibn Malik Academy</strong> has been approved!</p>
+          <p><a href="https://aimava.org/portal/parent">Click here to access the Parent Portal →</a></p>
+          <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br>Anas Ibn Malik Academy</p>
+        `,
         });
     }
     catch (emailErr) {
@@ -416,14 +402,14 @@ exports.approveRegistration = v1_1.https.onCall(async (data, context) => {
 });
 // ── Payment tracking ──────────────────────────────────────────────────────────
 /** Mark or unmark a student's tuition payment for a given month. */
-exports.markPayment = v1_1.https.onCall(async (data, context) => {
+exports.markPayment = (0, https_1.onCall)(async (request) => {
     var _a, _b, _c, _d;
-    if (((_b = (_a = context.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
-        throw new v1_1.https.HttpsError('permission-denied', 'Only admins can mark payments.');
+    if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admins can mark payments.');
     }
-    const { studentId, studentName, parentEmail, tuitionAmount, month, paid } = data;
+    const { studentId, studentName, parentEmail, tuitionAmount, month, paid } = request.data;
     if (!studentId || !month) {
-        throw new v1_1.https.HttpsError('invalid-argument', 'studentId and month are required.');
+        throw new https_1.HttpsError('invalid-argument', 'studentId and month are required.');
     }
     const db = (0, firestore_1.getFirestore)();
     const docId = `${studentId}__${month}`;
@@ -436,7 +422,7 @@ exports.markPayment = v1_1.https.onCall(async (data, context) => {
             tuitionAmount,
             month,
             paidAt: new Date().toISOString(),
-            markedByUid: (_d = (_c = context.auth) === null || _c === void 0 ? void 0 : _c.uid) !== null && _d !== void 0 ? _d : '',
+            markedByUid: (_d = (_c = request.auth) === null || _c === void 0 ? void 0 : _c.uid) !== null && _d !== void 0 ? _d : '',
         });
     }
     else {
@@ -445,14 +431,14 @@ exports.markPayment = v1_1.https.onCall(async (data, context) => {
     return { success: true };
 });
 /** Send tuition reminder emails to parents with unpaid students for a given month. */
-exports.sendPaymentReminders = v1_1.https.onCall(async (data, context) => {
+exports.sendPaymentReminders = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
     var _a, _b;
-    if (((_b = (_a = context.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
-        throw new v1_1.https.HttpsError('permission-denied', 'Only admins can send payment reminders.');
+    if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admins can send payment reminders.');
     }
-    const { month } = data;
+    const { month } = request.data;
     if (!month) {
-        throw new v1_1.https.HttpsError('invalid-argument', 'month is required.');
+        throw new https_1.HttpsError('invalid-argument', 'month is required.');
     }
     const db = (0, firestore_1.getFirestore)();
     // Get all students with tuitionAmount > 0
@@ -477,25 +463,24 @@ exports.sendPaymentReminders = v1_1.https.onCall(async (data, context) => {
     const [year, monthNum] = month.split('-');
     const monthLabel = new Date(Number(year), Number(monthNum) - 1, 1)
         .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    const { gmailUser, gmailPass } = getCfg();
     let emailsSent = 0;
     for (const [parentEmail, children] of byParent) {
         const childList = children
             .map(c => `<li><strong>${c.firstName} ${c.lastName}</strong> — $${(c.tuitionAmount / 100).toFixed(2)}/mo</li>`)
             .join('\n');
         await sendEmail({
-            user: gmailUser,
-            pass: gmailPass,
+            user: gmailUser.value(),
+            pass: gmailPass.value(),
             to: parentEmail,
             subject: `AIM Academy — Tuition Reminder for ${monthLabel}`,
             html: `
-        <p>As-salamu alaykum,</p>
-        <p>This is a friendly reminder that tuition for <strong>${monthLabel}</strong> has not yet been received for the following student(s):</p>
-        <ul>${childList}</ul>
-        <p>Please send payment via Zelle to <strong>aimacademyva@gmail.com</strong>.</p>
-        <p>If you have already sent payment, please disregard this message. Jazak Allah khayran!</p>
-        <p style="color:#888;font-size:12px;">Anas Ibn Malik Academy</p>
-      `,
+          <p>As-salamu alaykum,</p>
+          <p>This is a friendly reminder that tuition for <strong>${monthLabel}</strong> has not yet been received for the following student(s):</p>
+          <ul>${childList}</ul>
+          <p>Please send payment via Zelle to <strong>aimacademyva@gmail.com</strong>.</p>
+          <p>If you have already sent payment, please disregard this message. Jazak Allah khayran!</p>
+          <p style="color:#888;font-size:12px;">Anas Ibn Malik Academy</p>
+        `,
         });
         emailsSent++;
     }
@@ -503,12 +488,12 @@ exports.sendPaymentReminders = v1_1.https.onCall(async (data, context) => {
 });
 // ── Attendance reminders ──────────────────────────────────────────────────────
 /** Send attendance reminder emails to teachers who haven't submitted for the current week. */
-exports.sendAttendanceReminders = v1_1.https.onCall(async (data, context) => {
+exports.sendAttendanceReminders = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
     var _a, _b, _c;
-    if (((_b = (_a = context.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
-        throw new v1_1.https.HttpsError('permission-denied', 'Only admins can send attendance reminders.');
+    if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admins can send attendance reminders.');
     }
-    const { classIds } = data;
+    const { classIds } = request.data;
     // Current week Monday–Sunday (ISO)
     const now = new Date();
     const day = now.getDay();
@@ -551,7 +536,6 @@ exports.sendAttendanceReminders = v1_1.https.onCall(async (data, context) => {
         byTeacher.get(cls.teacherUid).classNames.push(cls.name);
     }));
     // Look up teacher emails and send
-    const { gmailUser, gmailPass } = getCfg();
     let emailsSent = 0;
     for (const [teacherUid, { teacherName, classNames }] of byTeacher) {
         const userDoc = await db.collection('users').doc(teacherUid).get();
@@ -562,18 +546,18 @@ exports.sendAttendanceReminders = v1_1.https.onCall(async (data, context) => {
         const greeting = teacherName ? `Ustadh/Ustadha ${teacherName}` : 'Teacher';
         try {
             await sendEmail({
-                user: gmailUser,
-                pass: gmailPass,
+                user: gmailUser.value(),
+                pass: gmailPass.value(),
                 to: teacherEmail,
                 subject: `Attendance Reminder — Week of ${weekLabel}`,
                 html: `
-          <p>As-salamu alaykum <strong>${greeting}</strong>,</p>
-          <p>This is a friendly reminder that attendance has not yet been submitted for the week of <strong>${weekLabel}</strong> for the following class(es):</p>
-          <ul>${classList}</ul>
-          <p>Please log in to the Teacher Portal to submit attendance:</p>
-          <p><a href="https://aimava.org/portal/teacher">Teacher Portal →</a></p>
-          <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br>Anas Ibn Malik Academy</p>
-        `,
+            <p>As-salamu alaykum <strong>${greeting}</strong>,</p>
+            <p>This is a friendly reminder that attendance has not yet been submitted for the week of <strong>${weekLabel}</strong> for the following class(es):</p>
+            <ul>${classList}</ul>
+            <p>Please log in to the Teacher Portal to submit attendance:</p>
+            <p><a href="https://aimava.org/portal/teacher">Teacher Portal →</a></p>
+            <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br>Anas Ibn Malik Academy</p>
+          `,
             });
             emailsSent++;
         }
@@ -585,15 +569,15 @@ exports.sendAttendanceReminders = v1_1.https.onCall(async (data, context) => {
 });
 // ── Announcement notifications ────────────────────────────────────────────────
 /** Email all parents in a class when a teacher posts an announcement. */
-exports.notifyAnnouncementParents = v1_1.https.onCall(async (data, context) => {
+exports.notifyAnnouncementParents = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
     var _a, _b;
-    const role = (_b = (_a = context.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role;
+    const role = (_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role;
     if (role !== 'admin' && role !== 'teacher') {
-        throw new v1_1.https.HttpsError('permission-denied', 'Only teachers and admins can send announcement notifications.');
+        throw new https_1.HttpsError('permission-denied', 'Only teachers and admins can send announcement notifications.');
     }
-    const { classId, className, teacherName, title, body } = data;
+    const { classId, className, teacherName, title, body } = request.data;
     if (!classId || !title) {
-        throw new v1_1.https.HttpsError('invalid-argument', 'classId and title are required.');
+        throw new https_1.HttpsError('invalid-argument', 'classId and title are required.');
     }
     const db = (0, firestore_1.getFirestore)();
     const studentsSnap = await db.collection('students').where('classIds', 'array-contains', classId).get();
@@ -608,25 +592,24 @@ exports.notifyAnnouncementParents = v1_1.https.onCall(async (data, context) => {
         return { success: true, emailsSent: 0 };
     const teacherLabel = teacherName ? `Ustadh/Ustadha ${teacherName}` : 'Your teacher';
     const bodyHtml = body.replace(/\n/g, '<br>');
-    const { gmailUser, gmailPass } = getCfg();
     let emailsSent = 0;
     for (const parentEmail of parentEmails) {
         try {
             await sendEmail({
-                user: gmailUser,
-                pass: gmailPass,
+                user: gmailUser.value(),
+                pass: gmailPass.value(),
                 to: parentEmail,
                 subject: `New Announcement — ${className}`,
                 html: `
-          <p>As-salamu alaykum,</p>
-          <p>${teacherLabel} has posted a new announcement for <strong>${className}</strong>:</p>
-          <div style="background:#f5f5f0;border-left:4px solid #7a9e7e;padding:12px 16px;margin:16px 0;border-radius:4px">
-            <p style="margin:0 0 6px 0;font-weight:600">${title}</p>
-            <p style="margin:0;color:#444">${bodyHtml}</p>
-          </div>
-          <p><a href="https://aimava.org/portal/parent">View in Parent Portal →</a></p>
-          <p style="color:#888;font-size:12px;">Anas Ibn Malik Academy</p>
-        `,
+            <p>As-salamu alaykum,</p>
+            <p>${teacherLabel} has posted a new announcement for <strong>${className}</strong>:</p>
+            <div style="background:#f5f5f0;border-left:4px solid #7a9e7e;padding:12px 16px;margin:16px 0;border-radius:4px">
+              <p style="margin:0 0 6px 0;font-weight:600">${title}</p>
+              <p style="margin:0;color:#444">${bodyHtml}</p>
+            </div>
+            <p><a href="https://aimava.org/portal/parent">View in Parent Portal →</a></p>
+            <p style="color:#888;font-size:12px;">Anas Ibn Malik Academy</p>
+          `,
             });
             emailsSent++;
         }
@@ -637,41 +620,40 @@ exports.notifyAnnouncementParents = v1_1.https.onCall(async (data, context) => {
     return { success: true, emailsSent };
 });
 /** Reject a pending family registration with an optional reason. */
-exports.rejectRegistration = v1_1.https.onCall(async (data, context) => {
+exports.rejectRegistration = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
     var _a, _b;
-    if (((_b = (_a = context.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
-        throw new v1_1.https.HttpsError('permission-denied', 'Only admins can reject registrations.');
+    if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admins can reject registrations.');
     }
-    const { registrationId, reason = '' } = data;
+    const { registrationId, reason = '' } = request.data;
     if (!registrationId)
-        throw new v1_1.https.HttpsError('invalid-argument', 'registrationId is required.');
+        throw new https_1.HttpsError('invalid-argument', 'registrationId is required.');
     const db = (0, firestore_1.getFirestore)();
     const regRef = db.collection('registrations').doc(registrationId);
     const regDoc = await regRef.get();
     if (!regDoc.exists)
-        throw new v1_1.https.HttpsError('not-found', 'Registration not found.');
+        throw new https_1.HttpsError('not-found', 'Registration not found.');
     const reg = regDoc.data();
     await regRef.update({
         status: 'rejected',
         rejectReason: reason,
         reviewedAt: new Date().toISOString(),
-        reviewedBy: context.auth.uid,
+        reviewedBy: request.auth.uid,
     });
     // Notify parent
-    const { gmailUser, gmailPass } = getCfg();
     try {
         await sendEmail({
-            user: gmailUser,
-            pass: gmailPass,
+            user: gmailUser.value(),
+            pass: gmailPass.value(),
             to: reg.email,
             subject: 'AIM Academy — Registration Update',
             html: `
-        <p>As-salamu alaykum <strong>${reg.parentName}</strong>,</p>
-        <p>We have reviewed your family registration with Anas Ibn Malik Academy.</p>
-        ${reason ? `<p>Unfortunately, we are unable to approve your registration at this time.</p><p><strong>Reason:</strong> ${reason}</p>` : '<p>Unfortunately, we are unable to approve your registration at this time.</p>'}
-        <p>Please contact us if you have any questions.</p>
-        <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br>Anas Ibn Malik Academy</p>
-      `,
+          <p>As-salamu alaykum <strong>${reg.parentName}</strong>,</p>
+          <p>We have reviewed your family registration with Anas Ibn Malik Academy.</p>
+          ${reason ? `<p>Unfortunately, we are unable to approve your registration at this time.</p><p><strong>Reason:</strong> ${reason}</p>` : '<p>Unfortunately, we are unable to approve your registration at this time.</p>'}
+          <p>Please contact us if you have any questions.</p>
+          <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br>Anas Ibn Malik Academy</p>
+        `,
         });
     }
     catch (emailErr) {
@@ -681,26 +663,26 @@ exports.rejectRegistration = v1_1.https.onCall(async (data, context) => {
 });
 // ── notifyMissedWorkParent ────────────────────────────────────────────────────
 // Teacher/admin: sends parent an email about their child's missed work.
-exports.notifyMissedWorkParent = v1_1.https.onCall(async (data, context) => {
+exports.notifyMissedWorkParent = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
     var _a;
     const db = (0, firestore_1.getFirestore)();
-    if (!context.auth)
-        throw new v1_1.https.HttpsError('unauthenticated', 'Must be signed in.');
-    const role = (_a = context.auth.token) === null || _a === void 0 ? void 0 : _a.role;
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+    const role = (_a = request.auth.token) === null || _a === void 0 ? void 0 : _a.role;
     if (role !== 'teacher' && role !== 'admin') {
-        throw new v1_1.https.HttpsError('permission-denied', 'Teachers and admins only.');
+        throw new https_1.HttpsError('permission-denied', 'Teachers and admins only.');
     }
-    const { missedWorkId } = data;
+    const { missedWorkId } = request.data;
     if (!missedWorkId)
-        throw new v1_1.https.HttpsError('invalid-argument', 'missedWorkId required.');
+        throw new https_1.HttpsError('invalid-argument', 'missedWorkId required.');
     const mwDoc = await db.collection('missedWork').doc(missedWorkId).get();
     if (!mwDoc.exists)
-        throw new v1_1.https.HttpsError('not-found', 'Missed work record not found.');
+        throw new https_1.HttpsError('not-found', 'Missed work record not found.');
     const mw = mwDoc.data();
     // Look up student to get parent email
     const stuDoc = await db.collection('students').doc(mw.studentId).get();
     if (!stuDoc.exists)
-        throw new v1_1.https.HttpsError('not-found', 'Student not found.');
+        throw new https_1.HttpsError('not-found', 'Student not found.');
     const stu = stuDoc.data();
     const parentEmail = stu.parentEmail;
     if (!parentEmail)
@@ -711,49 +693,48 @@ exports.notifyMissedWorkParent = v1_1.https.onCall(async (data, context) => {
         what.push('Islamic Studies Lesson');
     if (mw.missedHomework)
         what.push('Islamic Studies Homework/Worksheet');
-    const { gmailUser, gmailPass } = getCfg();
     const transporter = nodemailer.createTransport({
         service: 'gmail',
-        auth: { user: gmailUser, pass: gmailPass },
+        auth: { user: gmailUser.value(), pass: gmailPass.value() },
     });
     await transporter.sendMail({
-        from: `"AIM Academy" <${gmailUser}>`,
+        from: `"AIM Academy" <${gmailUser.value()}>`,
         to: parentEmail,
         subject: `Missed Work — ${mw.studentName} — ${mw.className}`,
         html: `
-      <p>As-salamu alaykum <strong>${stu.parentName || 'Dear Parent'}</strong>,</p>
-      <p>This is a reminder that <strong>${mw.studentName}</strong> was absent from <strong>${mw.className}</strong> on <strong>${dateStr}</strong>.</p>
-      ${what.length > 0 ? `
-      <p><strong>What was missed:</strong></p>
-      <ul>${what.map(w => `<li>${w}</li>`).join('')}</ul>
-      ` : ''}
-      ${mw.missedWorkNotes ? `<p><strong>Teacher's notes:</strong><br/>${mw.missedWorkNotes.replace(/\n/g, '<br/>')}</p>` : ''}
-      <p>Please reach out to the teacher if you have any questions.</p>
-      <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br/>Anas Ibn Malik Academy</p>
-    `,
+        <p>As-salamu alaykum <strong>${stu.parentName || 'Dear Parent'}</strong>,</p>
+        <p>This is a reminder that <strong>${mw.studentName}</strong> was absent from <strong>${mw.className}</strong> on <strong>${dateStr}</strong>.</p>
+        ${what.length > 0 ? `
+        <p><strong>What was missed:</strong></p>
+        <ul>${what.map(w => `<li>${w}</li>`).join('')}</ul>
+        ` : ''}
+        ${mw.missedWorkNotes ? `<p><strong>Teacher's notes:</strong><br/>${mw.missedWorkNotes.replace(/\n/g, '<br/>')}</p>` : ''}
+        <p>Please reach out to the teacher if you have any questions.</p>
+        <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br/>Anas Ibn Malik Academy</p>
+      `,
     });
     return { success: true };
 });
 // ── notifyCaughtUpParent ──────────────────────────────────────────────────────
 // Teacher/admin: sends parent an email confirming their child caught up on missed work.
-exports.notifyCaughtUpParent = v1_1.https.onCall(async (data, context) => {
+exports.notifyCaughtUpParent = (0, https_1.onCall)({ secrets: [gmailUser, gmailPass] }, async (request) => {
     const db = (0, firestore_1.getFirestore)();
-    if (!context.auth)
-        throw new v1_1.https.HttpsError('unauthenticated', 'Must be signed in.');
-    const role = context.auth.token['role'];
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+    const role = request.auth.token['role'];
     if (role !== 'teacher' && role !== 'admin') {
-        throw new v1_1.https.HttpsError('permission-denied', 'Teachers and admins only.');
+        throw new https_1.HttpsError('permission-denied', 'Teachers and admins only.');
     }
-    const { missedWorkId } = data;
+    const { missedWorkId } = request.data;
     if (!missedWorkId)
-        throw new v1_1.https.HttpsError('invalid-argument', 'missedWorkId required.');
+        throw new https_1.HttpsError('invalid-argument', 'missedWorkId required.');
     const mwDoc = await db.collection('missedWork').doc(missedWorkId).get();
     if (!mwDoc.exists)
-        throw new v1_1.https.HttpsError('not-found', 'Missed work record not found.');
+        throw new https_1.HttpsError('not-found', 'Missed work record not found.');
     const mw = mwDoc.data();
     const stuDoc = await db.collection('students').doc(mw.studentId).get();
     if (!stuDoc.exists)
-        throw new v1_1.https.HttpsError('not-found', 'Student not found.');
+        throw new https_1.HttpsError('not-found', 'Student not found.');
     const stu = stuDoc.data();
     const parentEmail = stu.parentEmail;
     if (!parentEmail)
@@ -764,39 +745,38 @@ exports.notifyCaughtUpParent = v1_1.https.onCall(async (data, context) => {
         what.push('Islamic Studies Lesson');
     if (mw.missedHomework)
         what.push('Islamic Studies Homework/Worksheet');
-    const { gmailUser, gmailPass } = getCfg();
     const transporter = nodemailer.createTransport({
         service: 'gmail',
-        auth: { user: gmailUser, pass: gmailPass },
+        auth: { user: gmailUser.value(), pass: gmailPass.value() },
     });
     await transporter.sendMail({
-        from: `"AIM Academy" <${gmailUser}>`,
+        from: `"AIM Academy" <${gmailUser.value()}>`,
         to: parentEmail,
         subject: `Caught Up — ${mw.studentName} — ${mw.className}`,
         html: `
-      <p>As-salamu alaykum <strong>${stu.parentName || 'Dear Parent'}</strong>,</p>
-      <p>Great news! <strong>${mw.studentName}</strong> has caught up on the work missed from <strong>${mw.className}</strong> on <strong>${dateStr}</strong>.</p>
-      ${what.length > 0 ? `
-      <p><strong>Work completed:</strong></p>
-      <ul>${what.map(w => `<li>${w}</li>`).join('')}</ul>
-      ` : ''}
-      ${mw.missedWorkNotes ? `<p><strong>Teacher's notes:</strong><br/>${mw.missedWorkNotes.replace(/\n/g, '<br/>')}</p>` : ''}
-      <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br/>Anas Ibn Malik Academy</p>
-    `,
+        <p>As-salamu alaykum <strong>${stu.parentName || 'Dear Parent'}</strong>,</p>
+        <p>Great news! <strong>${mw.studentName}</strong> has caught up on the work missed from <strong>${mw.className}</strong> on <strong>${dateStr}</strong>.</p>
+        ${what.length > 0 ? `
+        <p><strong>Work completed:</strong></p>
+        <ul>${what.map(w => `<li>${w}</li>`).join('')}</ul>
+        ` : ''}
+        ${mw.missedWorkNotes ? `<p><strong>Teacher's notes:</strong><br/>${mw.missedWorkNotes.replace(/\n/g, '<br/>')}</p>` : ''}
+        <p style="color:#888;font-size:12px;">Jazak Allah khayran,<br/>Anas Ibn Malik Academy</p>
+      `,
     });
     return { success: true };
 });
 // ── seedDatabase ──────────────────────────────────────────────────────────────
 // Admin-only: writes realistic test data (classes, students, attendance, etc.)
 // All documents use "seed_" prefixed IDs so they can be cleared without risk.
-exports.seedDatabase = v1_1.https.onCall(async (_data, context) => {
+exports.seedDatabase = (0, https_1.onCall)({ secrets: [] }, async (request) => {
     var _a;
     const db = (0, firestore_1.getFirestore)();
-    if (!context.auth)
-        throw new v1_1.https.HttpsError('unauthenticated', 'Must be signed in.');
-    const callerDoc = await db.collection('users').doc(context.auth.uid).get();
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+    const callerDoc = await db.collection('users').doc(request.auth.uid).get();
     if (!callerDoc.exists || ((_a = callerDoc.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin') {
-        throw new v1_1.https.HttpsError('permission-denied', 'Admin only.');
+        throw new https_1.HttpsError('permission-denied', 'Admin only.');
     }
     const TEACHER = {
         ibrahim: { uid: 'seed_teacher_ibrahim', name: 'Ibrahim Khan' },
@@ -955,14 +935,14 @@ exports.seedDatabase = v1_1.https.onCall(async (_data, context) => {
 });
 // ── clearSeedData ─────────────────────────────────────────────────────────────
 // Admin-only: deletes all documents whose ID starts with "seed_"
-exports.clearSeedData = v1_1.https.onCall(async (_data, context) => {
+exports.clearSeedData = (0, https_1.onCall)({ secrets: [] }, async (request) => {
     var _a;
     const db = (0, firestore_1.getFirestore)();
-    if (!context.auth)
-        throw new v1_1.https.HttpsError('unauthenticated', 'Must be signed in.');
-    const callerDoc = await db.collection('users').doc(context.auth.uid).get();
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+    const callerDoc = await db.collection('users').doc(request.auth.uid).get();
     if (!callerDoc.exists || ((_a = callerDoc.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin') {
-        throw new v1_1.https.HttpsError('permission-denied', 'Admin only.');
+        throw new https_1.HttpsError('permission-denied', 'Admin only.');
     }
     const collections = ['classes', 'students', 'attendance', 'studentProgress', 'weeklyHomework', 'quizResults', 'announcements', 'missedWork'];
     let deleted = 0;
